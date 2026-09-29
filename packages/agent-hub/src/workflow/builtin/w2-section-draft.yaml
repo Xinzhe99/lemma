@@ -1,0 +1,65 @@
+id: w2-section-draft
+name: 分节起草
+description: 面向大纲某一节：检索相关文献、组装上下文，起草带真实引用的 LaTeX 草稿并自检。
+inputs:
+  - section
+  - outline
+  - notes
+steps:
+  - id: collect
+    name: 收集上下文与相关文献
+    prompt: |
+      你正在为论文的一节「{{section}}」收集写作素材。
+      整体大纲如下：
+      {{outline}}
+      作者补充说明：{{notes}}
+
+      请执行：
+      1. 调用 project.context 获取 Context Pack（术语表、风格档案、项目记忆）。
+      2. 调用 library.search 与 library.search_fulltext，围绕「{{section}}」的核心概念检索库内文献。
+      3. 若库内素材不足，调用 web.search_scholar 补充检索（每次不超过 10 条）。
+      4. 挑选最相关的 5 篇文献，输出：citekey、标题、一句话相关性说明、关键页码或段落定位。
+      5. 摘录术语表中与「{{section}}」相关的强制术语与缩写约定。
+
+      输出为结构化 markdown：相关文献清单 + 术语约束 + 可引用的事实要点。
+    allowedTools:
+      - project.context
+      - library.search
+      - library.search_fulltext
+      - web.search_scholar
+    modelTier: cheap
+
+  - id: draft
+    name: 起草节内容
+    prompt: |
+      基于上一步收集的文献与术语约束，起草论文的「{{section}}」一节。
+
+      要求：
+      1. 遵循大纲中该节的定位（承上启下、篇幅与层级），遵循风格档案（句长、时态、hedging 轻重）。
+      2. 所有论断必须有据可依：只使用上一步文献清单中真实存在的条目做 \cite；禁止编造引用。
+      3. 术语与缩写严格遵守术语表；首次出现的缩写必须给出全称。
+      4. 输出纯 LaTeX 片段（不带 \documentclass），数学环境完整可编译。
+      5. 在草稿末尾以注释 % TODO: 列出尚不确定、需要作者补充的内容。
+
+      作者补充说明：{{notes}}
+    dependsOn:
+      - collect
+    allowedTools:
+      - citation.validate
+    modelTier: flagship
+
+  - id: selfcheck
+    name: 引用与编译自检
+    prompt: |
+      对上一步的「{{section}}」草稿做自检：
+      1. 提取草稿中全部 \cite 键，逐一调用 citation.validate，核对键存在且与上下文主张匹配。
+      2. 调用 tex.compile 试编译，若失败调用 tex.last_errors 获取结构化错误。
+      3. 小问题（宏包、拼写、环境闭合）直接给出修正后的片段；涉及内容的修改只给建议不动稿。
+      4. 输出自检报告：通过项 / 未通过项 / 建议项 三段清单，并附最终修订后的 LaTeX 草稿。
+    dependsOn:
+      - draft
+    allowedTools:
+      - citation.validate
+      - tex.compile
+      - tex.last_errors
+    modelTier: cheap

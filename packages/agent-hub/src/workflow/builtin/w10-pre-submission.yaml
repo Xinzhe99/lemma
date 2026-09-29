@@ -1,0 +1,66 @@
+id: w10-pre-submission
+name: 预提交自检
+description: 投稿前对照目标期刊/会议要求逐项过检：编译、页数、匿名化、引用格式、data statement 与 AI 声明。
+inputs:
+  - manuscript
+  - journal
+steps:
+  - id: requirements
+    name: 获取期刊要求
+    prompt: |
+      目标期刊/会议：{{journal}}。
+      待检稿件：
+      {{manuscript}}
+
+      请调用 submission.checklist 获取 {{journal}} 的结构化要求（页数、模板、匿名规则、补充材料规范、AI 政策）。
+      若该 venue 不在政策库中，给出最接近的同类型要求并明确标注「政策库未收录，以下为通用推断」。
+      输出：要求清单（每条附原文依据或推断标记）。
+    allowedTools:
+      - submission.checklist
+    modelTier: cheap
+
+  - id: compile-check
+    name: 编译与格式检查
+    prompt: |
+      基于上一步的要求清单检查稿件的技术合规性：
+      1. 调用 tex.compile 全量编译，失败则调用 tex.last_errors 获取结构化错误。
+      2. 核对页数是否超限、模板与字号是否符合要求、图表编号与引用是否连续。
+      3. 纯格式小错误（多余宏包、错误文档类选项）可给出 tex.edit 修改建议（需审批，不直接落盘）。
+      4. 输出：编译结果 + 格式问题清单（每条附定位）。
+    dependsOn:
+      - requirements
+    allowedTools:
+      - tex.compile
+      - tex.last_errors
+      - tex.edit
+    modelTier: cheap
+
+  - id: audit
+    name: 学术合规逐项过检
+    prompt: |
+      对照要求清单做逐项合规审查：
+      1. 匿名化：正文/脚注/致谢/补充材料中是否存在作者身份泄露（自引措辞、致谢、仓库链接、PDF 元数据）。
+      2. 引用格式：抽检全部 bib 条目字段完整性；对存疑引用调用 citation.validate 核查真实性。
+      3. Data statement 与代码可得性声明是否齐备且与期刊政策一致。
+      4. AI 使用披露：按期刊 AI 政策判断需披露的内容，起草 disclosure 语句草稿。
+      5. 图表：数量、分辨率、彩色/黑白可读性是否符合要求。
+      输出：每项 通过 / 未通过 / 需人工判断 三态结论与证据定位。
+    dependsOn:
+      - compile-check
+    allowedTools:
+      - citation.validate
+      - paper.read
+    modelTier: flagship
+
+  - id: report
+    name: 汇总自检报告
+    prompt: |
+      汇总前三步结果，生成投稿前 checklist 报告：
+      1. 总体结论：可提交 / 修复后可提交 / 暂不可提交。
+      2. 未通过项按阻塞程度排序，每项给出：问题描述、定位、修复建议、预计工作量。
+      3. 需人工判断项单列，说明为什么无法自动判定。
+      4. 附：AI 声明草稿与 data statement 草稿（若 audit 步骤已生成）。
+      输出结构化 markdown 报告。
+    dependsOn:
+      - audit
+    modelTier: cheap

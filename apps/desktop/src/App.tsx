@@ -1,36 +1,50 @@
-import { useEffect, useState } from 'react';
-import {
-  BookOpen,
-  FileText,
-  Library,
-  ListTree,
-  MessageSquare,
-  Quote,
-  Settings,
-} from 'lucide-react';
-import { CommandPalette, type Command } from './commandPalette';
+/**
+ * ScholarForge 桌面壳：三栏工作区（导航栏 | 文件/大纲侧栏 | 编辑器+控制台 | Agent 面板）。
+ * WS-F 里程碑：平台抽象、状态持久化、命令面板、设置、主题与 i18n；编辑器/编译/Agent 为后续工作流占位。
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, FileText, Library, ListTree, MessageSquare, Quote, Settings } from 'lucide-react';
+import { CommandPalette } from './commandPalette';
+import { buildCommands } from './commands';
+import { useT } from './i18n';
+import { applyTheme } from './theme';
+import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
+import { useSettingsStore } from './state/settingsStore';
+import { EditorTabs } from './components/EditorTabs';
+import { FileTree } from './components/FileTree';
+import { ResizableLayout } from './components/ResizableLayout';
+import { SettingsDialog } from './components/SettingsDialog';
 
 type SidebarTab = 'outline' | 'files' | 'citations' | 'library';
 
-const SIDEBAR_TABS: { id: SidebarTab; label: string; icon: typeof ListTree }[] = [
-  { id: 'outline', label: '大纲', icon: ListTree },
-  { id: 'files', label: '文件', icon: FileText },
-  { id: 'citations', label: '引用', icon: Quote },
-  { id: 'library', label: '文献库', icon: Library },
-];
-
-const PLACEHOLDER_COMMANDS: Command[] = [
-  { id: 'new-project', title: '新建项目（模板向导）', hint: '项目' },
-  { id: 'import-overleaf', title: '导入 Overleaf 项目', hint: '项目' },
-  { id: 'compile', title: '编译项目', hint: '编译', kbd: '⌘S' },
-  { id: 'polish-selection', title: 'AI 润色选中文本', hint: 'Agent' },
-  { id: 'run-reviewers', title: '运行三审稿人仿真', hint: 'Agent' },
-  { id: 'settings', title: '打开设置', hint: '应用', kbd: '⌘,' },
-];
+const TOAST_MS = 2400;
 
 export function App() {
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('outline');
+  const t = useT();
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('files');
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const projectName = useWorkspaceStore((s) => s.projectName);
+  const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const compileLog = useWorkspaceStore((s) => s.compileLog);
+  const compileStatus = useWorkspaceStore((s) => s.compileStatus);
+  const clearCompileLog = useWorkspaceStore((s) => s.clearCompileLog);
+
+  const theme = useSettingsStore((s) => s.theme);
+  const providers = useSettingsStore((s) => s.providers);
+  const activeProviderId = useSettingsStore((s) => s.activeProviderId);
+
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    void initWorkspace();
+  }, []);
+
+  useEffect(() => applyTheme(theme), [theme]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,77 +57,170 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
+  }, []);
+
+  const focusFileTree = useCallback(() => {
+    setSidebarTab('files');
+    sidebarRef.current?.focus();
+  }, []);
+
+  const sidebarTabs: { id: SidebarTab; label: string; icon: typeof ListTree }[] = [
+    { id: 'outline', label: t('nav.outline'), icon: ListTree },
+    { id: 'files', label: t('nav.files'), icon: FileText },
+    { id: 'citations', label: t('nav.citations'), icon: Quote },
+    { id: 'library', label: t('nav.library'), icon: Library },
+  ];
+
+  const commands = useMemo(
+    () =>
+      buildCommands({
+        t,
+        openSettings: () => setSettingsOpen(true),
+        focusFileTree,
+        toast: showToast,
+      }),
+    [t, focusFileTree, showToast],
+  );
+
+  const activeProvider = providers.find((p) => p.id === activeProviderId) ?? null;
+  const compileLabelKey =
+    compileStatus === 'running'
+      ? 'compile.running'
+      : compileStatus === 'ok'
+        ? 'compile.ok'
+        : compileStatus === 'fail'
+          ? 'compile.fail'
+          : 'compile.idle';
+
+  const sidebarTitle = sidebarTabs.find((tb) => tb.id === sidebarTab)?.label ?? '';
+
+  const navRail = (
+    <nav className="nav-rail">
+      {sidebarTabs.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          className={`nav-btn ${sidebarTab === id ? 'active' : ''}`}
+          title={label}
+          onClick={() => setSidebarTab(id)}
+        >
+          <Icon size={18} />
+        </button>
+      ))}
+      <div className="nav-spacer" />
+      <button className="nav-btn" title={t('nav.reading')}>
+        <BookOpen size={18} />
+      </button>
+    </nav>
+  );
+
+  const sidebar = (
+    <aside className="sidebar">
+      <div className="sidebar-title">{sidebarTitle}</div>
+      <div className="sidebar-body" ref={sidebarRef} tabIndex={-1}>
+        {sidebarTab === 'files' ? (
+          <FileTree />
+        ) : (
+          <p className="placeholder">{t('placeholder.wsac')}</p>
+        )}
+      </div>
+    </aside>
+  );
+
+  const editor = (
+    <section className="center">
+      <EditorTabs />
+      <div className="editor-area">
+        {activeTab ? (
+          <div className="sf-editor-placeholder">
+            <div className="sf-editor-file">{activeTab}</div>
+            <p className="placeholder">{t('editor.pending')}</p>
+          </div>
+        ) : (
+          <p className="placeholder">{t('editor.noOpen')}</p>
+        )}
+      </div>
+    </section>
+  );
+
+  const consolePane = (
+    <section className="console">
+      <div className="console-title">
+        <span>{t('console.title')}</span>
+        <button className="sf-link-btn" onClick={clearCompileLog}>
+          {t('console.clear')}
+        </button>
+      </div>
+      <div className="console-body">
+        {compileLog.length === 0 ? (
+          <p className="placeholder">{t('console.pending')}</p>
+        ) : (
+          compileLog.map((line, i) => (
+            <div key={i} className="console-line">
+              {line}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+
+  const agent = (
+    <aside className="agent-panel">
+      <div className="panel-title">
+        <MessageSquare size={14} /> {t('agent.title')}
+      </div>
+      <div className="panel-body">
+        <p className="placeholder">{t('agent.pending')}</p>
+        <div className="sf-provider-chip">
+          {t('agent.provider')}：{activeProvider ? activeProvider.label : t('agent.noProvider')}
+        </div>
+      </div>
+    </aside>
+  );
+
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">ScholarForge</div>
+        <span className="sf-project-name">{projectName}</span>
         <button className="palette-trigger" onClick={() => setPaletteOpen(true)}>
-          命令面板 <kbd>⌘K</kbd>
+          {t('palette.trigger')} <kbd>⌘K</kbd>
         </button>
         <div className="topbar-right">
-          <span className="status-chip ok">编译 · 未运行</span>
+          <span className={`status-chip ${compileStatus === 'ok' ? 'ok' : compileStatus === 'fail' ? 'err' : compileStatus === 'running' ? 'run' : ''}`}>
+            {t(compileLabelKey)}
+          </span>
           <span className="status-chip">Git ◐</span>
-          <button className="icon-btn" title="设置">
+          <button className="icon-btn" title={t('cmd.settings')} onClick={() => setSettingsOpen(true)}>
             <Settings size={16} />
           </button>
         </div>
       </header>
 
-      <div className="workspace">
-        <nav className="nav-rail">
-          {SIDEBAR_TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              className={`nav-btn ${sidebarTab === id ? 'active' : ''}`}
-              title={label}
-              onClick={() => setSidebarTab(id)}
-            >
-              <Icon size={18} />
-            </button>
-          ))}
-          <div className="nav-spacer" />
-          <button className="nav-btn" title="文献阅读">
-            <BookOpen size={18} />
-          </button>
-        </nav>
-
-        <aside className="sidebar">
-          <div className="sidebar-title">{SIDEBAR_TABS.find((t) => t.id === sidebarTab)?.label}</div>
-          <div className="sidebar-body">
-            <p className="placeholder">（{sidebarTab === 'library' ? '文献库' : '项目'}模块接入中 · WS-F 骨架）</p>
-          </div>
-        </aside>
-
-        <main className="center">
-          <div className="tabbar">
-            <span className="tab active">main.tex</span>
-            <span className="tab">main.pdf</span>
-            <span className="tab">notes.md</span>
-          </div>
-          <div className="editor-area">
-            <p className="placeholder">编辑器接入中（WS-A）</p>
-          </div>
-          <div className="console">
-            <div className="console-title">编译输出</div>
-            <div className="console-body">
-              <p className="placeholder">编译服务接入中（WS-B）</p>
-            </div>
-          </div>
-        </main>
-
-        <aside className="agent-panel">
-          <div className="panel-title">
-            <MessageSquare size={14} /> Agent 面板
-          </div>
-          <div className="panel-body">
-            <p className="placeholder">Agent 中枢接入中（WS-D）</p>
-          </div>
-        </aside>
-      </div>
+      <ResizableLayout
+        navRail={navRail}
+        sidebar={sidebar}
+        editor={editor}
+        console={consolePane}
+        agent={agent}
+      />
 
       {paletteOpen && (
-        <CommandPalette commands={PLACEHOLDER_COMMANDS} onClose={() => setPaletteOpen(false)} />
+        <CommandPalette
+          commands={commands}
+          onClose={() => setPaletteOpen(false)}
+          placeholder={t('palette.placeholder')}
+          emptyText={t('palette.empty')}
+        />
       )}
+
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+
+      {toast && <div className="sf-toast">{toast}</div>}
     </div>
   );
 }

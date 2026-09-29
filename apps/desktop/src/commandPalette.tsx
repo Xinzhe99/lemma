@@ -28,7 +28,17 @@ export function fuzzyScore(query: string, target: string): number {
   return qi === q.length ? score : -1;
 }
 
-export function CommandPalette({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+export function CommandPalette({
+  commands,
+  onClose,
+  placeholder,
+  emptyText,
+}: {
+  commands: Command[];
+  onClose: () => void;
+  placeholder?: string;
+  emptyText?: string;
+}) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,7 +84,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
         <input
           ref={inputRef}
           className="palette-input"
-          placeholder="输入命令…"
+          placeholder={placeholder ?? '输入命令…'}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -96,7 +106,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
               </span>
             </li>
           ))}
-          {results.length === 0 && <li className="palette-empty">无匹配命令</li>}
+          {results.length === 0 && <li className="palette-empty">{emptyText ?? '无匹配命令'}</li>}
         </ul>
       </div>
     </div>

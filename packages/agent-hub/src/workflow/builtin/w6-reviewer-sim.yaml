@@ -1,0 +1,103 @@
+id: w6-reviewer-sim
+name: 三审稿人仿真
+description: 三个独立 persona 并行审稿（方法严格派/领域专家/统计与复现），meta-review 汇总后在检查点交还用户，再生成修改建议。
+inputs:
+  - manuscript
+  - venue
+steps:
+  - id: prep
+    name: 组装审稿上下文
+    prompt: |
+      你在为目标会议/期刊 {{venue}} 的审稿仿真准备上下文。
+      待审稿件：
+      {{manuscript}}
+
+      请执行：
+      1. 调用 project.context 获取稿件状态与术语表。
+      2. 调用 library.search_fulltext 检索与稿件核心方法最相关的库内文献（最多 10 条），供审稿人核对新颖性。
+      3. 调用 submission.checklist 查询 {{venue}} 的要求与历史上的审稿关注点。
+      4. 输出审稿简报：稿件要点摘要、相关已有工作清单、{{venue}} 的评审侧重点。
+    allowedTools:
+      - project.context
+      - library.search_fulltext
+      - submission.checklist
+    modelTier: cheap
+
+  - id: reviewer-method
+    name: 审稿人一：方法严格派
+    prompt: |
+      你是方法严格派审稿人（Reviewer 1）：只关心方法本身的正确性与严谨性。
+      基于审稿简报评审稿件：
+      1. 逐条检查：问题定义是否清晰、方法推导是否正确、假设是否明示且合理、实验设置能否支撑结论。
+      2. 对每个弱点给出可执行的修改建议（改实验/补证明/限定 claim）。
+      3. 严禁因写作风格扣分；不确定的点放入 questions 而非 weaknesses。
+      输出结构化意见：summary / strengths / weaknesses / questions / score band（strong reject 到 strong accept 六档）。
+    dependsOn:
+      - prep
+    parallel: true
+    modelTier: flagship
+
+  - id: reviewer-domain
+    name: 审稿人二：领域专家
+    prompt: |
+      你是领域专家审稿人（Reviewer 2）：关心新颖性与文献定位。
+      基于审稿简报评审稿件：
+      1. 对照简报中的相关工作清单，判断贡献相对已有工作是否新颖、增量是否足够。
+      2. 检查相关工作覆盖是否全面、引用是否恰当（必要时给出应引用的具体文献）。
+      3. 评估该工作对 {{venue}} 社区的价值与匹配度。
+      4. 对每个弱点给出可执行的修改建议。
+      输出结构化意见：summary / strengths / weaknesses / questions / score band。
+    dependsOn:
+      - prep
+    parallel: true
+    modelTier: flagship
+
+  - id: reviewer-stat
+    name: 审稿人三：统计与复现审查
+    prompt: |
+      你是统计与复现审查（Reviewer 3）：只关心实验结论是否可信、他人能否复现。
+      基于审稿简报评审稿件：
+      1. 检查：随机种子与方差报告、显著性检验使用是否正确、消融是否充分、基线是否公平、数据泄漏风险。
+      2. 检查复现要素：代码/数据/超参/硬件环境的可获得性与说明完整性。
+      3. 对每个弱点给出可执行的修改建议（补实验/报告指标/公开 artifact）。
+      输出结构化意见：summary / strengths / weaknesses / questions / score band。
+    dependsOn:
+      - prep
+    parallel: true
+    modelTier: flagship
+
+  - id: meta-review
+    name: Meta-Review 汇总
+    prompt: |
+      你是 meta-reviewer（领域主席）：汇总三份审稿意见，等待作者（用户）确认后再进入修改建议环节。
+      请执行：
+      1. 合并去重三份意见的 weaknesses；相互矛盾的结论显式标记「审稿人分歧」。
+      2. 按 [必须修改 / 建议修改 / 可答辩] 三档排优先级，标注每条来源审稿人。
+      3. 给出整体倾向（reject / borderline / accept）与理由。
+      4. 输出优先级清单后停下，等待用户在检查点勾选需要处理的弱项与取舍意见。
+    dependsOn:
+      - reviewer-method
+      - reviewer-domain
+      - reviewer-stat
+    checkpoint: true
+    modelTier: flagship
+
+  - id: revise
+    name: 生成修改建议
+    prompt: |
+      用户已在检查点完成确认（见 checkpointInput：勾选的弱项与取舍意见）。
+      请针对用户选中的弱项生成可执行修改方案：
+      1. 文本类弱项：直接给出改写后的段落（可联动 tex.edit 产出 diff 卡）。
+      2. 图表类弱项：给出 TikZ/matplotlib 方案，可调用 figure.render 渲染验证。
+      3. 实验类弱项：给出补充实验清单（设置、基线、指标），不代跑数据。
+      4. 所有引用变动必须经 citation.validate 核查；调用 memory.write 把本次取舍写入项目记忆。
+      5. 输出：逐弱项的修改方案 + diff 审批卡 + 剩余待办清单。
+    dependsOn:
+      - meta-review
+    allowedTools:
+      - tex.edit
+      - figure.render
+      - citation.validate
+      - memory.write
+      - snapshot.create
+    modelTier: flagship
