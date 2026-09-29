@@ -988,3 +988,362 @@ kbd {
     transform: translate(-50%, 0);
   }
 }
+
+/* ==========================================================================
+   集成层组件样式（大纲 / 引用 / 文献库 / Agent 面板 / 模板向导 / PDF 栏）
+   ========================================================================== */
+
+.sf-editor-host {
+  height: 100%;
+  min-height: 0;
+}
+
+/* 通用小徽章（补充 err/warn/dim 变体） */
+.sf-chip.err {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 40%, var(--border));
+}
+.sf-chip.warn {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--border));
+}
+.sf-chip.dim {
+  color: var(--fg-2);
+}
+
+/* ---------- 大纲面板 ---------- */
+.sf-outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sf-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg-1);
+  font-size: 12px;
+}
+.sf-outline-item:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+.sf-outline-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-outline-file {
+  font-size: 10px;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex: none;
+}
+
+/* ---------- 引用面板 ---------- */
+.sf-cites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sf-cites-summary {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--fg-1);
+}
+.sf-cites-import {
+  align-self: flex-start;
+}
+.sf-cites-msg {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ok);
+}
+.sf-cites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sf-cites-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.sf-cites-key {
+  font-size: 11px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-cites-chips {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+/* ---------- 文献库面板 ---------- */
+.sf-lib {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.sf-lib-mode {
+  display: flex;
+  gap: 4px;
+}
+.sf-lib-mode button {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 11px;
+  background: var(--bg-2);
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sf-lib-mode button.active {
+  color: var(--fg-0);
+  border-color: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.sf-lib-toolbar {
+  display: flex;
+  gap: 6px;
+}
+.sf-lib-filter {
+  flex: 1;
+  min-width: 0;
+}
+.sf-lib-count {
+  margin: 0;
+  font-size: 10px;
+  color: var(--fg-2);
+}
+.sf-lib-list,
+.sf-lib-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+.sf-lib-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-2);
+}
+.sf-lib-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sf-lib-key {
+  font-size: 10px;
+  color: var(--accent);
+}
+.sf-lib-title {
+  font-size: 12px;
+  color: var(--fg-0);
+  line-height: 1.35;
+}
+.sf-lib-meta {
+  font-size: 10px;
+  color: var(--fg-2);
+}
+.sf-lib-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sf-lib-status {
+  background: var(--bg-3);
+  color: var(--fg-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+.sf-lib-chunk {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+}
+.sf-lib-chunk-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+.sf-lib-chunk-head code {
+  color: var(--accent);
+}
+.sf-lib-chunk-head span {
+  color: var(--fg-2);
+}
+.sf-lib-score {
+  margin-left: auto;
+  color: var(--ok);
+}
+.sf-lib-chunk p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fg-1);
+  line-height: 1.4;
+}
+.sf-lib-dialog {
+  width: 480px;
+}
+.sf-lib-textarea {
+  width: 100%;
+  min-height: 180px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+.sf-lib-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ---------- Agent 面板 ---------- */
+.sf-agent {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.sf-agent-provider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.sf-agent-context {
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.sf-agent-context summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  color: var(--fg-2);
+}
+.sf-agent-context pre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 10px;
+  color: var(--fg-1);
+  border-top: 1px solid var(--border);
+}
+.sf-agent-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sf-agent-workflows {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  max-height: 40%;
+  overflow: auto;
+}
+.sf-agent-wf-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--fg-2);
+  margin-bottom: 6px;
+}
+.sf-agent-wf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sf-agent-wf-btn {
+  font-size: 11px;
+}
+.sf-agent-run-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+/* ---------- 模板向导 ---------- */
+.sf-wiz {
+  width: 560px;
+}
+.sf-wiz-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+}
+.sf-wiz-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sf-wiz-item.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.sf-wiz-item strong {
+  font-size: 12px;
+  color: var(--fg-0);
+}
+.sf-wiz-item span {
+  font-size: 10px;
+  color: var(--fg-2);
+  line-height: 1.4;
+}
+
+/* ---------- PDF 视图切换栏 ---------- */
+.sf-pdfbar {
+  justify-content: flex-start;
+}
+.sf-pdfbar-close {
+  margin-left: auto;
+  align-self: center;
+  padding: 0 10px;
+}

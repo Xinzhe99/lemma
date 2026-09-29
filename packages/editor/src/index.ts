@@ -39,3 +39,6 @@ export { scholarforgeTheme, EDITOR_COLORS } from './latex/theme';
 // 组件
 export { LatexEditor, type LatexEditorProps } from './components/LatexEditor';
 export { DiffView, type DiffViewProps } from './components/DiffView';
+
+// 宿主跳转（SyncTeX / 大纲定位）需要的底层句柄
+export { EditorView } from '@codemirror/view';

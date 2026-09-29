@@ -33,13 +33,13 @@ const dict: Record<string, Entry> = {
   'tree.deleteConfirm': { zh: '确认删除', en: 'Confirm delete' },
 
   // 编辑区
-  'editor.pending': { zh: '编辑器接入中（WS-A 集成待办）', en: 'Editor pending (WS-A integration)' },
+  'editor.pending': { zh: '打开文件开始编辑', en: 'Open a file to start editing' },
   'editor.noOpen': { zh: '未打开文件', en: 'No file open' },
 
   // 编译控制台
   'console.title': { zh: '编译输出', en: 'Compile output' },
   'console.clear': { zh: '清空', en: 'Clear' },
-  'console.pending': { zh: '编译服务接入中（WS-B 集成待办）', en: 'Compile service pending (WS-B integration)' },
+  'console.pending': { zh: '尚未编译 —— Ctrl+Enter 或命令面板运行编译（浏览器形态为模拟引擎）', en: 'Not compiled yet — Ctrl+Enter or command palette (mock engine in browser)' },
 
   // Agent 面板
   'agent.title': { zh: 'Agent 面板', en: 'Agent panel' },

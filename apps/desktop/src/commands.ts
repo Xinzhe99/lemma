@@ -1,11 +1,15 @@
 /**
  * 命令面板命令注册表：面向真实 store 动作；UI 侧回调（打开设置、聚焦文件树、toast）经 ctx 注入。
+ * compile.run 已接入 WS-B 编译流水线（浏览器形态使用 MockEngine，真实引擎待 Tauri CommandRunner 桥）。
  */
 
 import type { Command } from './commandPalette';
 import { t } from './i18n';
 import { applyTheme } from './theme';
+import { MockEngine, diagnosticHint, runFullCompile } from '@scholarforge/compile';
+import { useAgentHubStore } from '@scholarforge/agent-hub';
 import { useSettingsStore } from './state/settingsStore';
+import { useUiStore } from './state/uiStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 
 export interface CommandContext {
@@ -15,6 +19,13 @@ export interface CommandContext {
   focusFileTree: () => void;
   toast: (message: string) => void;
 }
+
+/** 浏览器形态的占位 CommandRunner：MockEngine 不执行命令，仅满足接口 */
+const idleRunner = {
+  async run(): Promise<{ code: number; stdout: string; stderr: string }> {
+    return { code: 0, stdout: '', stderr: '' };
+  },
+};
 
 export function buildCommands(ctx: CommandContext): Command[] {
   const raw: Command[] = [
@@ -26,6 +37,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
         useWorkspaceStore.getState().loadDemoProject();
         ctx.toast(ctx.t('toast.projectReset'));
       },
+    },
+    {
+      id: 'project.template',
+      title: '从模板新建项目（6 套起步模板，含中文 ctex）',
+      hint: '项目',
+      run: () => useUiStore.getState().setTemplateWizardOpen(true),
     },
     {
       id: 'file.new',
@@ -44,12 +61,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
       title: ctx.t('cmd.save'),
       hint: ctx.t('hint.file'),
       kbd: 'Ctrl+S',
-      run: () => {
-        const s = useWorkspaceStore.getState();
-        // 编辑器（WS-A）接入前没有草稿态，用原内容回写即 no-op
-        if (s.activeTab) s.updateFile(s.activeTab, s.files[s.activeTab] ?? '');
-        ctx.toast(ctx.t('toast.saved'));
-      },
+      run: () => ctx.toast(ctx.t('toast.saved')),
     },
     {
       id: 'theme.toggle',
@@ -86,14 +98,81 @@ export function buildCommands(ctx: CommandContext): Command[] {
       title: ctx.t('cmd.compile'),
       hint: ctx.t('hint.compile'),
       kbd: 'Ctrl+Enter',
-      run: () => {
+      run: async () => {
         const s = useWorkspaceStore.getState();
+        const entry = s.files['main.tex'] !== undefined ? 'main.tex' : s.entry;
+        if (!entry || !(entry in s.files)) {
+          ctx.toast('未找到可编译的 .tex 入口文件');
+          return;
+        }
         s.setCompileStatus('running');
-        window.setTimeout(() => {
-          s.appendCompileLog(t('console.pending'));
-          s.setCompileStatus('idle');
-        }, 400);
+        s.appendCompileLog(`▶ 开始编译 ${entry}（浏览器形态：MockEngine 模拟；本地 Tectonic 待 Tauri 桥接）`);
+        const result = await runFullCompile(
+          { files: s.files, entry },
+          new MockEngine({ latencyMs: 400 }),
+          idleRunner,
+        );
+        s.appendCompileLog(
+          `▣ ${result.engine} · ${result.passes} 趟 · ${result.durationMs}ms · ${result.success ? '成功' : '失败'}`,
+        );
+        for (const d of result.diagnostics) {
+          const loc = `${d.file ?? entry}${d.line ? `:${d.line}` : ''}`;
+          s.appendCompileLog(`  [${d.severity}] ${loc} ${d.message}`);
+          const hint = diagnosticHint(d);
+          if (hint) s.appendCompileLog(`    ↳ 修复提示：${hint}`);
+        }
+        s.setCompileStatus(result.success ? 'ok' : 'fail');
       },
+    },
+    {
+      id: 'library.importBibtex',
+      title: '导入 BibTeX 到文献库',
+      hint: '文献',
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setSidebarTab('library');
+        ui.setLibraryDialog('bibtex');
+      },
+    },
+    {
+      id: 'library.fetchMetadata',
+      title: '按 DOI / arXiv ID 抓取文献元数据',
+      hint: '文献',
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setSidebarTab('library');
+        ui.setLibraryDialog('fetch');
+      },
+    },
+    {
+      id: 'reader.openPdf',
+      title: '打开本地 PDF 阅读（标注 + 选中即问）',
+      hint: '阅读',
+      run: () => useUiStore.getState().requestPdfPicker(),
+    },
+    {
+      id: 'agent.newSession',
+      title: '新建 Agent 会话',
+      hint: 'Agent',
+      run: () => useAgentHubStore.getState().newSession('host'),
+    },
+    {
+      id: 'agent.workflowReviewers',
+      title: '运行工作流：三审稿人仿真（W6）',
+      hint: 'Agent',
+      run: () => useUiStore.getState().setWorkflowLaunch('w6-reviewer-sim'),
+    },
+    {
+      id: 'agent.workflowPolish',
+      title: '运行工作流：学术润色（W3，含 diff 审批检查点）',
+      hint: 'Agent',
+      run: () => useUiStore.getState().setWorkflowLaunch('w3-polish'),
+    },
+    {
+      id: 'agent.workflowChecklist',
+      title: '运行工作流：预提交自检（W10）',
+      hint: 'Agent',
+      run: () => useUiStore.getState().setWorkflowLaunch('w10-pre-submission'),
     },
   ];
 

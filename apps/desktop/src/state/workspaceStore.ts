@@ -20,6 +20,8 @@ export interface WorkspaceState extends WorkspaceSnapshot {
   compileLog: string[];
   compileStatus: CompileStatus;
   loadDemoProject(): void;
+  /** 载入一个完整项目（模板向导脚手架产出） */
+  loadProject(name: string, entry: string, files: Record<string, string>): void;
   openFile(path: string): void;
   closeTab(path: string): void;
   setActive(path: string): void;
@@ -165,6 +167,19 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
 
   loadDemoProject() {
     set({ ...demoSnapshot(), compileLog: [], compileStatus: 'idle' });
+  },
+
+  loadProject(name, entry, files) {
+    const openTabs = entry in files ? [entry] : Object.keys(files).slice(0, 1);
+    set({
+      projectName: name,
+      entry,
+      files,
+      openTabs,
+      activeTab: openTabs[0] ?? null,
+      compileLog: [],
+      compileStatus: 'idle',
+    });
   },
 
   openFile(path) {

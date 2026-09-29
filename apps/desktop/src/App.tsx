@@ -1,6 +1,6 @@
 /**
- * ScholarForge 桌面壳：三栏工作区（导航栏 | 文件/大纲侧栏 | 编辑器+控制台 | Agent 面板）。
- * WS-F 里程碑：平台抽象、状态持久化、命令面板、设置、主题与 i18n；编辑器/编译/Agent 为后续工作流占位。
+ * ScholarForge 桌面壳：三栏工作区（导航栏 | 大纲/文件/引用/文献侧栏 | 编辑器+PDF+控制台 | Agent 面板）。
+ * 六条工作流已集成：WS-A 编辑器、WS-B 编译、WS-C 文献库与阅读、WS-D Agent 中枢、WS-E 知识底座、WS-F 应用设施。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -11,40 +11,60 @@ import { useT } from './i18n';
 import { applyTheme } from './theme';
 import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
+import { initLibrary } from './state/libraryStore';
+import { useUiStore } from './state/uiStore';
 import { EditorTabs } from './components/EditorTabs';
 import { FileTree } from './components/FileTree';
 import { ResizableLayout } from './components/ResizableLayout';
 import { SettingsDialog } from './components/SettingsDialog';
-
-type SidebarTab = 'outline' | 'files' | 'citations' | 'library';
+import { EditorArea } from './components/EditorArea';
+import { TemplateWizard } from './components/TemplateWizard';
+import { OutlinePanel } from './panels/OutlinePanel';
+import { CitationsPanel } from './panels/CitationsPanel';
+import { LibraryPanel } from './panels/LibraryPanel';
+import { AgentPanel } from './panels/AgentPanel';
+import { PdfReader } from '@scholarforge/library';
 
 const TOAST_MS = 2400;
 
 export function App() {
   const t = useT();
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('files');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  const sidebarTab = useUiStore((s) => s.sidebarTab);
+  const setSidebarTab = useUiStore((s) => s.setSidebarTab);
+  const requestPdfPicker = useUiStore((s) => s.requestPdfPicker);
+  const pdfPickerTick = useUiStore((s) => s.pdfPickerTick);
+  const pdfView = useUiStore((s) => s.pdfView);
+  const setPdfView = useUiStore((s) => s.setPdfView);
+  const centerView = useUiStore((s) => s.centerView);
+  const setCenterView = useUiStore((s) => s.setCenterView);
+  const templateWizardOpen = useUiStore((s) => s.templateWizardOpen);
+
   const projectName = useWorkspaceStore((s) => s.projectName);
-  const activeTab = useWorkspaceStore((s) => s.activeTab);
   const compileLog = useWorkspaceStore((s) => s.compileLog);
   const compileStatus = useWorkspaceStore((s) => s.compileStatus);
   const clearCompileLog = useWorkspaceStore((s) => s.clearCompileLog);
 
   const theme = useSettingsStore((s) => s.theme);
-  const providers = useSettingsStore((s) => s.providers);
-  const activeProviderId = useSettingsStore((s) => s.activeProviderId);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void initWorkspace();
+    void initLibrary();
   }, []);
 
   useEffect(() => applyTheme(theme), [theme]);
+
+  // 命令面板 / 阅读入口触发 PDF 文件选择
+  useEffect(() => {
+    if (pdfPickerTick > 0) pdfInputRef.current?.click();
+  }, [pdfPickerTick]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -66,9 +86,9 @@ export function App() {
   const focusFileTree = useCallback(() => {
     setSidebarTab('files');
     sidebarRef.current?.focus();
-  }, []);
+  }, [setSidebarTab]);
 
-  const sidebarTabs: { id: SidebarTab; label: string; icon: typeof ListTree }[] = [
+  const sidebarTabs: { id: typeof sidebarTab; label: string; icon: typeof ListTree }[] = [
     { id: 'outline', label: t('nav.outline'), icon: ListTree },
     { id: 'files', label: t('nav.files'), icon: FileText },
     { id: 'citations', label: t('nav.citations'), icon: Quote },
@@ -86,7 +106,6 @@ export function App() {
     [t, focusFileTree, showToast],
   );
 
-  const activeProvider = providers.find((p) => p.id === activeProviderId) ?? null;
   const compileLabelKey =
     compileStatus === 'running'
       ? 'compile.running'
@@ -111,7 +130,7 @@ export function App() {
         </button>
       ))}
       <div className="nav-spacer" />
-      <button className="nav-btn" title={t('nav.reading')}>
+      <button className="nav-btn" title={t('nav.reading')} onClick={requestPdfPicker}>
         <BookOpen size={18} />
       </button>
     </nav>
@@ -123,8 +142,12 @@ export function App() {
       <div className="sidebar-body" ref={sidebarRef} tabIndex={-1}>
         {sidebarTab === 'files' ? (
           <FileTree />
+        ) : sidebarTab === 'outline' ? (
+          <OutlinePanel />
+        ) : sidebarTab === 'citations' ? (
+          <CitationsPanel />
         ) : (
-          <p className="placeholder">{t('placeholder.wsac')}</p>
+          <LibraryPanel />
         )}
       </div>
     </aside>
@@ -132,15 +155,37 @@ export function App() {
 
   const editor = (
     <section className="center">
-      <EditorTabs />
+      {pdfView ? (
+        <div className="tabbar sf-pdfbar">
+          <button
+            className={`tab ${centerView === 'editor' ? 'active' : ''}`}
+            onClick={() => setCenterView('editor')}
+          >
+            编辑器
+          </button>
+          <button
+            className={`tab ${centerView === 'pdf' ? 'active' : ''}`}
+            onClick={() => setCenterView('pdf')}
+          >
+            PDF · {pdfView.name}
+          </button>
+          <button className="sf-link-btn sf-pdfbar-close" onClick={() => setPdfView(null)}>
+            关闭
+          </button>
+        </div>
+      ) : (
+        <EditorTabs />
+      )}
       <div className="editor-area">
-        {activeTab ? (
-          <div className="sf-editor-placeholder">
-            <div className="sf-editor-file">{activeTab}</div>
-            <p className="placeholder">{t('editor.pending')}</p>
-          </div>
+        {pdfView && centerView === 'pdf' ? (
+          <PdfReader
+            data={pdfView.data}
+            onCreateAnnotation={(a) => {
+              showToast(`已创建标注（第 ${a.page} 页，${a.semantic ?? a.kind}）—— 标注持久化待接 DexieStore`);
+            }}
+          />
         ) : (
-          <p className="placeholder">{t('editor.noOpen')}</p>
+          <EditorArea />
         )}
       </div>
     </section>
@@ -173,12 +218,7 @@ export function App() {
       <div className="panel-title">
         <MessageSquare size={14} /> {t('agent.title')}
       </div>
-      <div className="panel-body">
-        <p className="placeholder">{t('agent.pending')}</p>
-        <div className="sf-provider-chip">
-          {t('agent.provider')}：{activeProvider ? activeProvider.label : t('agent.noProvider')}
-        </div>
-      </div>
+      <AgentPanel />
     </aside>
   );
 
@@ -191,7 +231,9 @@ export function App() {
           {t('palette.trigger')} <kbd>⌘K</kbd>
         </button>
         <div className="topbar-right">
-          <span className={`status-chip ${compileStatus === 'ok' ? 'ok' : compileStatus === 'fail' ? 'err' : compileStatus === 'running' ? 'run' : ''}`}>
+          <span
+            className={`status-chip ${compileStatus === 'ok' ? 'ok' : compileStatus === 'fail' ? 'err' : compileStatus === 'running' ? 'run' : ''}`}
+          >
             {t(compileLabelKey)}
           </span>
           <span className="status-chip">Git ◐</span>
@@ -209,6 +251,20 @@ export function App() {
         agent={agent}
       />
 
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          const data = await file.arrayBuffer();
+          setPdfView({ name: file.name, data });
+        }}
+      />
+
       {paletteOpen && (
         <CommandPalette
           commands={commands}
@@ -219,6 +275,8 @@ export function App() {
       )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+
+      {templateWizardOpen && <TemplateWizard onDone={showToast} />}
 
       {toast && <div className="sf-toast">{toast}</div>}
     </div>
