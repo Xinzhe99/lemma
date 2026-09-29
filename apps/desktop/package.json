@@ -1,0 +1,23 @@
+{
+  "name": "@scholarforge/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/main.tsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@scholarforge/agent-hub": "*",
+    "@scholarforge/compile": "*",
+    "@scholarforge/editor": "*",
+    "@scholarforge/knowledge": "*",
+    "@scholarforge/library": "*",
+    "@scholarforge/shared": "*",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-resizable-panels": "^2.1.7",
+    "zustand": "^5.0.2"
+  }
+}

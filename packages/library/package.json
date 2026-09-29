@@ -1,0 +1,14 @@
+{
+  "name": "@scholarforge/library",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@scholarforge/shared": "*",
+    "dexie": "^4.0.10",
+    "fast-xml-parser": "^4.5.0",
+    "pdfjs-dist": "^4.9.0",
+    "react": "^18.3.1"
+  }
+}
