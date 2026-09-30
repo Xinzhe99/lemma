@@ -54,12 +54,12 @@ import type { SynctexIndex } from '@scholarforge/compile';
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-function renderView() {
+function renderView(cursor: { line: number; col: number } = { line: 3, col: 7 }) {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
   act(() => {
-    root!.render(<StatusBar cursor={{ line: 3, col: 7 }} />);
+    root!.render(<StatusBar cursor={cursor} />);
   });
 }
 
@@ -186,11 +186,14 @@ describe('StatusBar 目标进度 chip（写作统计）', () => {
 });
 
 describe('StatusBar「⇄ PDF」同步按钮（WS-2 源码 → PDF）', () => {
-  /** 手造最小 SynctexIndex：main.tex 第 1 行 → 第 1 页 */
+  /** 手造最小 SynctexIndex：main.tex 第 1 行 → 第 1 页；第 3 行 → 第 4 页（区分光标行定位） */
   const INDEX: SynctexIndex = {
     version: 1,
     inputs: [{ tag: 1, path: 'main.tex' }],
-    blocks: [{ page: 1, tag: 1, line: 1, x: 0, y: 0, w: 10000, h: 20000 }],
+    blocks: [
+      { page: 1, tag: 1, line: 1, x: 0, y: 0, w: 10000, h: 20000 },
+      { page: 4, tag: 1, line: 3, x: 0, y: 5000, w: 10000, h: 200 },
+    ],
   };
 
   const findSyncButton = (): HTMLButtonElement => {
@@ -212,17 +215,31 @@ describe('StatusBar「⇄ PDF」同步按钮（WS-2 源码 → PDF）', () => {
     expect(btn.title).toContain('需要真实编译产出');
   });
 
-  it('索引可用且 PDF 预览已打开 → 点击广播 onPdfGoto（以活动文件首行为基准）', () => {
+  it('索引可用且 PDF 预览已打开 → 点击广播 onPdfGoto（以光标行为基准，D11 修复）', () => {
     setSynctexIndex(INDEX);
     useUiStore.setState({ pdfView: { name: 'main.pdf', data: new ArrayBuffer(0) } });
-    renderView();
+    renderView(); // 默认光标 { line: 3, col: 7 }
     const btn = findSyncButton();
     expect(btn.disabled).toBe(false);
-    expect(btn.title).toContain('跳转到该文件首次出现在 PDF 的位置');
+    expect(btn.title).toContain('跳转到光标行在 PDF 中的位置');
     const gotos: { page: number; y?: number }[] = [];
     const off = onPdfGoto((g) => gotos.push(g));
     act(() => {
       btn.click();
+    });
+    off();
+    // 命中第 3 行块（第 4 页），而非固定第 1 行（第 1 页）
+    expect(gotos).toEqual([{ page: 4, y: 5000 }]);
+  });
+
+  it('同步目标随光标行变化（光标在第 1 行 → 第 1 页，不再固定首行）', () => {
+    setSynctexIndex(INDEX);
+    useUiStore.setState({ pdfView: { name: 'main.pdf', data: new ArrayBuffer(0) } });
+    renderView({ line: 1, col: 1 });
+    const gotos: { page: number; y?: number }[] = [];
+    const off = onPdfGoto((g) => gotos.push(g));
+    act(() => {
+      findSyncButton().click();
     });
     off();
     expect(gotos).toEqual([{ page: 1, y: 0 }]);

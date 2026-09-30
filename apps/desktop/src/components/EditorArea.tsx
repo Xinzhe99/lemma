@@ -119,6 +119,8 @@ export function EditorArea() {
 
   // 光标行列跟踪（状态栏数据源）：LatexEditor 的 onCursorLine 仅回报行号，
   // 这里经 extraExtensions 挂选区监听，同时取到列号（head 相对行首的偏移）。
+  // 同步写入光标桥（notifyCursor）：批注面板等经 subscribeCursor 响应式获知
+  // 「光标是否在当前文件内」（D1 修复：光标桥此前从未被通知，添加批注按钮恒禁用）。
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const cursorTracker = useMemo(
     () =>
@@ -126,7 +128,9 @@ export function EditorArea() {
         if (!update.selectionSet && !update.docChanged) return;
         const head = update.state.selection.main.head;
         const line = update.state.doc.lineAt(head);
-        setCursor({ line: line.number, col: head - line.from + 1 });
+        const info = { line: line.number, col: head - line.from + 1 };
+        setCursor(info);
+        notifyCursor({ file: activeTabRef.current ?? '', ...info });
       }),
     [],
   );
@@ -329,7 +333,11 @@ export function EditorArea() {
             if (view) {
               const head = view.state.selection.main.head;
               const line = view.state.doc.lineAt(head);
-              setCursor({ line: line.number, col: head - line.from + 1 });
+              const info = { line: line.number, col: head - line.from + 1 };
+              setCursor(info);
+              // 编辑器刚挂载（选区监听尚未触发）：手动把初始光标写入光标桥，
+              // 保证文件切换/兜底跳转后批注按钮立即可判定可用性
+              notifyCursor({ file: activeTabRef.current ?? '', ...info });
               const target = takePendingJump(activeTab);
               if (target) scrollToLine(view, target.line);
             }

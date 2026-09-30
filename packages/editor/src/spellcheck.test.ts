@@ -123,7 +123,9 @@ describe('checkText：大小写', () => {
     expect(cap).toMatchObject({ word: 'Recieve', suggestion: 'Receive' });
     const upper = checkText('SEPERATE them')[0]!;
     expect(upper).toMatchObject({ word: 'SEPERATE', suggestion: 'SEPARATE' });
-    const confCap = checkText('Their results')[0]!;
+    // D8：their 受「后接 be 动词」守卫，正当物主用法不再标注；守卫命中时大小写规则不变
+    expect(checkText('Their results are solid.')).toEqual([]);
+    const confCap = checkText('Their is a flaw.')[0]!;
     expect(confCap).toMatchObject({ word: 'Their', suggestion: 'There', kind: 'confusable' });
   });
 });
@@ -175,8 +177,8 @@ describe('checkText：偏移与多行', () => {
 });
 
 describe('checkText：易混词', () => {
-  it('单词易混对：kind=confusable 且带中文 hint', () => {
-    const issues = checkText('The affect is large.');
+  it('单词易混对：kind=confusable 且带中文 hint（D8：affect 需 the/this/an + affect + of 才标）', () => {
+    const issues = checkText('The affect of noise is large.');
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({ word: 'affect', suggestion: 'effect', kind: 'confusable' });
     expect(issues[0]!.hint).toContain('人工判断');
@@ -191,18 +193,103 @@ describe('checkText：易混词', () => {
     expect(checkText('This is based on prior work.')).toEqual([]);
   });
 
+  it('无守卫条目（always）保持全标：短语与无语境即可判错的词', () => {
+    expect(words('we discuss about the results')).toEqual(['discuss about']);
+    expect(words('many researches show this')).toEqual(['researches']);
+    expect(words('in the other hand, it works')).toEqual(['in the other hand']);
+    expect(words('the data is clean')).toEqual(['data is']);
+  });
+
   it("eg/ie 缩写命中，规范 e.g./i.e. 不误报；it's 不误报为 its", () => {
     expect(words('See eg Figure 3, ie the plot')).toEqual(['eg', 'ie']);
     expect(checkText('See e.g. Figure 3, i.e. the plot.')).toEqual([]);
     expect(words("it's fine")).toEqual([]);
-    expect(words('its value')).toEqual(['its']);
+    expect(words('its value')).toEqual([]); // D8：its 受「后接 a/an/the/being」守卫，正当物主用法不标
   });
 });
+
+describe('checkText：易混词上下文守卫（D8：正当用法不再一片黄线）', () => {
+  it('their：仅后接 be 动词才标（their is → there is）', () => {
+    expect(words('Their is a problem here.')).toEqual(['Their']);
+    expect(words('their are two cases')).toEqual(['their']);
+    expect(words('their been several attempts')).toEqual(['their']);
+    expect(words('Their results are solid.')).toEqual([]);
+    expect(words('We used their dataset.')).toEqual([]);
+    expect(words('theirs is fine')).toEqual([]); // 「theirs is」场景明确不做
+  });
+
+  it('then：仅前接比较级标记才标（more then → more than）', () => {
+    expect(words('more then 3 samples')).toEqual(['then']);
+    expect(words('better then the baseline')).toEqual(['then']);
+    expect(words('and then we compare')).toEqual([]);
+    expect(words('We first preprocess, then train.')).toEqual([]); // 前邻是标点/非比较级
+  });
+
+  it('its：仅后接 a/an/the/being 才标（its a → it\'s a）', () => {
+    expect(words('its a mistake')).toEqual(['its']);
+    expect(words('its the main cause')).toEqual(['its']);
+    expect(words('its result is robust')).toEqual([]);
+    expect(words('its application scope')).toEqual([]); // 'application' 不因首字母 a 误配守卫词 'a'
+  });
+
+  it('affect：前接 the/this/an 且后接 of 才标（the affect of → the effect of）', () => {
+    expect(words('The affect of noise is large.')).toEqual(['affect']);
+    expect(words('this affect of scaling')).toEqual(['affect']);
+    expect(words('The affect is large.')).toEqual([]); // 缺后接 of
+    expect(words('may affect the result')).toEqual([]); // 动词用法
+  });
+
+  it('less：仅后接复数可数提示词才标（less items → fewer items）', () => {
+    expect(words('less items were kept')).toEqual(['less']);
+    expect(words('with less users involved')).toEqual(['less']);
+    expect(words('less water is needed')).toEqual([]); // 不可数
+    expect(words('less data was retained')).toEqual([]);
+  });
+
+  it('between：仅后接数字或 each 才标轻提示', () => {
+    expect(words('between each iteration')).toEqual(['between']);
+    expect(words('between 3 groups')).toEqual(['between']);
+    expect(words('between the two methods')).toEqual([]);
+  });
+
+  it('loose：仅后接 to 才标（loose to → lose to）', () => {
+    expect(words('will loose to the baseline')).toEqual(['loose']);
+    expect(words('loose weight quickly')).toEqual([]);
+    expect(words('a loose fit is acceptable')).toEqual([]); // 形容词本义
+  });
+
+  it('amount：仅 amount of 可数复数才标（the amount of people → the number of）', () => {
+    expect(words('the amount of people')).toEqual(['amount']);
+    expect(words('the amount of items')).toEqual(['amount']);
+    expect(words('the amount of memory')).toEqual([]); // 不可数
+  });
+
+  it('扩展守卫条目：principle/farther 按惯用搭配标，本义不标', () => {
+    expect(words('the principle investigator')).toEqual(['principle']);
+    expect(words('principle component analysis')).toEqual(['principle']);
+    expect(words('the principle of relativity')).toEqual([]);
+    expect(words('needs farther analysis')).toEqual(['farther']);
+    expect(words('the farther sample site')).toEqual([]); // 物理距离本义
+  });
+
+  it('守卫词大小写不敏感、多空格容忍', () => {
+    expect(words('Their  IS a flaw')).toEqual(['Their']);
+    expect(words('MORE   then expected')).toEqual(['then']);
+    expect(words('the   affect   of noise')).toEqual(['affect']);
+    expect(words('less    items')).toEqual(['less']);
+  });
+
+  it('守卫不满足的正当用法整体零标注（hover/装饰自然不出现）', () => {
+    expect(checkText('Their model then uses its attention, affecting less memory between runs.')).toEqual([]);
+  });
+});
+
 
 describe('spellcheckExtension：编辑器标注', () => {
   it('enabled=true：sf-spell / sf-spell-conf 标注落盘，注释与命令不标注', () => {
     view = new EditorView({
-      doc: 'recieve teh data\n% seperate hidden\n\\cmd{their} ok',
+      // D8：their 须后接 be 动词才标（\cmd 参数内的 their is 命中守卫）
+      doc: 'recieve teh data\n% seperate hidden\n\\cmd{their is} ok',
       parent: document.body,
       extensions: [spellcheckExtension(true)],
     });

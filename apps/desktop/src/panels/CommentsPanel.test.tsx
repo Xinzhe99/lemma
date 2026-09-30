@@ -47,16 +47,43 @@ vi.mock('zustand', async () => {
   return { create };
 });
 
-vi.mock('../editorJump', () => ({
-  jumpTo: vi.fn(),
-  lastCursor: vi.fn((): { file: string; line: number; col: number } => ({ file: 'main.tex', line: 12, col: 1 })),
-}));
+// editorJump 假实现：lastCursor 读可变光标；subscribeCursor 为可通知的假订阅
+// （__notifyCursor 模拟编辑器侧 notifyCursor：更新 lastCursor 并通知全部订阅者）
+vi.mock('../editorJump', () => {
+  interface CursorInfo {
+    file: string;
+    line: number;
+    col: number;
+  }
+  let cursor: CursorInfo = { file: 'main.tex', line: 12, col: 1 };
+  const listeners = new Set<(c: CursorInfo) => void>();
+  return {
+    jumpTo: vi.fn(),
+    lastCursor: vi.fn((): CursorInfo => cursor),
+    subscribeCursor: (cb: (c: CursorInfo) => void): (() => void) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    __notifyCursor: (c: CursorInfo): void => {
+      cursor = c;
+      for (const cb of listeners) cb(cursor);
+    },
+  };
+});
 
 import { CommentsPanel } from './CommentsPanel';
-import { jumpTo, lastCursor } from '../editorJump';
+import * as editorJumpModule from '../editorJump';
+import { jumpTo } from '../editorJump';
 import { useCommentsStore } from '../state/commentsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
+
+/** 测试内模拟「编辑器 notifyCursor」：写入假 lastCursor 并通知订阅者 */
+const notifyCursor = (
+  (editorJumpModule as unknown as {
+    __notifyCursor: (c: { file: string; line: number; col: number }) => void;
+  }).__notifyCursor
+);
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -139,8 +166,8 @@ beforeEach(() => {
     openTabs: ['main.tex'],
     files: { 'main.tex': '\\documentclass{article}' },
   });
-  vi.mocked(lastCursor).mockReturnValue({ file: 'main.tex', line: 12, col: 1 });
   vi.mocked(jumpTo).mockClear();
+  notifyCursor({ file: 'main.tex', line: 12, col: 1 });
 
   capturedBlob = null;
   anchorDownloads.length = 0;
@@ -191,19 +218,48 @@ describe('CommentsPanel · 添加入口可用性', () => {
   });
 
   it('光标不在 activeTab（lastCursor().file 不一致）：disabled + title 说明；一致时可用', () => {
-    vi.mocked(lastCursor).mockReturnValue({ file: 'sections/intro.tex', line: 3, col: 1 });
+    notifyCursor({ file: 'sections/intro.tex', line: 3, col: 1 });
     renderPanel();
-    let add = q('[data-add-comment]') as HTMLButtonElement;
+    const add = q('[data-add-comment]') as HTMLButtonElement;
     expect(add.disabled).toBe(true);
     expect(add.title).toBe('光标不在当前文件：请先在编辑器中点击定位');
 
-    // 光标回到 activeTab → 可用（光标桥为非响应式，靠面板重渲染时重读）
-    vi.mocked(lastCursor).mockReturnValue({ file: 'main.tex', line: 12, col: 3 });
+    // 光标回到 activeTab → 可用
     act(() => {
-      useCommentsStore.getState().addComment('main.tex', 1, '触发重渲染');
+      notifyCursor({ file: 'main.tex', line: 12, col: 3 });
     });
-    add = q('[data-add-comment]') as HTMLButtonElement;
+    expect((q('[data-add-comment]') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('通知光标到当前文件后按钮从禁用变可用（响应式光标桥，实时跟随光标移动）', () => {
+    notifyCursor({ file: 'sections/intro.tex', line: 8, col: 1 }); // 初始：光标不在 activeTab
+    renderPanel();
+    expect((q('[data-add-comment]') as HTMLButtonElement).disabled).toBe(true);
+
+    // 编辑器光标进入当前文件 → notifyCursor 通知订阅者，面板实时重渲染，按钮变可用
+    act(() => {
+      notifyCursor({ file: 'main.tex', line: 5, col: 2 });
+    });
+    const add = q('[data-add-comment]') as HTMLButtonElement;
     expect(add.disabled).toBe(false);
+    expect(add.title).toBe('在当前行添加批注');
+
+    // 光标又移到别的文件 → 按钮立即回到禁用
+    act(() => {
+      notifyCursor({ file: 'sections/intro.tex', line: 9, col: 1 });
+    });
+    expect((q('[data-add-comment]') as HTMLButtonElement).disabled).toBe(true);
+
+    // 回到当前文件后添加批注：行号取通知后的光标行
+    act(() => {
+      notifyCursor({ file: 'main.tex', line: 5, col: 2 });
+    });
+    click(q('[data-add-comment]')!);
+    typeInto(q<HTMLTextAreaElement>('.sf-comments-text')!, '行号来自响应式光标');
+    click(q('[data-compose-submit]')!);
+    const comments = useCommentsStore.getState().comments;
+    expect(comments).toHaveLength(1);
+    expect(comments[0]!.line).toBe(5);
   });
 });
 

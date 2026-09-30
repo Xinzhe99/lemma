@@ -58,13 +58,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
     },
     {
       id: 'project.switch',
-      title: '切换 / 管理项目',
+      title: ctx.t('cmd.manageProjects'),
       hint: '项目',
       run: () => useUiStore.getState().setProjectSwitcherOpen(true),
     },
     {
       id: 'table.insert',
-      title: '插入表格（可视化编辑器）',
+      title: ctx.t('cmd.insertTable'),
       hint: '编辑',
       run: () => useUiStore.getState().setTableEditorOpen(true),
     },
@@ -308,6 +308,28 @@ export function buildCommands(ctx: CommandContext): Command[] {
       title: ctx.t('cmd.wfPolish'),
       hint: ctx.t('hint.agent'),
       run: () => useUiStore.getState().setWorkflowLaunch('w3-polish'),
+    },
+    {
+      id: 'pdf.reopenLast',
+      title: ctx.t('cmd.reopenPdf'),
+      hint: ctx.t('hint.compile'),
+      run: () => {
+        void import('./compileAction').then(({ reopenLastPdf }) => {
+          if (!reopenLastPdf()) ctx.toast(ctx.t('toast.noLastPdf'));
+        });
+      },
+    },
+    {
+      id: 'agent.workflowRelatedWork',
+      title: ctx.t('cmd.wfRelatedWork'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().launchWorkflow('w12-related-work'),
+    },
+    {
+      id: 'agent.workflowSectionDraft',
+      title: ctx.t('cmd.wfSectionDraft'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().setWorkflowLaunch('w2-section-draft'),
     },
     {
       id: 'agent.workflowChecklist',

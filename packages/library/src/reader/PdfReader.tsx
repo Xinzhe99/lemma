@@ -27,7 +27,11 @@ import {
  *
  * 精度限制：以“选区包围盒”近似换算 PDF 用户空间坐标 —— 跨行/跨栏选区的
  * 包围盒会大于实际文本范围，且未处理页面旋转与裁剪，仅适用于常规正立页面。
- * 连续模式限制：无透明文本层（不支持选中标注），覆盖层按“PDF 用户空间 × scale（y 翻转）”
+ * 连续模式（D10 修复）：每页 canvas 渲染完成后按单页同款算法（buildTextSpans）
+ * 挂透明文本层，与 canvas 同生命周期（懒渲染窗口外的页无文本层）；选区 mouseup
+ * 在滚动容器上检测 → 四色工具条/笔记/选中即问可用，标注 bbox 按选区锚点所在页的
+ * viewport 换算；页 wrapper 点击 → 该页 convertToPdfPoint → onPagePoint（有选区时
+ * 不触发；未渲染页尺寸未知，不回调）。覆盖层仍按“PDF 用户空间 × scale（y 翻转）”
  * 直接换算（与无旋转 viewport 一致），页高未知时按占位估计。
  */
 
@@ -141,7 +145,9 @@ interface SelectionToolbar {
   x: number;
   y: number;
   text: string;
-  /** 相对画布左上角的选区包围盒（CSS 像素，与视口坐标一致） */
+  /** 选区所在页（单页模式 = 当前页；连续模式 = 选区锚点所在页）。 */
+  page: number;
+  /** 相对该页画布左上角的选区包围盒（CSS 像素，与视口坐标一致） */
   rect: { left: number; top: number; width: number; height: number };
 }
 
@@ -157,10 +163,70 @@ function multiplyTransform(m1: readonly number[], m2: readonly number[]): number
   ];
 }
 
+/** buildTextSpans 入参 items 元素的最小结构（pdfjs TextItem 携带 str/transform；TextMarkedContent 无）。 */
+type PdfTextItemLike = { str: string; transform: number[] } | { type?: string };
+
 /**
- * 连续模式：单页画布。挂载即渲染（由父级按视口 ±1 页窗口决定是否挂载），
- * 卸载即释放——远端页只保留 wrapper 与占位，保证任意时刻挂载 canvas 数有界。
- * 渲染完成后上报该页实际视口尺寸，供父级修正 wrapper 高度与滚动换算。
+ * 文本内容 → 透明文本层 span 列表（单页/连续共用算法）：
+ * viewport.transform × item.transform 仿射换算，平移分量为 span 定位（top 上移一个
+ * 字号，使 span 基线与文本基线对齐），y 方向缩放分量为字号。
+ */
+function buildTextSpans(viewport: pdfjsLib.PageViewport, items: ReadonlyArray<PdfTextItemLike>): TextSpan[] {
+  const spans: TextSpan[] = [];
+  for (const item of items) {
+    if (!('str' in item) || !item.str) continue;
+    const tx = multiplyTransform(viewport.transform, item.transform);
+    const size = Math.hypot(tx[2]!, tx[3]!) || 10;
+    spans.push({ text: item.str, left: tx[4]!, top: tx[5]! - size, size });
+  }
+  return spans;
+}
+
+/** 透明文本层（单页/连续模式共用）：span 逐项绝对定位盖在画布上，供选中文字。 */
+function TextSpanLayer({ spans, width, height }: { spans: TextSpan[]; width: number; height: number }) {
+  return (
+    <div
+      data-testid="pdf-page-textlayer"
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width,
+        height,
+        zIndex: 2,
+        overflow: 'hidden',
+        color: 'transparent',
+        cursor: 'text',
+        userSelect: 'text',
+        WebkitUserSelect: 'text',
+      }}
+    >
+      {spans.map((span, index) => (
+        <span
+          key={index}
+          style={{
+            position: 'absolute',
+            left: span.left,
+            top: span.top,
+            fontSize: `${span.size}px`,
+            fontFamily: 'sans-serif',
+            whiteSpace: 'pre',
+            lineHeight: 1,
+          }}
+        >
+          {span.text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 连续模式：单页画布 + 透明文本层（D10 修复）。挂载即渲染（由父级按视口 ±1 页窗口
+ * 决定是否挂载），卸载即释放——远端页只保留 wrapper 与占位，保证任意时刻挂载
+ * canvas 数有界。canvas 渲染完成后按 buildTextSpans（单页同款算法）挂该页文本层，
+ * 与 canvas 同生命周期（懒渲染窗口外的页无文本层）；并上报该页实际 viewport，
+ * 供父级修正 wrapper 高度、滚动换算与点击/选区坐标换算。
  */
 function ContinuousPageCanvas({
   doc,
@@ -171,12 +237,14 @@ function ContinuousPageCanvas({
   doc: pdfjsLib.PDFDocumentProxy;
   pageNumber: number;
   scale: number;
-  onRendered: (page: number, width: number, height: number) => void;
+  onRendered: (page: number, viewport: pdfjsLib.PageViewport) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [textLayer, setTextLayer] = useState<{ spans: TextSpan[]; width: number; height: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
     let renderTask: pdfjsLib.RenderTask | null = null;
+    setTextLayer(null); // 重渲染（scale 变化）期间清掉旧文本层，避免与新画布错位
     (async () => {
       const page = await doc.getPage(pageNumber);
       if (cancelled) return;
@@ -189,7 +257,14 @@ function ContinuousPageCanvas({
       renderTask = page.render({ canvasContext: context, viewport: pageViewport });
       await renderTask.promise;
       if (cancelled) return;
-      onRendered(pageNumber, pageViewport.width, pageViewport.height);
+      onRendered(pageNumber, pageViewport);
+      const content = await page.getTextContent();
+      if (cancelled) return;
+      setTextLayer({
+        spans: buildTextSpans(pageViewport, content.items),
+        width: pageViewport.width,
+        height: pageViewport.height,
+      });
       page.cleanup();
     })().catch(() => {
       // 单页渲染失败：保留占位（wrapper 高度不变），不中断其他页
@@ -199,7 +274,12 @@ function ContinuousPageCanvas({
       renderTask?.cancel();
     };
   }, [doc, pageNumber, scale, onRendered]);
-  return <canvas ref={canvasRef} style={{ display: 'block' }} />;
+  return (
+    <>
+      <canvas ref={canvasRef} style={{ display: 'block' }} />
+      {textLayer && <TextSpanLayer spans={textLayer.spans} width={textLayer.width} height={textLayer.height} />}
+    </>
+  );
 }
 
 export function PdfReader({
@@ -237,6 +317,12 @@ export function PdfReader({
   const [pageSizes, setPageSizes] = useState<Record<number, { width: number; height: number }>>({});
   /** 连续模式：最近一次已知页面尺寸（占位高度取其高度，否则按 A4 比例估计）。 */
   const [lastPageSize, setLastPageSize] = useState<{ width: number; height: number } | null>(null);
+  /**
+   * 连续模式：各页渲染时记录的 viewport（ref 而非 state——避免每页渲染多一次重渲染）。
+   * 供点击/选区坐标换算（convertToPdfPoint）；随 data 重置，scale 变化后由页面
+   * 重渲染覆盖（短暂窗口内可能滞后一档缩放，可接受）。
+   */
+  const pageViewportsRef = useRef<Record<number, pdfjsLib.PageViewport>>({});
   const scale = SCALES[scaleIndex] ?? 1;
 
   const fallbackPageWidth = lastPageSize?.width ?? DEFAULT_PAGE_WIDTH;
@@ -392,6 +478,7 @@ export function PdfReader({
     setOutline([]);
     setPageSizes({});
     setLastPageSize(null);
+    pageViewportsRef.current = {};
     const bytes = new Uint8Array(data.slice(0));
     pdfjsLib.getDocument({ data: bytes }).promise.then(
       document => {
@@ -464,14 +551,7 @@ export function PdfReader({
       setViewport(pageViewport);
       const content = await page.getTextContent();
       if (cancelled) return;
-      const spans: TextSpan[] = [];
-      for (const item of content.items) {
-        if (!('str' in item) || !item.str) continue;
-        const tx = multiplyTransform(pageViewport.transform, item.transform);
-        const size = Math.hypot(tx[2]!, tx[3]!) || 10;
-        spans.push({ text: item.str, left: tx[4]!, top: tx[5]! - size, size });
-      }
-      setTextSpans(spans);
+      setTextSpans(buildTextSpans(pageViewport, content.items));
       page.cleanup();
     })().catch(() => {
       if (!cancelled) setError(t('renderFailed'));
@@ -489,28 +569,34 @@ export function PdfReader({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, doc]);
 
-  // 连续模式：单页渲染完成后上报尺寸（回调保持稳定，避免画布重复渲染）
-  const handleContinuousPageRendered = useCallback((page: number, width: number, height: number) => {
+  // 连续模式：单页渲染完成后上报 viewport（回调保持稳定，避免画布重复渲染）——
+  // 父级据此修正 wrapper 尺寸并记录该页 viewport（点击/选区坐标换算用）
+  const handleContinuousPageRendered = useCallback((page: number, viewport: pdfjsLib.PageViewport) => {
     setPageSizes(prev =>
-      prev[page] && prev[page]!.width === width && prev[page]!.height === height
+      prev[page] && prev[page]!.width === viewport.width && prev[page]!.height === viewport.height
         ? prev
-        : { ...prev, [page]: { width, height } },
+        : { ...prev, [page]: { width: viewport.width, height: viewport.height } },
     );
-    setLastPageSize(prev => (prev && prev.width === width && prev.height === height ? prev : { width, height }));
+    setLastPageSize(prev =>
+      prev && prev.width === viewport.width && prev.height === viewport.height ? prev : { width: viewport.width, height: viewport.height },
+    );
+    pageViewportsRef.current[page] = viewport;
   }, []);
 
+  // 选中检测（单页容器与连续滚动容器共用）：mouseup 时读取 window 选区，非空则
+  // 浮现工具条；坐标相对外层 containerRef。连续模式下按选区锚点定位所在页
+  // （[data-page] wrapper），选区包围盒换算为相对该页画布的坐标（供 bbox 换算）；
+  // 跨页选区按锚点页近似（文本层只存在于已渲染页）。
   const handleMouseUp = (event: ReactMouseEvent<HTMLDivElement>): void => {
     if (toolbarRef.current?.contains(event.target as Node)) return; // 工具条内部点击不收起
     const selection = window.getSelection();
     const text = selection ? selection.toString().replace(/\s+/g, ' ').trim() : '';
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
     const containerRect = containerRef.current?.getBoundingClientRect();
     if (
       !selection ||
       selection.isCollapsed ||
       selection.rangeCount === 0 ||
       !text ||
-      !canvasRect ||
       !containerRect
     ) {
       setToolbar(null);
@@ -521,13 +607,30 @@ export function PdfReader({
       setToolbar(null);
       return;
     }
+    // 选区所在页与画布原点：单页 = 当前页画布；连续 = 锚点所在 wrapper 内的画布
+    let page = pageNum;
+    let originRect = canvasRef.current?.getBoundingClientRect() ?? null;
+    if (viewMode === 'continuous') {
+      const anchorNode = selection.anchorNode;
+      const anchorEl = anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement ?? null;
+      const pageEl = anchorEl?.closest('[data-page]') ?? null;
+      const attr = pageEl?.getAttribute('data-page') ?? null;
+      const parsed = attr === null ? Number.NaN : Number(attr);
+      if (Number.isFinite(parsed)) page = parsed;
+      if (pageEl) originRect = (pageEl.querySelector('canvas') ?? pageEl).getBoundingClientRect();
+    }
+    if (!originRect) {
+      setToolbar(null);
+      return;
+    }
     setToolbar({
       x: rect.left - containerRect.left + rect.width / 2,
       y: rect.bottom - containerRect.top + 10,
       text,
+      page,
       rect: {
-        left: rect.left - canvasRect.left,
-        top: rect.top - canvasRect.top,
+        left: rect.left - originRect.left,
+        top: rect.top - originRect.top,
         width: rect.width,
         height: rect.height,
       },
@@ -555,13 +658,52 @@ export function PdfReader({
     onPagePoint(pageNum, point.x, point.y);
   };
 
+  /**
+   * 视口坐标 → PDF 用户空间（单页/连续共用）：单页用当前 viewport；连续优先该页
+   * 渲染时记录的 viewport，缺失（mock/异常）时按无旋转 viewport 逆变换
+   * （x/scale、(页高−y)/scale）估算；单页 viewport 未就绪或连续页尺寸未知返回 null。
+   */
+  const pdfPointFromViewportPoint = (page: number, px: number, py: number): { x: number; y: number } | null => {
+    const vp = viewMode === 'single' ? viewport : pageViewportsRef.current[page] ?? null;
+    if (vp) {
+      if (typeof vp.convertToPdfPoint === 'function') {
+        // pdfjs 类型将换算结果声明为 any[]，此处按 Point 结构取用
+        const point = vp.convertToPdfPoint(px, py) as unknown as { x: number; y: number };
+        if (point && Number.isFinite(point.x) && Number.isFinite(point.y)) return point;
+      }
+      return { x: px / scale, y: (vp.height - py) / scale };
+    }
+    const size = viewMode === 'single' ? null : pageSizes[page];
+    return size ? { x: px / scale, y: (size.height - py) / scale } : null;
+  };
+
+  // 连续模式：页 wrapper 点击 → 该页 PDF 用户空间坐标回调（PDF → 源码同步）。
+  // 与单页同款护栏：工具条内部点击不参与定位；拖选文字（非折叠选区）不触发定位；
+  // 画布外点击忽略。点击坐标相对该页画布（canvas），换算复用 pdfPointFromViewportPoint
+  // （优先该页渲染时记录的 viewport；未渲染页无 viewport 且尺寸未知 → 不回调）。
+  const handleContinuousPageClick = (event: ReactMouseEvent<HTMLDivElement>, pageNo: number): void => {
+    if (!onPagePoint) return;
+    if (toolbarRef.current?.contains(event.target as Node)) return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return; // 拖选文字（标注/即问）不触发定位
+    const wrapper = event.currentTarget;
+    const pageRect = (wrapper.querySelector('canvas') ?? wrapper).getBoundingClientRect();
+    const px = event.clientX - pageRect.left;
+    const py = event.clientY - pageRect.top;
+    if (px < 0 || py < 0 || px > pageRect.width || py > pageRect.height) return; // 页面外点击忽略
+    const point = pdfPointFromViewportPoint(pageNo, px, py);
+    if (!point) return;
+    onPagePoint(pageNo, point.x, point.y);
+  };
+
   const emitAnnotation = (semantic: HighlightSemantic | undefined, note: string): void => {
-    if (!onCreateAnnotation || !toolbar || !viewport) return;
-    const { rect, text } = toolbar;
-    // 选区包围盒（视口坐标）→ PDF 用户空间坐标（左下/右上两点换算）
-    // pdfjs 类型将换算结果声明为 any[]，此处按 Point 结构取用
-    const p1 = viewport.convertToPdfPoint(rect.left, rect.top + rect.height) as unknown as { x: number; y: number };
-    const p2 = viewport.convertToPdfPoint(rect.left + rect.width, rect.top) as unknown as { x: number; y: number };
+    if (!onCreateAnnotation || !toolbar) return;
+    const { rect, text, page } = toolbar;
+    // 选区包围盒（该页视口坐标）→ PDF 用户空间坐标（左下/右上两点换算）；
+    // 单页用当前 viewport，连续用该页渲染时记录的 viewport（复用 pdfPointFromViewportPoint）
+    const p1 = pdfPointFromViewportPoint(page, rect.left, rect.top + rect.height);
+    const p2 = pdfPointFromViewportPoint(page, rect.left + rect.width, rect.top);
+    if (!p1 || !p2) return;
     const bbox: [number, number, number, number] = [
       Math.min(p1.x, p2.x),
       Math.min(p1.y, p2.y),
@@ -571,7 +713,7 @@ export function PdfReader({
     onCreateAnnotation({
       id: createId(),
       paperId: '', // 组件不感知所属文献，由宿主补全
-      page: pageNum,
+      page,
       kind: note ? 'note' : 'highlight',
       semantic: note ? undefined : semantic,
       bbox,
@@ -833,6 +975,68 @@ export function PdfReader({
     </aside>
   ) : null;
 
+  // 选中浮动工具条（单页/连续共用）：四色高亮 + 笔记 + 选中即问。单页渲染在页容器内，
+  // 连续渲染在滚动容器外（避免被 overflowY 裁剪；坐标均相对外层 containerRef）。
+  const toolbarNode = toolbar ? (
+    <div
+      ref={toolbarRef}
+      style={{
+        position: 'absolute',
+        left: toolbar.x,
+        top: toolbar.y,
+        transform: 'translate(-50%, 0)',
+        zIndex: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 8px',
+        background: '#ffffff',
+        border: '1px solid #d1d5db',
+        borderRadius: 8,
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+      }}
+    >
+      {SEMANTIC_ORDER.map(semantic => (
+        <button
+          key={semantic}
+          type="button"
+          title={SEMANTIC_STYLES[semantic].label[language]}
+          aria-label={SEMANTIC_STYLES[semantic].label[language]}
+          onClick={() => emitAnnotation(semantic, '')}
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: SEMANTIC_STYLES[semantic].solid,
+            border: '1px solid rgba(0, 0, 0, 0.2)',
+            cursor: 'pointer',
+          }}
+        />
+      ))}
+      <input
+        value={noteDraft}
+        onChange={event => setNoteDraft(event.target.value)}
+        placeholder={t('notePlaceholder')}
+        style={{ width: 120, fontSize: 12, padding: '2px 6px' }}
+      />
+      <button type="button" onClick={() => emitAnnotation(undefined, noteDraft.trim())} disabled={!noteDraft.trim()}>
+        {t('saveNote')}
+      </button>
+      {(askActions ?? []).map(action => (
+        <button
+          key={action.label}
+          type="button"
+          onClick={() => {
+            action.run(toolbar.text);
+            dismissSelection();
+          }}
+        >
+          {action.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <div className={className} ref={containerRef} style={{ position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -917,31 +1121,36 @@ export function PdfReader({
               {error}
             </div>
           ) : viewMode === 'continuous' && doc ? (
-            // 连续滚动模式：全部页 wrapper 按序排布；仅视口附近 ±1 页挂载 canvas（≤3 个，
-            // 满足 ≤5 护栏），远端页保留 wrapper + 占位高度（上一已知视口高度或 A4 比例）。
-            // 滚动时同步 pageNum = 视口中心所在页（滚动监听 + IntersectionObserver 校正）。
-            <div
-              ref={scrollRef}
-              data-testid="pdf-continuous-scroll"
-              style={{
-                maxHeight: 480,
-                overflowY: 'auto',
-                border: '1px solid #e5e7eb',
-                borderRadius: 8,
-                background: '#f3f4f6',
-                padding: 8,
-              }}
-            >
-              {Array.from({ length: doc.numPages }, (_, i) => i + 1).map(pageNo => {
-                const size = pageSizes[pageNo];
-                const width = size?.width ?? fallbackPageWidth;
-                const height = size?.height ?? placeholderPageHeight;
-                const active = pageNo >= pageNum - 1 && pageNo <= pageNum + 1;
-                return (
-                  <div
-                    key={pageNo}
-                    data-page={pageNo}
-                    style={{
+            // 连续滚动模式：全部页 wrapper 按序排布；仅视口附近 ±1 页挂载 canvas + 透明
+            // 文本层（≤3 组，满足 ≤5 护栏），远端页保留 wrapper + 占位高度（上一已知视口
+            // 高度或 A4 比例）—— 文本层与 canvas 同生命周期。滚动时同步 pageNum = 视口中心
+            // 所在页（滚动监听 + IntersectionObserver 校正）。选中 mouseup 在滚动容器上检测
+            // → 四色工具条（渲染在容器外，不被裁剪）；页 wrapper 点击 → onPagePoint。
+            <>
+              <div
+                ref={scrollRef}
+                data-testid="pdf-continuous-scroll"
+                onMouseUp={handleMouseUp}
+                style={{
+                  maxHeight: 480,
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  background: '#f3f4f6',
+                  padding: 8,
+                }}
+              >
+                {Array.from({ length: doc.numPages }, (_, i) => i + 1).map(pageNo => {
+                  const size = pageSizes[pageNo];
+                  const width = size?.width ?? fallbackPageWidth;
+                  const height = size?.height ?? placeholderPageHeight;
+                  const active = pageNo >= pageNum - 1 && pageNo <= pageNum + 1;
+                  return (
+                    <div
+                      key={pageNo}
+                      data-page={pageNo}
+                      onClick={event => handleContinuousPageClick(event, pageNo)}
+                      style={{
                       position: 'relative',
                       width,
                       height,
@@ -999,8 +1208,10 @@ export function PdfReader({
                     )}
                   </div>
                 );
-              })}
-            </div>
+                })}
+              </div>
+              {toolbarNode}
+            </>
           ) : (
             <div
               style={{ position: 'relative', width: pageWidth || undefined }}
@@ -1013,38 +1224,7 @@ export function PdfReader({
                   <div style={{ position: 'absolute', left: 0, top: 0, width: pageWidth, height: pageHeight, zIndex: 1 }}>
                     {highlights}
                   </div>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: 0,
-                      width: pageWidth,
-                      height: pageHeight,
-                      zIndex: 2,
-                      overflow: 'hidden',
-                      color: 'transparent',
-                      cursor: 'text',
-                      userSelect: 'text',
-                      WebkitUserSelect: 'text',
-                    }}
-                  >
-                    {textSpans.map((span, index) => (
-                      <span
-                        key={index}
-                        style={{
-                          position: 'absolute',
-                          left: span.left,
-                          top: span.top,
-                          fontSize: `${span.size}px`,
-                          fontFamily: 'sans-serif',
-                          whiteSpace: 'pre',
-                          lineHeight: 1,
-                        }}
-                      >
-                        {span.text}
-                      </span>
-                    ))}
-                  </div>
+                  <TextSpanLayer spans={textSpans} width={pageWidth} height={pageHeight} />
                   {flashVisible && (
                     <div
                       data-testid="pdf-goto-flash"
@@ -1066,65 +1246,7 @@ export function PdfReader({
                   )}
                 </>
               )}
-              {toolbar && (
-                <div
-                  ref={toolbarRef}
-                  style={{
-                    position: 'absolute',
-                    left: toolbar.x,
-                    top: toolbar.y,
-                    transform: 'translate(-50%, 0)',
-                    zIndex: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 8px',
-                    background: '#ffffff',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                  }}
-                >
-                  {SEMANTIC_ORDER.map(semantic => (
-                    <button
-                      key={semantic}
-                      type="button"
-                      title={SEMANTIC_STYLES[semantic].label[language]}
-                      aria-label={SEMANTIC_STYLES[semantic].label[language]}
-                      onClick={() => emitAnnotation(semantic, '')}
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: SEMANTIC_STYLES[semantic].solid,
-                        border: '1px solid rgba(0, 0, 0, 0.2)',
-                        cursor: 'pointer',
-                      }}
-                    />
-                  ))}
-                  <input
-                    value={noteDraft}
-                    onChange={event => setNoteDraft(event.target.value)}
-                    placeholder={t('notePlaceholder')}
-                    style={{ width: 120, fontSize: 12, padding: '2px 6px' }}
-                  />
-                  <button type="button" onClick={() => emitAnnotation(undefined, noteDraft.trim())} disabled={!noteDraft.trim()}>
-                    {t('saveNote')}
-                  </button>
-                  {(askActions ?? []).map(action => (
-                    <button
-                      key={action.label}
-                      type="button"
-                      onClick={() => {
-                        action.run(toolbar.text);
-                        dismissSelection();
-                      }}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {toolbarNode}
             </div>
           )}
         </div>

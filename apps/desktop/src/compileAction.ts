@@ -2,7 +2,8 @@
  * 编译动作：Tauri 形态优先探测并使用真实引擎（tectonic → latexmk，经 proc_run 桥），
  * 都不可用或流程任一步失败时自动回退 MockEngine；浏览器形态直接 MockEngine。
  * 真实编译前先把项目文本文件物化到数据目录（引擎 cwd），成功后经 fs_read_base64 读回
- * PDF 产物并自动打开应用内预览，随后回读 .synctex.gz 注册 SyncTeX 索引
+ * PDF 产物并自动打开应用内预览（同时缓存为 lastPdf，预览关闭后可经 reopenLastPdf 重看，D14），
+ * 随后回读 .synctex.gz 注册 SyncTeX 索引
  * （PDF ↔ 源码双向跳转，synctexBridge 消费；模拟/浏览器路径一律置 null 停用同步）；
  * 存在 error 级诊断时自动跳转到首个出错行。
  * 命令面板与 agent 工具 tex.compile 共用。
@@ -12,6 +13,7 @@ import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, parseSynctex
 import type { Diagnostic, ProjectFileMap } from '@scholarforge/shared';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useUiStore } from './state/uiStore';
+import { useSettingsStore, type Language } from './state/settingsStore';
 import { getPlatform } from './platform/types';
 import { tauriProcRun, tauriReadBase64 } from './platform/tauri';
 import { jumpTo } from './editorJump';
@@ -38,6 +40,80 @@ export interface CompileActionResult {
   entry: string;
   passes: number;
   diagnostics: number;
+}
+
+// ---------------------------------------------------------------------------
+// 双语文案（D15）：zh 保持原文，en 为准确翻译。
+// 调用处经 pick(useSettingsStore.getState().language) 在「发日志那一刻」动态读取语言，
+// 避免模块加载或长生命周期闭包造成的语言过期。
+// ---------------------------------------------------------------------------
+
+interface CompileDict {
+  noEntry: string;
+  noEngine: string;
+  mockStart: (entry: string) => string;
+  realStart: (engine: string, entry: string, count: number) => string;
+  summary: (engine: string, passes: number, durationMs: number, ok: boolean) => string;
+  fixHint: (hint: string) => string;
+  materializeFail: (err: string) => string;
+  engineFail: (engine: string, err: string) => string;
+  pdfOpened: (pdfPath: string, bytes: number) => string;
+  pdfMissing: (pdfPath: string, err: string) => string;
+  synctexOk: (synctexPath: string, bytes: number) => string;
+  synctexFail: (synctexPath: string, err: string) => string;
+}
+
+export const L: Record<Language, CompileDict> = {
+  zh: {
+    noEntry: '✗ 未找到可编译的 .tex 入口文件',
+    noEngine: '⚠ 未检测到 Tectonic/latexmk，回退模拟引擎。安装 TeX Live（含 latexmk）或 Tectonic 后可获得真实编译。',
+    mockStart: (entry) => `▶ 开始编译 ${entry}（模拟引擎）`,
+    realStart: (engine, entry, count) => `▶ ${engine} 真实编译 ${entry}（已物化 ${count} 个项目文件到本地工作目录）`,
+    summary: (engine, passes, durationMs, ok) => `▣ ${engine} · ${passes} 趟 · ${durationMs}ms · ${ok ? '成功' : '失败'}`,
+    fixHint: (hint) => `    ↳ 修复提示：${hint}`,
+    materializeFail: (err) => `⚠ 项目文件物化失败（${err}），回退模拟引擎。`,
+    engineFail: (engine, err) => `⚠ ${engine} 执行失败（${err}），回退模拟引擎。`,
+    pdfOpened: (pdfPath, bytes) => `🖨 产物 ${pdfPath} 已读回（${bytes} 字节），PDF 预览已打开`,
+    pdfMissing: (pdfPath, err) => `⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${err}）。请检查引擎输出目录设置。`,
+    synctexOk: (synctexPath, bytes) => `🔗 SyncTeX 索引已注册（${synctexPath}，${bytes} 字节），PDF ↔ 源码同步可用`,
+    synctexFail: (synctexPath, err) => `⚠ SyncTeX 索引不可用（${synctexPath} 读取失败：${err}），PDF ↔ 源码同步已停用。`,
+  },
+  en: {
+    noEntry: '✗ No compilable .tex entry file found',
+    noEngine: '⚠ Tectonic/latexmk not detected; falling back to the mock engine. Install TeX Live (with latexmk) or Tectonic for real compilation.',
+    mockStart: (entry) => `▶ Compiling ${entry} (mock engine)`,
+    realStart: (engine, entry, count) => `▶ ${engine} real compile of ${entry} (${count} project files materialized into the local working directory)`,
+    summary: (engine, passes, durationMs, ok) => `▣ ${engine} · ${passes} pass(es) · ${durationMs}ms · ${ok ? 'succeeded' : 'failed'}`,
+    fixHint: (hint) => `    ↳ Fix hint: ${hint}`,
+    materializeFail: (err) => `⚠ Failed to materialize project files (${err}); falling back to the mock engine.`,
+    engineFail: (engine, err) => `⚠ ${engine} failed (${err}); falling back to the mock engine.`,
+    pdfOpened: (pdfPath, bytes) => `🖨 Artifact ${pdfPath} read back (${bytes} bytes); PDF preview opened`,
+    pdfMissing: (pdfPath, err) => `⚠ Compiled successfully but the PDF artifact was not found: reading ${pdfPath} failed (${err}). Check the engine output directory settings.`,
+    synctexOk: (synctexPath, bytes) => `🔗 SyncTeX index registered (${synctexPath}, ${bytes} bytes); PDF ↔ source sync enabled`,
+    synctexFail: (synctexPath, err) => `⚠ SyncTeX index unavailable (failed to read ${synctexPath}: ${err}); PDF ↔ source sync disabled.`,
+  },
+};
+
+/** 按语言取文案（语言由调用处在发日志时动态读取） */
+export function pick(lang: Language): CompileDict {
+  return L[lang];
+}
+
+// ---------------------------------------------------------------------------
+// 最近编译产物缓存（D14）：真实编译读回的 PDF 在预览关闭后可重看
+// ---------------------------------------------------------------------------
+
+let lastPdf: { name: string; data: ArrayBuffer } | null = null;
+
+/**
+ * 重看最近一次真实编译的 PDF 产物：有缓存则重开应用内 PDF 预览
+ * （setPdfView 会同时把中央视图切回 pdf）并返回 true；从未读回过产物返回 false。
+ * 导出签名（供集成者在 commands.ts 注册命令）：reopenLastPdf(): boolean
+ */
+export function reopenLastPdf(): boolean {
+  if (!lastPdf) return false;
+  useUiStore.getState().setPdfView(lastPdf);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,11 +210,12 @@ export function resolveCompileEntry(): string | null {
 
 function logDiagnostics(entry: string, diagnostics: Diagnostic[]): void {
   const s = useWorkspaceStore.getState();
+  const t = pick(useSettingsStore.getState().language);
   for (const d of diagnostics) {
     const loc = `${d.file ?? entry}${d.line ? `:${d.line}` : ''}`;
     s.appendCompileLog(`  [${d.severity}] ${loc} ${d.message}`);
     const hint = diagnosticHint(d);
-    if (hint) s.appendCompileLog(`    ↳ 修复提示：${hint}`);
+    if (hint) s.appendCompileLog(t.fixHint(hint));
   }
 }
 
@@ -148,23 +225,22 @@ function logDiagnostics(entry: string, diagnostics: Diagnostic[]): void {
 
 export async function runMockCompile(): Promise<CompileActionResult> {
   const s = useWorkspaceStore.getState();
+  const t = pick(useSettingsStore.getState().language);
   const entry = resolveCompileEntry();
   if (!entry) {
-    s.appendCompileLog('✗ 未找到可编译的 .tex 入口文件');
+    s.appendCompileLog(t.noEntry);
     s.setCompileStatus('fail');
     setSynctexIndex(null); // 模拟路径统一停用 PDF ↔ 源码同步
     return { ok: false, entry: '', passes: 0, diagnostics: 0 };
   }
   s.setCompileStatus('running');
-  s.appendCompileLog(`▶ 开始编译 ${entry}（模拟引擎）`);
+  s.appendCompileLog(t.mockStart(entry));
   const result = await runFullCompile(
     { files: s.files, entry },
     new MockEngine({ latencyMs: 400 }),
     idleRunner,
   );
-  s.appendCompileLog(
-    `▣ ${result.engine} · ${result.passes} 趟 · ${result.durationMs}ms · ${result.success ? '成功' : '失败'}`,
-  );
+  s.appendCompileLog(t.summary(result.engine, result.passes, result.durationMs, result.success));
   logDiagnostics(entry, result.diagnostics);
   setSynctexIndex(null); // 模拟引擎无真实产物：清除旧索引，停用 PDF ↔ 源码同步
   s.setCompileStatus(result.success ? 'ok' : 'fail');
@@ -189,6 +265,7 @@ export async function runMockCompile(): Promise<CompileActionResult> {
  */
 async function runRealCompile(entry: string): Promise<CompileActionResult | null> {
   const s = useWorkspaceStore.getState();
+  const t = pick(useSettingsStore.getState().language);
   s.setCompileStatus('running');
 
   const engineKind = detectEngine({
@@ -196,7 +273,7 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
     latexmk: await probeEngine('latexmk'),
   });
   if (!engineKind) {
-    s.appendCompileLog('⚠ 未检测到 Tectonic/latexmk，回退模拟引擎。安装 TeX Live（含 latexmk）或 Tectonic 后可获得真实编译。');
+    s.appendCompileLog(t.noEngine);
     return null;
   }
 
@@ -204,9 +281,9 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
   try {
     const fs = getPlatform().fs;
     const count = await materializeProjectFiles(s.files, (p, c) => fs.writeFile(p, c));
-    s.appendCompileLog(`▶ ${engineKind} 真实编译 ${entry}（已物化 ${count} 个项目文件到本地工作目录）`);
+    s.appendCompileLog(t.realStart(engineKind, entry, count));
   } catch (e) {
-    s.appendCompileLog(`⚠ 项目文件物化失败（${errText(e)}），回退模拟引擎。`);
+    s.appendCompileLog(t.materializeFail(errText(e)));
     return null;
   }
 
@@ -218,24 +295,24 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
       tauriRunner,
     );
   } catch (e) {
-    s.appendCompileLog(`⚠ ${engineKind} 执行失败（${errText(e)}），回退模拟引擎。`);
+    s.appendCompileLog(t.engineFail(engineKind, errText(e)));
     return null;
   }
 
-  s.appendCompileLog(
-    `▣ ${engineKind} · ${result.passes} 趟 · ${result.durationMs}ms · ${result.success ? '成功' : '失败'}`,
-  );
+  s.appendCompileLog(t.summary(engineKind, result.passes, result.durationMs, result.success));
   logDiagnostics(entry, result.diagnostics);
 
-  // 读回 PDF 产物并打开应用内预览（产物缺失只记录日志，不影响编译结果）
+  // 读回 PDF 产物并打开应用内预览（产物缺失只记录日志，不影响编译结果）；
+  // 读回成功即存入 lastPdf 缓存（D14：预览关闭后 reopenLastPdf 可重看）
   if (result.success) {
     const pdfPath = pdfTargetFor(entry);
     try {
       const bytes = await tauriReadBase64(pdfPath);
-      useUiStore.getState().setPdfView({ name: pdfPath, data: toArrayBuffer(bytes) });
-      s.appendCompileLog(`🖨 产物 ${pdfPath} 已读回（${bytes.length} 字节），PDF 预览已打开`);
+      lastPdf = { name: pdfPath, data: toArrayBuffer(bytes) };
+      useUiStore.getState().setPdfView(lastPdf);
+      s.appendCompileLog(t.pdfOpened(pdfPath, bytes.length));
     } catch (e) {
-      s.appendCompileLog(`⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${errText(e)}）。请检查引擎输出目录设置。`);
+      s.appendCompileLog(t.pdfMissing(pdfPath, errText(e)));
     }
 
     // 回读 SyncTeX 索引并注册（PDF ↔ 源码双向跳转）；失败只记日志并停用同步，不影响编译结果
@@ -243,10 +320,10 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
     try {
       const bytes = await tauriReadBase64(synctexPath);
       setSynctexIndex(parseSynctex(bytes));
-      s.appendCompileLog(`🔗 SyncTeX 索引已注册（${synctexPath}，${bytes.length} 字节），PDF ↔ 源码同步可用`);
+      s.appendCompileLog(t.synctexOk(synctexPath, bytes.length));
     } catch (e) {
       setSynctexIndex(null);
-      s.appendCompileLog(`⚠ SyncTeX 索引不可用（${synctexPath} 读取失败：${errText(e)}），PDF ↔ 源码同步已停用。`);
+      s.appendCompileLog(t.synctexFail(synctexPath, errText(e)));
     }
   } else {
     setSynctexIndex(null); // 编译失败：旧索引与最新源码不再一致，停用同步

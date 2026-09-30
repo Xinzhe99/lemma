@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Cpu, Globe2, Info, Palette, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useT } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import {
   useSettingsStore,
   type ProviderConfig,
@@ -76,8 +77,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const startEdit = (p: ProviderConfig) =>
     setForm({ id: p.id, label: p.label, baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, tier: p.tier });
 
-  const remove = (p: ProviderConfig) => {
-    if (window.confirm(`${t('settings.deleteConfirm')} (${p.label})`)) removeProvider(p.id);
+  /** 删除确认走应用内对话框（Tauri WKWebView 下原生 confirm 静默失效） */
+  const remove = async (p: ProviderConfig): Promise<void> => {
+    if (await confirmDialog(`${t('settings.deleteConfirm')} (${p.label})`, t('settings.delete'))) {
+      removeProvider(p.id);
+    }
   };
 
   const field = (key: keyof Omit<ProviderForm, 'id'>, label: string, value: string, type = 'text') => (
@@ -137,7 +141,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                     <button className="sf-btn" onClick={() => startEdit(p)}>
                       <Pencil size={12} /> {t('settings.edit')}
                     </button>
-                    <button className="sf-btn danger" onClick={() => remove(p)}>
+                    <button className="sf-btn danger" onClick={() => void remove(p)}>
                       <Trash2 size={12} /> {t('settings.delete')}
                     </button>
                   </div>

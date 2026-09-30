@@ -26,6 +26,7 @@ import {
   type PaperSearchHit,
 } from '@scholarforge/library';
 import type { Paper, ReadStatus } from '@scholarforge/shared';
+import { confirmDialog } from '../dialogs';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore, type LibraryMode } from '../state/uiStore';
@@ -64,6 +65,8 @@ interface Copy {
   deleteTitle: string;
   deleteConfirm: (citekey: string) => string;
   batchSelected: (n: number) => string;
+  /** 批量删除的应用内确认标题（L5 删除确认走 uiStore.openTextDialog） */
+  batchDeleteConfirm: (n: number) => string;
   markRead: string;
   batchDelete: string;
   clearSelection: string;
@@ -123,6 +126,7 @@ const COPY: Record<Language, Copy> = {
     deleteTitle: '删除',
     deleteConfirm: (citekey) => `删除「${citekey}」？`,
     batchSelected: (n) => `已选 ${n} 项`,
+    batchDeleteConfirm: (n) => `删除所选 ${n} 条文献？`,
     markRead: '标记已读',
     batchDelete: '删除所选',
     clearSelection: '取消选择',
@@ -180,6 +184,7 @@ const COPY: Record<Language, Copy> = {
     deleteTitle: 'Delete',
     deleteConfirm: (citekey) => `Delete "${citekey}"?`,
     batchSelected: (n) => `${n} selected`,
+    batchDeleteConfirm: (n) => `Delete ${n} selected items?`,
     markRead: 'Mark as read',
     batchDelete: 'Delete selected',
     clearSelection: 'Clear selection',
@@ -352,12 +357,17 @@ export function LibraryPanel() {
     setSelectedIds(new Set());
   };
 
-  const batchRemove = (): void => {
-    if (window.confirm(c.batchSelected(selectedIds.size))) {
-      removePapers([...selectedIds]);
-      setSelectedIds(new Set());
-      if (expandedId && !papers.some((p) => p.id === expandedId)) setExpandedId(null);
-    }
+  /** 批量删除：应用内确认（Tauri WKWebView 下原生 confirm 静默失效） */
+  const batchRemove = async (): Promise<void> => {
+    if (!(await confirmDialog(c.batchDeleteConfirm(selectedIds.size), c.batchDelete))) return;
+    removePapers([...selectedIds]);
+    setSelectedIds(new Set());
+    if (expandedId && !papers.some((p) => p.id === expandedId)) setExpandedId(null);
+  };
+
+  /** 单条删除：应用内确认（同上） */
+  const removeOne = async (paper: Paper): Promise<void> => {
+    if (await confirmDialog(c.deleteConfirm(paper.citekey), c.deleteTitle)) removePaper(paper.id);
   };
 
   /** 全库导出 .bib：papersToBibtex 生成 + Blob 下载（反馈走 list 模式的 pdfMsg 状态行） */
@@ -453,7 +463,7 @@ export function LibraryPanel() {
               <button className="sf-btn" onClick={batchMarkRead}>
                 {c.markRead}
               </button>
-              <button className="sf-btn sf-lib-batch-delete" onClick={batchRemove}>
+              <button className="sf-btn sf-lib-batch-delete" onClick={() => void batchRemove()}>
                 {c.batchDelete}
               </button>
               <button className="sf-link-btn" onClick={() => setSelectedIds(new Set())}>
@@ -528,9 +538,7 @@ export function LibraryPanel() {
                     <button
                       className="icon-btn"
                       title={c.deleteTitle}
-                      onClick={() => {
-                        if (window.confirm(c.deleteConfirm(p.citekey))) removePaper(p.id);
-                      }}
+                      onClick={() => void removeOne(p)}
                     >
                       <Trash2 size={14} />
                     </button>

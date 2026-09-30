@@ -138,9 +138,35 @@ export function App() {
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
+        // D4：编辑器内 Ctrl+Shift+Z 是 Redo，不切换专注模式
+        const el = e.target instanceof HTMLElement ? e.target : null;
+        if (el?.closest('input, textarea, .cm-content, [contenteditable="true"]')) return;
         e.preventDefault();
         const ui = useUiStore.getState();
         ui.setFocusMode(!ui.focusMode);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        // D6：宣传了的编译快捷键接线
+        e.preventDefault();
+        void import('./compileAction').then(({ runCompile }) => runCompile());
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        useUiStore.getState().setHistoryOpen(true);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen(true);
+        return;
+      }
+      if (e.key === 'Escape' && useUiStore.getState().focusMode) {
+        // D9：Esc 退出专注模式（有任意浮层打开时不抢 Esc）
+        if (!document.querySelector('.sf-dialog-overlay, .palette-overlay')) {
+          useUiStore.getState().setFocusMode(false);
+        }
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
@@ -394,7 +420,7 @@ export function App() {
         <div className="brand">ScholarForge</div>
         <button
           className="sf-project-name"
-          title="切换 / 管理项目"
+          title={t('cmd.manageProjects')}
           onClick={() => useUiStore.getState().setProjectSwitcherOpen(true)}
         >
           {projectName || '未命名项目'}

@@ -5,9 +5,9 @@
  * 样式：复用全局 sf-btn / sf-chip / placeholder + 少量内联样式（不新增 css）。
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Check, CornerDownRight, FileDown, MessageSquarePlus, Trash2, X } from 'lucide-react';
-import { jumpTo, lastCursor } from '../editorJump';
+import { jumpTo, lastCursor, subscribeCursor } from '../editorJump';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { commentsToMarkdown, useCommentsStore, type ManuscriptComment } from '../state/commentsStore';
@@ -185,8 +185,10 @@ export function CommentsPanel() {
     return () => clearTimeout(timer);
   }, [status]);
 
-  // 顶部「在当前行添加批注」可用性：activeTab 为 .tex 且编辑器光标在 activeTab 内
-  const cursor = lastCursor();
+  // 顶部「在当前行添加批注」可用性：activeTab 为 .tex 且编辑器光标在 activeTab 内。
+  // 光标经 useSyncExternalStore(subscribeCursor, lastCursor) 响应式获取（D1 修复）：
+  // 编辑器光标移动时 notifyCursor 通知订阅者，按钮可用性实时变化，无需等待面板重渲染。
+  const cursor = useSyncExternalStore(subscribeCursor, lastCursor, lastCursor);
   const isTex = !!activeTab && activeTab.endsWith('.tex');
   const cursorInFile = isTex && cursor.file === activeTab;
   const addDisabledReason = !activeTab
@@ -205,7 +207,7 @@ export function CommentsPanel() {
 
   const submitComment = () => {
     if (!activeTab) return;
-    const created = addComment(activeTab, lastCursor().line, draftText, draftAuthor);
+    const created = addComment(activeTab, cursor.line, draftText, draftAuthor);
     if (!created) {
       setStatus(t.emptyText);
       return;
@@ -312,7 +314,7 @@ export function CommentsPanel() {
           }}
         >
           <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-            {t.composerTitle(activeTab, lastCursor().line)}
+            {t.composerTitle(activeTab, cursor.line)}
           </span>
           <textarea
             className="sf-comments-text"

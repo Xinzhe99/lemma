@@ -11,7 +11,7 @@ import {
   type ChatProvider,
 } from '@scholarforge/agent-hub';
 import { validateCitations } from '@scholarforge/knowledge';
-import { useSettingsStore } from './state/settingsStore';
+import { useSettingsStore, type Language } from './state/settingsStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useLibraryStore } from './state/libraryStore';
 import { useProposalStore } from './state/proposalStore';
@@ -28,6 +28,42 @@ export interface ProviderChoice {
   model: string;
   label: string;
   real: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// 双语提示（D15）：润色流程的 setNote 消息。zh 保持原文，en 为准确翻译。
+// 调用处经 pick(useSettingsStore.getState().language) 在发消息那一刻动态读取语言，
+// 避免模块加载或长生命周期闭包造成的语言过期。
+// ---------------------------------------------------------------------------
+
+interface PolishDict {
+  emptySelection: string;
+  needTex: string;
+  selectionMismatch: string;
+  noChangeNeeded: string;
+  polishFailed: (detail: string) => string;
+}
+
+export const L: Record<Language, PolishDict> = {
+  zh: {
+    emptySelection: '选区为空',
+    needTex: '请先在编辑器打开一个 .tex 文件',
+    selectionMismatch: '选区与文件内容不匹配（文件可能已变化），请重新选择',
+    noChangeNeeded: '选中文本无需修改（离线规则未命中；配置模型服务可获得深度润色）',
+    polishFailed: (detail) => `润色失败：${detail}`,
+  },
+  en: {
+    emptySelection: 'The selection is empty',
+    needTex: 'Open a .tex file in the editor first',
+    selectionMismatch: 'The selection no longer matches the file content (the file may have changed); please reselect',
+    noChangeNeeded: 'No changes needed for the selection (offline rules found nothing to fix; configure a model provider for deeper polishing)',
+    polishFailed: (detail) => `Polish failed: ${detail}`,
+  },
+};
+
+/** 按语言取文案（语言由调用处在发消息时动态读取） */
+export function pick(lang: Language): PolishDict {
+  return L[lang];
 }
 
 export function resolveProvider(): ProviderChoice {
@@ -118,21 +154,22 @@ export async function sendChatMessage(text: string): Promise<void> {
 
 /** 润色编辑器选中文本：产生整文件 diff 提案（规则润色离线可用，模型走 runAgentTurn） */
 export async function polishSelection(selection: string): Promise<void> {
+  const t = pick(useSettingsStore.getState().language);
   const trimmed = selection.trim();
   const proposalStore = useProposalStore.getState();
   if (!trimmed) {
-    proposalStore.setNote('选区为空');
+    proposalStore.setNote(t.emptySelection);
     return;
   }
   const ws = useWorkspaceStore.getState();
   const file = ws.activeTab;
   if (!file || !file.endsWith('.tex') || ws.files[file] === undefined) {
-    proposalStore.setNote('请先在编辑器打开一个 .tex 文件');
+    proposalStore.setNote(t.needTex);
     return;
   }
   const before = ws.files[file]!;
   if (!before.includes(selection)) {
-    proposalStore.setNote('选区与文件内容不匹配（文件可能已变化），请重新选择');
+    proposalStore.setNote(t.selectionMismatch);
     return;
   }
 
@@ -152,7 +189,7 @@ export async function polishSelection(selection: string): Promise<void> {
       polished = extractLatexBody(reply);
       via = model;
     } catch (e) {
-      proposalStore.setNote(`润色失败：${e instanceof Error ? e.message : String(e)}`);
+      proposalStore.setNote(t.polishFailed(e instanceof Error ? e.message : String(e)));
       return;
     }
   } else {
@@ -161,7 +198,7 @@ export async function polishSelection(selection: string): Promise<void> {
   }
 
   if (!polished.trim() || polished.trim() === trimmed) {
-    proposalStore.setNote('选中文本无需修改（离线规则未命中；配置模型服务可获得深度润色）');
+    proposalStore.setNote(t.noChangeNeeded);
     return;
   }
   proposalStore.setProposal({

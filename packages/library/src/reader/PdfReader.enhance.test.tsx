@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 /**
- * PdfReader 增强组件测试：大纲（书签）导航 + 连续滚动模式。
+ * PdfReader 增强组件测试：大纲（书签）导航 + 连续滚动模式 + D10（连续模式文本层）。
  * pdfjs-dist 以 mock 注入（手法同 PdfReader.test.tsx；jsdom 无 canvas 2d 后端与 worker），
  * 验证接线与行为契约：目录树渲染/跳页/失败项跳过、模式切换的 wrapper 与占位、
  * 滚动同步 pageNum、懒渲染 canvas 数量护栏（≤5）、翻页按钮滚动定位。
+ * D10：连续模式可见页挂透明文本层（span 定位与单页同款算法）、窗口外页无文本层、
+ * 页 wrapper 点击 → onPagePoint（该页 convertToPdfPoint 换算；有选区/未渲染页不触发）、
+ * 选中文字 → 四色工具条 → 创建标注 bbox 按该页 viewport 换算。
  * IntersectionObserver 在 jsdom 缺失：一处用桩验证观察接线，其余用例走滚动换算路径。
+ * jsdom Range 无 getBoundingClientRect：选中用例以 Object.defineProperty 桩选区几何。
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -18,7 +22,8 @@ const pdfjsMock = vi.hoisted(() => {
   const getOutline = vi.fn();
   const getDestination = vi.fn();
   const getPageIndex = vi.fn();
-  return { getPage, getOutline, getDestination, getPageIndex };
+  const convertToPdfPoint = vi.fn((x: number, y: number) => ({ x: x / 2, y: y / 2 }));
+  return { getPage, getOutline, getDestination, getPageIndex, convertToPdfPoint };
 });
 
 vi.mock('pdfjs-dist', () => ({
@@ -36,17 +41,20 @@ vi.mock('pdfjs-dist', () => ({
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-/** 5 页文档，每页视口 600×800 */
+/** 5 页文档，每页视口 600×800；每页含一项文本（transform 定位 30,700、字号 10） */
 function makePage() {
   return {
     getViewport: () => ({
       width: 600,
       height: 800,
       transform: [1, 0, 0, 1, 0, 0],
+      convertToPdfPoint: (x: number, y: number) => pdfjsMock.convertToPdfPoint(x, y),
       convertToViewportRectangle: (r: [number, number, number, number]) => r,
     }),
     render: () => ({ promise: Promise.resolve(), cancel: () => {} }),
-    getTextContent: async () => ({ items: [] }),
+    getTextContent: async () => ({
+      items: [{ str: 'Continuous text', transform: [10, 0, 0, 10, 30, 700] }],
+    }),
     cleanup: () => {},
   };
 }
@@ -107,11 +115,25 @@ beforeEach(() => {
   pdfjsMock.getDestination.mockResolvedValue(null);
   pdfjsMock.getPageIndex.mockReset();
   pdfjsMock.getPageIndex.mockImplementation(async (ref: { num: number }) => ref.num);
-  // jsdom 无 canvas 2d 后端：桩掉 getContext（组件只把它透传给 render）
+  pdfjsMock.convertToPdfPoint.mockClear(); // 保留实现（减半换算），只清调用记录
+  // jsdom 无 canvas 2d 后端：桩掉 getContext（组件只把它透传给 render）；画布几何桩
+  // (10,20) 起步 600×800——连续模式点击/选区的坐标换算原点（手法同 PdfReader.test.tsx）
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({} as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    left: 10,
+    top: 20,
+    width: 600,
+    height: 800,
+    right: 610,
+    bottom: 820,
+    x: 10,
+    y: 20,
+    toJSON: () => ({}),
+  } as DOMRect);
 });
 
 afterEach(() => {
+  delete (Range.prototype as { getBoundingClientRect?: unknown }).getBoundingClientRect; // 选中用例的几何桩
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -363,5 +385,141 @@ describe('PdfReader 连续滚动模式', () => {
     });
     expect(IOStub.instances[0]!.disconnected).toBe(true);
     root = null;
+  });
+});
+
+describe('PdfReader 连续模式 D10：文本层 / 选中 / 点击同步', () => {
+  const textLayers = (): NodeListOf<HTMLElement> =>
+    container!.querySelectorAll('[data-testid="pdf-page-textlayer"]');
+
+  /** 在指定页文本层 span 上建立非折叠选区（jsdom Selection 可用；几何需另行桩 Range） */
+  function selectPageText(page: number): HTMLElement {
+    const span = container!.querySelector(
+      `[data-page="${page}"] [data-testid="pdf-page-textlayer"] span`,
+    ) as HTMLElement | null;
+    if (!span) throw new Error(`text span not found on page ${page}`);
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return span;
+  }
+
+  it('可见页渲染透明文本层（span 定位与单页同款算法），窗口外懒渲染页无文本层', async () => {
+    renderReader();
+    await flushLoad();
+    act(() => {
+      exactButton('连续').click();
+    });
+    await flushLoad();
+    // 窗口 [1,2]：每可见页一个文本层，与 canvas 同生命周期
+    expect(textLayers().length).toBe(2);
+    // span 定位：viewport transform 恒等 → item.transform 平移量为 (30,700)、字号 10
+    // （top 上移一个字号 → 690，与单页模式 buildTextSpans 同款换算）
+    const span1 = textLayers()[0]!.querySelector('span') as HTMLElement;
+    expect(span1.textContent).toBe('Continuous text');
+    expect(span1.style.left).toBe('30px');
+    expect(span1.style.top).toBe('690px');
+    expect(span1.style.fontSize).toBe('10px');
+    // 文本层可选中（透明 + userSelect: text）
+    expect((textLayers()[0] as HTMLElement).style.userSelect).toBe('text');
+    expect((textLayers()[0] as HTMLElement).style.color).toBe('transparent');
+    // 窗口外页（4、5）无文本层（只有占位）
+    expect(container!.querySelector('[data-page="4"] [data-testid="pdf-page-textlayer"]')).toBeNull();
+    expect(container!.querySelector('[data-page="5"] [data-testid="pdf-page-textlayer"]')).toBeNull();
+    expect(placeholders().length).toBe(3);
+  });
+
+  it('点击某页画布 → onPagePoint 携带该页页码与 convertToPdfPoint 换算坐标；未渲染页点击不回调', async () => {
+    const onPagePoint = vi.fn();
+    renderReader({ onPagePoint });
+    await flushLoad();
+    act(() => {
+      exactButton('连续').click();
+    });
+    await flushLoad();
+    const canvas2 = container!.querySelector('[data-page="2"] canvas') as HTMLCanvasElement;
+    act(() => {
+      canvas2.dispatchEvent(new MouseEvent('click', { clientX: 110, clientY: 220, bubbles: true }));
+    });
+    // 画布几何 (10,20) 起步 → 该页视口坐标 (100,200)；mock 换算减半 → (50,100)
+    expect(pdfjsMock.convertToPdfPoint).toHaveBeenCalledWith(100, 200);
+    expect(onPagePoint).toHaveBeenCalledTimes(1);
+    expect(onPagePoint).toHaveBeenCalledWith(2, 50, 100);
+    // 窗口外未渲染页（无 viewport、尺寸未知）点击不回调
+    const wrapper5 = container!.querySelector('[data-page="5"]') as HTMLElement;
+    act(() => {
+      wrapper5.dispatchEvent(new MouseEvent('click', { clientX: 110, clientY: 220, bubbles: true }));
+    });
+    expect(onPagePoint).toHaveBeenCalledTimes(1);
+  });
+
+  it('有文字选区时点击画布不触发 onPagePoint（与单页同款护栏）', async () => {
+    const onPagePoint = vi.fn();
+    renderReader({ onPagePoint });
+    await flushLoad();
+    act(() => {
+      exactButton('连续').click();
+    });
+    await flushLoad();
+    selectPageText(1);
+    expect(window.getSelection()?.toString()).toBe('Continuous text');
+    const canvas1 = container!.querySelector('[data-page="1"] canvas') as HTMLCanvasElement;
+    act(() => {
+      canvas1.dispatchEvent(new MouseEvent('click', { clientX: 110, clientY: 220, bubbles: true }));
+    });
+    expect(onPagePoint).not.toHaveBeenCalled();
+    window.getSelection()?.removeAllRanges();
+  });
+
+  it('选中文字浮现四色工具条，创建标注的 bbox 按该页 viewport 换算', async () => {
+    const onCreateAnnotation = vi.fn();
+    renderReader({ onCreateAnnotation });
+    await flushLoad();
+    act(() => {
+      exactButton('连续').click();
+    });
+    await flushLoad();
+    // jsdom Range 无几何：桩选区包围盒 {left:100, top:200, w:50, h:20}（视口坐标）
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        left: 100,
+        top: 200,
+        width: 50,
+        height: 20,
+        right: 150,
+        bottom: 220,
+        x: 100,
+        y: 200,
+        toJSON: () => ({}),
+      }),
+    });
+    const span = selectPageText(2); // 在第 2 页选中文字
+    act(() => {
+      span.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    // 四色工具条出现（滚动容器外，不被 overflowY 裁剪）
+    const methodBtn = container!.querySelector('[aria-label="方法"]') as HTMLButtonElement | null;
+    expect(methodBtn).not.toBeNull();
+    expect(container!.querySelectorAll('[aria-label="发现"], [aria-label="质疑"], [aria-label="引用"]').length).toBe(3);
+    act(() => {
+      methodBtn!.click();
+    });
+    // 标注落在选区所在页（2），bbox 两角换算：画布相对矩形 (90,180,w50,h20) →
+    // (90,200)/(140,180) 经 mock 减半 → (45,100)/(70,90) → bbox [45,90,70,100]
+    expect(onCreateAnnotation).toHaveBeenCalledTimes(1);
+    const created = onCreateAnnotation.mock.calls[0][0] as Annotation;
+    expect(created.page).toBe(2);
+    expect(created.kind).toBe('highlight');
+    expect(created.semantic).toBe('method');
+    expect(created.bbox).toEqual([45, 90, 70, 100]);
+    expect(created.quotedText).toBe('Continuous text');
+    expect(pdfjsMock.convertToPdfPoint).toHaveBeenCalledWith(90, 200);
+    expect(pdfjsMock.convertToPdfPoint).toHaveBeenCalledWith(140, 180);
+    // 创建后选区清除、工具条收起
+    expect(window.getSelection()?.isCollapsed).toBe(true);
+    expect(container!.querySelector('[aria-label="方法"]')).toBeNull();
   });
 });

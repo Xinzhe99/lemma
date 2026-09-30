@@ -63,7 +63,7 @@ const STRINGS = {
     unsaved: '未保存',
     noFile: '未打开文件',
     syncPdf: '⇄ PDF',
-    syncTitle: '跳转到该文件首次出现在 PDF 的位置',
+    syncTitle: '跳转到光标行在 PDF 中的位置',
     syncDisabledTitle: '需要真实编译产出（真实编译后可用 PDF ↔ 源码同步）',
     syncNoPdf: '请先编译以生成 PDF 预览',
     syncNoHit: 'SyncTeX 未命中该文件',
@@ -77,7 +77,7 @@ const STRINGS = {
     unsaved: 'Unsaved',
     noFile: 'No file',
     syncPdf: '⇄ PDF',
-    syncTitle: 'Jump to where this file first appears in the PDF',
+    syncTitle: 'Jump to where the cursor line appears in the PDF',
     syncDisabledTitle: 'Requires a real compile (PDF ↔ source sync unavailable)',
     syncNoPdf: 'Compile first to generate the PDF preview',
     syncNoHit: 'No SyncTeX match for this file',
@@ -126,14 +126,14 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
   useWorkspaceStore((s) => s.compileStatus);
   const syncAvailable = hasSynctexIndex();
 
-  // WS-2：源码 → PDF 同步（从简：以活动文件首行为基准，取该文件首次出现在 PDF 的位置）
+  // WS-2：源码 → PDF 同步（D11 修复：以编辑器光标行为基准，取该行就近命中的 PDF 位置）
   const handleSyncToPdf = (): void => {
     if (!activeTab) return;
     if (!useUiStore.getState().pdfView) {
       useWorkspaceStore.getState().appendCompileLog(`⚠ ${L.syncNoPdf}`);
       return;
     }
-    if (!jumpSourceToPdf(activeTab, 1)) {
+    if (!jumpSourceToPdf(activeTab, cursor.line)) {
       useWorkspaceStore.getState().appendCompileLog(`⚠ ${L.syncNoHit}：${activeTab}`);
     }
   };

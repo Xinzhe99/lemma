@@ -1,10 +1,11 @@
 /**
  * 编译动作单测：引擎探测/选择、PDF 产物路径推算、文件物化、错误跳转定位、
- * base64 解码（PDF 读回）与浏览器形态 MockEngine 回退。
+ * base64 解码（PDF 读回）与浏览器形态 MockEngine 回退；
+ * D14：真实编译产物缓存（reopenLastPdf 重看）；D15：编译日志双语。
  * 全程不依赖真实进程：--version 探测结果一律以 ExecOutcome 注入。
  */
 
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import type { SynctexIndex } from '@scholarforge/compile';
 import type { Diagnostic } from '@scholarforge/shared';
 import {
@@ -14,11 +15,14 @@ import {
   pdfTargetFor,
   probeFromError,
   probeFromRun,
+  reopenLastPdf,
   runCompile,
   synctexTargetFor,
 } from './compileAction';
 import { base64ToBytes, tauriReadBase64 } from './platform/tauri';
 import { useWorkspaceStore } from './state/workspaceStore';
+import { useUiStore } from './state/uiStore';
+import { useSettingsStore } from './state/settingsStore';
 import { jumpTo, setJumpHandler } from './editorJump';
 import { hasSynctexIndex, setSynctexIndex } from './synctexBridge';
 
@@ -245,5 +249,123 @@ describe('tauriReadBase64（Tauri 桥注入）', () => {
 
   it('桥不存在时抛中文错误「待 Tauri 桥接」', async () => {
     await expect(tauriReadBase64('main.pdf')).rejects.toThrow('待 Tauri 桥接');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D14：编译产物缓存（真实编译读回 PDF → 预览关闭后 reopenLastPdf 重看）
+// ---------------------------------------------------------------------------
+
+/** 与既有浏览器用例一致的最小项目状态（注入到给定 store 实例） */
+function seedProjectTo(ws: typeof useWorkspaceStore, ui: typeof useUiStore): void {
+  ws.setState({
+    projectName: 'test',
+    entry: 'main.tex',
+    files: { 'main.tex': '\\documentclass{article}\n\\begin{document}hi\\end{document}\n' },
+    openTabs: ['main.tex'],
+    activeTab: 'main.tex',
+    snapshots: {},
+    compileLog: [],
+    compileStatus: 'idle',
+  });
+  ui.setState({ pdfView: null, centerView: 'editor' });
+}
+
+describe('reopenLastPdf（D14：编译 PDF 关闭后重看）', () => {
+  it('从未真实编译读回产物时返回 false，且不触碰 PDF 视图（模拟编译不缓存）', async () => {
+    seedProjectTo(useWorkspaceStore, useUiStore);
+    expect(reopenLastPdf()).toBe(false);
+    expect(useUiStore.getState().pdfView).toBeNull();
+
+    const result = await runCompile(); // 浏览器形态 → MockEngine，无真实产物
+    expect(result.ok).toBe(true);
+    expect(reopenLastPdf()).toBe(false);
+    expect(useUiStore.getState().pdfView).toBeNull();
+  });
+
+  it('真实编译读回产物并缓存：关闭预览后 reopenLastPdf() 恢复 PDF 并返回 true', async () => {
+    // getPlatform 为首次调用定型的单例：本文件此前用例已按浏览器形态运行，
+    // 这里 vi.resetModules() 取全新模块图，先装假 Tauri 桥再动态 import。
+    vi.resetModules();
+    const g = globalThis as unknown as { window?: unknown };
+    g.window = {
+      __TAURI__: {
+        core: {
+          invoke: async (cmd: string, args?: Record<string, unknown>) => {
+            const a = (args ?? {}) as { cmd?: string; args?: string[]; path?: string };
+            if (cmd === 'proc_run') {
+              if (a.args?.includes('--version')) {
+                return a.cmd === 'tectonic'
+                  ? { code: 0, stdout: 'Tectonic 0.15.0', stderr: '' }
+                  : { code: 1, stdout: '', stderr: '' };
+              }
+              return { code: 0, stdout: '', stderr: '' }; // 编译成功、干净日志
+            }
+            if (cmd === 'fs_read_base64') {
+              const payload =
+                a.path === 'main.pdf'
+                  ? '%PDF-fake'
+                  : ['SyncTeX Version:1', 'Input:1:./main.tex', 'Content:', '{1}', 'h,x:1000,y:8000,w:4000,h:400'].join('\n');
+              return Buffer.from(payload).toString('base64');
+            }
+            return null; // fs_write / fs_delete / 其余命令
+          },
+        },
+      },
+    };
+    try {
+      const { runCompile: runCompileFresh, reopenLastPdf: reopenFresh } = await import('./compileAction');
+      const { useWorkspaceStore: wsFresh } = await import('./state/workspaceStore');
+      const { useUiStore: uiFresh } = await import('./state/uiStore');
+      seedProjectTo(wsFresh, uiFresh);
+
+      const result = await runCompileFresh();
+      expect(result).toMatchObject({ ok: true, entry: 'main.tex' });
+      // 读回产物即自动打开预览
+      expect(uiFresh.getState().pdfView?.name).toBe('main.pdf');
+
+      // 用户关闭 PDF 预览 → 视图清空；reopenLastPdf 用缓存重开（D14 修复路径）
+      uiFresh.getState().setPdfView(null);
+      expect(uiFresh.getState().pdfView).toBeNull();
+      expect(reopenFresh()).toBe(true);
+      expect(uiFresh.getState().pdfView?.name).toBe('main.pdf');
+      const data = uiFresh.getState().pdfView?.data;
+      expect(data).toBeInstanceOf(ArrayBuffer);
+      expect(Array.from(new Uint8Array(data as ArrayBuffer))).toEqual(Array.from(Buffer.from('%PDF-fake')));
+      expect(uiFresh.getState().centerView).toBe('pdf'); // setPdfView 同时切回 PDF 视图
+    } finally {
+      delete g.window;
+      vi.resetModules();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D15：编译日志双语（zh 原文保持，en 为准确翻译；语言在发日志时动态读取）
+// ---------------------------------------------------------------------------
+
+describe('编译日志双语（D15）', () => {
+  afterEach(() => {
+    useSettingsStore.setState({ language: 'zh' });
+  });
+
+  it('language=en 时模拟编译日志为英文', async () => {
+    useSettingsStore.setState({ language: 'en' });
+    seedProjectTo(useWorkspaceStore, useUiStore);
+    const result = await runCompile();
+    expect(result.ok).toBe(true);
+    const log = useWorkspaceStore.getState().compileLog.join('\n');
+    expect(log).toContain('▶ Compiling main.tex (mock engine)');
+    expect(log).toContain('succeeded');
+    expect(log).not.toContain('模拟引擎');
+    expect(log).not.toContain('成功');
+  });
+
+  it('切回 zh 时恢复中文原文', async () => {
+    seedProjectTo(useWorkspaceStore, useUiStore);
+    await runCompile();
+    const log = useWorkspaceStore.getState().compileLog.join('\n');
+    expect(log).toContain('▶ 开始编译 main.tex（模拟引擎）');
+    expect(log).toContain('成功');
   });
 });

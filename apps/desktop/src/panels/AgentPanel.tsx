@@ -22,6 +22,7 @@ import {
 import { createId, type WorkflowDef } from '@scholarforge/shared';
 import { DiffView } from '@scholarforge/editor';
 import { useSettingsStore, type Language } from '../state/settingsStore';
+import { promptDialog } from '../dialogs';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
@@ -243,7 +244,8 @@ export function AgentPanel() {
       setNote(tr().noTex);
       return;
     }
-    const title = window.prompt(tr().draftTitlePrompt, '讨论（Discussion）');
+    // 标题收集走应用内对话框（Tauri WKWebView 下原生 prompt 静默失效）；取消/空串中止
+    const title = await promptDialog(tr().draftTitlePrompt, '讨论（Discussion）');
     if (!title || !title.trim()) return;
     const before = useWorkspaceStore.getState().files[file] ?? '';
     setAiBusy('起草');

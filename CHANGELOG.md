@@ -5,6 +5,19 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.1] - 2026-09-30
+
+### Fixed
+- 批注「在当前行添加」永久禁用：光标桥从未喂数据，改为响应式订阅（useSyncExternalStore）
+- Tauri WKWebView 下 4 处 window.confirm/prompt 静默失效 → 迁移应用内 TextDialog（删除模型服务/文献、起草新章节）
+- PDF 视图下一切"跳回源码"失效 → jumpTo 无 handler 兜底 openFile+切回编辑器
+- Ctrl+Shift+Z 劫持编辑器 Redo → 输入区守卫；专注模式补 Esc 退出与布局收拢（:has）
+- 宣传未接线的快捷键：Ctrl+Enter 编译 / Ctrl+H 历史 / Ctrl+, 设置
+- W12/W2 工作流无命令面板入口；命令面板 hint.edit 缺键；Ctrl+S 误导文案
+- 拼写易混词无语境全标（their/then/its/less…）→ 高频歧义词加前后文守卫（12 组）
+- PDF 连续滚动模式无文本层 → 补文本层/选中工具条/点击 onPagePoint
+- StatusBar ⇄PDF 固定第 1 行 → 光标行；编译 PDF 关闭后可命令重开；编译日志/润色提示双语化
+
 ## [Unreleased]
 
 ## [0.7.0] - 2026-09-30

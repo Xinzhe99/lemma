@@ -186,7 +186,14 @@ const dict: MessageDict = {
 
   // Toast
   'toast.projectReset': { zh: '已重置为演示项目', en: 'Demo project loaded' },
-  'toast.saved': { zh: '已保存（编辑器接入后生效）', en: 'Saved (effective once editor lands)' },
+  'toast.saved': { zh: '已自动保存（所有修改即时持久化）', en: 'Auto-saved (changes persist instantly)' },
+  'hint.edit': { zh: '编辑', en: 'Edit' },
+  'cmd.wfRelatedWork': { zh: '运行工作流：相关工作综述（W12，从库内文献生成 Related Work）', en: 'Run workflow: related-work survey (W12)' },
+  'cmd.reopenPdf': { zh: '重新打开上次编译的 PDF', en: 'Reopen last compiled PDF' },
+  'toast.noLastPdf': { zh: '还没有编译产物，请先编译', en: 'No compiled PDF yet — compile first' },
+  'cmd.wfSectionDraft': { zh: '运行工作流：分节起草（W2）', en: 'Run workflow: section draft (W2)' },
+  'cmd.manageProjects': { zh: '切换 / 管理项目', en: 'Switch / manage projects' },
+  'cmd.insertTable': { zh: '插入表格（可视化编辑器）', en: 'Insert table (visual editor)' },
   'toast.fileCreated': { zh: '文件已创建', en: 'File created' },
   'toast.invalidPath': { zh: '无效的文件路径', en: 'Invalid file path' },
   'toast.zipImported': {

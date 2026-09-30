@@ -2283,3 +2283,10 @@ kbd {
 .sf-focus .topbar-right .status-chip {
   display: none !important;
 }
+
+/* 专注模式：收拢 react-resizable-panels 的外层 Panel 盒（编辑区占满） */
+.sf-focus .sf-panel:has(> .sidebar),
+.sf-focus .sf-panel:has(> .agent-panel),
+.sf-focus .sf-panel:has(> .console) {
+  display: none !important;
+}
