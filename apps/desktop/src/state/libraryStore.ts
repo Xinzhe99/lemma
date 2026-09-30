@@ -18,6 +18,7 @@ import {
   disambiguateCitekey,
   fetchByDoi,
   fetchByArxiv,
+  type PaperSearchHit,
 } from '@scholarforge/library';
 import { chunkPaper, HashEmbeddingProvider, HybridRetriever } from '@scholarforge/knowledge';
 
@@ -32,6 +33,8 @@ interface LibraryState {
   /** 知识索引是否已构建完成（后台异步） */
   indexReady: boolean;
   importBibtex(text: string): { added: number; errors: string[] };
+  /** 发现检索结果一键入库 */
+  importHit(hit: PaperSearchHit): Paper;
   fetchMetadata(kind: 'doi' | 'arxiv', id: string): Promise<{ ok: true; paper: Paper } | { ok: false; error: string }>;
   removePaper(id: string): void;
   setReadStatus(id: string, status: ReadStatus): void;
@@ -179,6 +182,29 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       void rebuildIndex(get().papers).then(() => set({ indexReady: true }));
     }
     return { added: added.length, errors: parsed.errors };
+  },
+
+  importHit(hit) {
+    const existing = new Set(get().papers.map((p) => p.citekey));
+    const paper: Paper = {
+      id: createId(),
+      citekey: '',
+      title: hit.title,
+      authors: hit.authors,
+      year: hit.year,
+      venue: hit.venue,
+      abstract: hit.abstract,
+      doi: hit.doi,
+      arxivId: hit.arxivId,
+      tags: hit.tags,
+      collections: [],
+      readStatus: 'to-read',
+      addedAt: Date.now(),
+    };
+    paper.citekey = disambiguateCitekey(generateCitekey(paper), existing);
+    set({ papers: [paper, ...get().papers] });
+    void rebuildIndex(get().papers).then(() => set({ indexReady: true }));
+    return paper;
   },
 
   async fetchMetadata(kind, id) {

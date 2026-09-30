@@ -8,12 +8,20 @@ import { getPlatform } from '../platform/types';
 
 export type CompileStatus = 'idle' | 'running' | 'ok' | 'fail';
 
+/** 文件快照：AI 修改采纳前自动创建，可随时恢复（设计 4.8 版本控制） */
+export interface FileSnapshot {
+  content: string;
+  ts: number;
+  label: string;
+}
+
 interface WorkspaceSnapshot {
   projectName: string;
   entry: string;
   files: Record<string, string>;
   openTabs: string[];
   activeTab: string | null;
+  snapshots: Record<string, FileSnapshot[]>;
 }
 
 export interface WorkspaceState extends WorkspaceSnapshot {
@@ -22,6 +30,7 @@ export interface WorkspaceState extends WorkspaceSnapshot {
   loadDemoProject(): void;
   /** 载入一个完整项目（模板向导脚手架产出） */
   loadProject(name: string, entry: string, files: Record<string, string>): void;
+  /** 打开文件 */
   openFile(path: string): void;
   closeTab(path: string): void;
   setActive(path: string): void;
@@ -29,6 +38,10 @@ export interface WorkspaceState extends WorkspaceSnapshot {
   createFile(path: string, content?: string): void;
   deleteFile(path: string): void;
   renameFile(from: string, to: string): void;
+  /** 为文件创建快照（AI 修改采纳前强制调用），每文件保留最近 20 份 */
+  snapshotFile(path: string, label: string): void;
+  /** 恢复文件到指定快照 */
+  restoreSnapshot(path: string, index: number): void;
   appendCompileLog(line: string): void;
   clearCompileLog(): void;
   setCompileStatus(status: CompileStatus): void;
@@ -149,6 +162,7 @@ function demoSnapshot(): WorkspaceSnapshot {
     },
     openTabs: ['main.tex'],
     activeTab: 'main.tex',
+    snapshots: {},
   };
 }
 
@@ -162,6 +176,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   files: {},
   openTabs: [],
   activeTab: null,
+  snapshots: {},
   compileLog: [],
   compileStatus: 'idle',
 
@@ -177,6 +192,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
       files,
       openTabs,
       activeTab: openTabs[0] ?? null,
+      snapshots: {},
       compileLog: [],
       compileStatus: 'idle',
     });
@@ -227,9 +243,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
       if (!(path in s.files)) return s;
       const files = { ...s.files };
       delete files[path];
+      const snapshots = { ...s.snapshots };
+      delete snapshots[path];
       const openTabs = s.openTabs.filter((p) => p !== path);
       const activeTab = s.activeTab === path ? (openTabs[0] ?? null) : s.activeTab;
-      return { files, openTabs, activeTab };
+      return { files, openTabs, activeTab, snapshots };
     });
   },
 
@@ -242,7 +260,29 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
       delete files[from];
       const openTabs = s.openTabs.map((p) => (p === from ? dst : p));
       const activeTab = s.activeTab === from ? dst : s.activeTab;
-      return { files, openTabs, activeTab };
+      const snapshots = { ...s.snapshots };
+      if (snapshots[from]) {
+        snapshots[dst] = snapshots[from]!;
+        delete snapshots[from];
+      }
+      return { files, openTabs, activeTab, snapshots };
+    });
+  },
+
+  snapshotFile(path, label) {
+    set((s) => {
+      const content = s.files[path];
+      if (content === undefined) return s;
+      const list = [{ content, ts: Date.now(), label }, ...(s.snapshots[path] ?? [])].slice(0, 20);
+      return { snapshots: { ...s.snapshots, [path]: list } };
+    });
+  },
+
+  restoreSnapshot(path, index) {
+    set((s) => {
+      const snap = s.snapshots[path]?.[index];
+      if (!snap || !(path in s.files)) return s;
+      return { files: { ...s.files, [path]: snap.content } };
     });
   },
 
@@ -273,6 +313,7 @@ function snapshot(s: WorkspaceState): WorkspaceSnapshot {
     files: s.files,
     openTabs: s.openTabs,
     activeTab: s.activeTab,
+    snapshots: s.snapshots,
   };
 }
 
@@ -297,6 +338,10 @@ export async function initWorkspace(): Promise<void> {
     const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
     const parsed = JSON.parse(text) as Partial<WorkspaceSnapshot>;
     if (!parsed || typeof parsed.files !== 'object' || parsed.files === null) throw new Error('快照损坏');
+    const snapshots =
+      parsed.snapshots && typeof parsed.snapshots === 'object' && !Array.isArray(parsed.snapshots)
+        ? parsed.snapshots
+        : {};
     lastPersisted = JSON.stringify(parsed);
     useWorkspaceStore.setState({
       projectName: typeof parsed.projectName === 'string' ? parsed.projectName : 'workspace',
@@ -305,6 +350,7 @@ export async function initWorkspace(): Promise<void> {
       openTabs: Array.isArray(parsed.openTabs) ? parsed.openTabs.filter((p) => p in parsed.files!) : [],
       activeTab:
         typeof parsed.activeTab === 'string' && parsed.activeTab in parsed.files ? parsed.activeTab : null,
+      snapshots,
       compileLog: [],
       compileStatus: 'idle',
     });

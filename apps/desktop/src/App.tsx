@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, FileText, Library, ListTree, MessageSquare, Quote, Settings } from 'lucide-react';
+import { BookOpen, FileText, History, Library, ListTree, MessageSquare, Quote, Settings, Sparkles } from 'lucide-react';
 import { CommandPalette } from './commandPalette';
 import { buildCommands } from './commands';
 import { useT } from './i18n';
@@ -12,11 +12,13 @@ import { applyTheme } from './theme';
 import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { initLibrary } from './state/libraryStore';
+import { useAnnotationStore } from './state/annotationStore';
 import { useUiStore } from './state/uiStore';
 import { EditorTabs } from './components/EditorTabs';
 import { FileTree } from './components/FileTree';
 import { ResizableLayout } from './components/ResizableLayout';
 import { SettingsDialog } from './components/SettingsDialog';
+import { SnapshotDialog } from './components/SnapshotDialog';
 import { EditorArea } from './components/EditorArea';
 import { TemplateWizard } from './components/TemplateWizard';
 import { OutlinePanel } from './panels/OutlinePanel';
@@ -42,6 +44,9 @@ export function App() {
   const centerView = useUiStore((s) => s.centerView);
   const setCenterView = useUiStore((s) => s.setCenterView);
   const templateWizardOpen = useUiStore((s) => s.templateWizardOpen);
+  const historyOpen = useUiStore((s) => s.historyOpen);
+  const setHistoryOpen = useUiStore((s) => s.setHistoryOpen);
+  const requestAgentAction = useUiStore((s) => s.requestAgentAction);
 
   const projectName = useWorkspaceStore((s) => s.projectName);
   const compileLog = useWorkspaceStore((s) => s.compileLog);
@@ -49,6 +54,7 @@ export function App() {
   const clearCompileLog = useWorkspaceStore((s) => s.clearCompileLog);
 
   const theme = useSettingsStore((s) => s.theme);
+  const annotationsByFile = useAnnotationStore((s) => s.byFile);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,14 +180,36 @@ export function App() {
           </button>
         </div>
       ) : (
-        <EditorTabs />
+        <EditorTabs
+          actions={
+            <>
+              <button
+                className="tab-action"
+                title="AI 润色当前文件（diff 审批后落盘）"
+                onClick={() => requestAgentAction('polish')}
+              >
+                <Sparkles size={13} /> 润色
+              </button>
+              <button
+                className="tab-action"
+                title="快照历史（AI 修改自动创建，可恢复）"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <History size={13} /> 历史
+              </button>
+            </>
+          }
+        />
       )}
       <div className="editor-area">
         {pdfView && centerView === 'pdf' ? (
           <PdfReader
+            key={pdfView.name}
             data={pdfView.data}
+            annotations={annotationsByFile[pdfFileKey(pdfView.name)] ?? []}
             onCreateAnnotation={(a) => {
-              showToast(`已创建标注（第 ${a.page} 页，${a.semantic ?? a.kind}）—— 标注持久化待接 DexieStore`);
+              const key = pdfFileKey(pdfView.name);
+              useAnnotationStore.getState().add(key, { ...a, paperId: key });
             }}
           />
         ) : (
@@ -278,7 +306,14 @@ export function App() {
 
       {templateWizardOpen && <TemplateWizard onDone={showToast} />}
 
+      {historyOpen && <SnapshotDialog onClose={() => setHistoryOpen(false)} />}
+
       {toast && <div className="sf-toast">{toast}</div>}
     </div>
   );
+}
+
+/** PDF 标注的持久化键：按文件名记忆（同名文件重开时恢复标注） */
+function pdfFileKey(name: string): string {
+  return `pdf:${name}`;
 }

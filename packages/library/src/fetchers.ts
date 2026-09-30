@@ -28,7 +28,6 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-/** 极简实体与标签剥离（Crossref 摘要为 JATS HTML）。 */
 function stripHtmlTags(html: string): string {
   return collapseWhitespace(
     html
@@ -52,7 +51,6 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-/** 取节点文本：带属性（如 xmlns）的节点其文本被折叠进 “#text”。 */
 function asContent(value: unknown): string | undefined {
   const direct = asString(value);
   if (direct !== undefined) return direct;
@@ -61,6 +59,10 @@ function asContent(value: unknown): string | undefined {
   }
   return undefined;
 }
+
+export { collapseWhitespace, stripHtmlTags, asArray, asString, asContent, parseArxivEntry };
+export type { XmlObj };
+export { CROSSREF_VENUE_TYPE };
 
 interface CrossrefMessage {
   DOI?: string;

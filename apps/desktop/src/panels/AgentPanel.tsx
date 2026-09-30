@@ -1,6 +1,7 @@
 /**
  * Agent 面板（集成核心）：
  * - 会话：Context Pack 注入（大纲/术语表/相关文献检索）→ Provider 流式回复 → 引用核查护栏；
+ * - AI 改稿：润色当前文件 / 起草新章节 → diff 提案 → 人工审批（采纳前强制快照，可随时恢复）；
  * - 工作流：内置 WorkflowDef 经 WorkflowRun 引擎执行（并行分支 + checkpoint 人工确认）。
  * Provider 解析：设置里已配置并激活的 OpenAI 兼容服务；否则回显模式（零后端演示）。
  */
@@ -18,12 +19,15 @@ import {
   type WorkflowStepUiStatus,
 } from '@scholarforge/agent-hub';
 import type { AgentMessage, WorkflowDef } from '@scholarforge/shared';
+import { DiffView } from '@scholarforge/editor';
 import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@scholarforge/knowledge';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
+import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from '../projectDoc';
+import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
 
 const CITATION_RULE =
   '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。';
@@ -32,6 +36,7 @@ interface ProviderChoice {
   provider: ChatProvider;
   model: string;
   label: string;
+  real: boolean;
 }
 
 function resolveProvider(): ProviderChoice {
@@ -48,9 +53,10 @@ function resolveProvider(): ProviderChoice {
       }),
       model: cfg.model.trim() || 'default',
       label: `${cfg.label} · ${cfg.model || 'default'}`,
+      real: true,
     };
   }
-  return { provider: new EchoProvider(), model: 'echo', label: '回显模式（未配置模型服务）' };
+  return { provider: new EchoProvider(), model: 'echo', label: '回显模式（未配置模型服务）', real: false };
 }
 
 function outlineMd(files: Record<string, string>): string {
@@ -108,10 +114,18 @@ export function AgentPanel() {
 
   const launchRequest = useUiStore((s) => s.workflowLaunch);
   const setWorkflowLaunch = useUiStore((s) => s.setWorkflowLaunch);
+  const agentAction = useUiStore((s) => s.agentAction);
+
+  const proposal = useProposalStore((s) => s.proposal);
+  const setProposal = useProposalStore((s) => s.setProposal);
+  const clearProposal = useProposalStore((s) => s.clearProposal);
+  const note = useProposalStore((s) => s.note);
+  const setNote = useProposalStore((s) => s.setNote);
 
   const [workflow, setWorkflow] = useState<WorkflowUiState | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [contextPreview, setContextPreview] = useState('');
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const checkpointResolve = useRef<((input: string) => void) | null>(null);
@@ -130,6 +144,10 @@ export function AgentPanel() {
       newSession('host');
     }
   }, [newSession]);
+
+  // ------------------------------------------------------------------
+  // 会话：流式回复 + 引用核查护栏
+  // ------------------------------------------------------------------
 
   const send = async (text: string) => {
     const hub = useAgentHubStore.getState();
@@ -187,7 +205,130 @@ export function AgentPanel() {
     useAgentHubStore.getState().finishSession(sessionId, 'idle');
   };
 
-  // 启动内置工作流
+  // ------------------------------------------------------------------
+  // AI 改稿：润色 / 起草 → diff 提案 → 审批
+  // ------------------------------------------------------------------
+
+  const activeTexFile = (): string | null => {
+    const active = useWorkspaceStore.getState().activeTab;
+    return active && active.endsWith('.tex') ? active : null;
+  };
+
+  const runProviderText = async (system: string, prompt: string): Promise<string> => {
+    const { provider, model } = resolveProvider();
+    let acc = '';
+    for await (const ev of provider.complete({
+      messages: toAgentMessages(system, [], prompt),
+      model,
+    })) {
+      if (ev.type === 'text-delta') acc += ev.delta;
+      else if (ev.type === 'error') throw new Error(ev.message);
+    }
+    return acc;
+  };
+
+  const polishCurrentFile = async () => {
+    const file = activeTexFile();
+    if (!file) {
+      setNote('请先在编辑器打开一个 .tex 文件');
+      return;
+    }
+    const before = useWorkspaceStore.getState().files[file] ?? '';
+    setAiBusy('润色');
+    try {
+      const { real, model } = resolveProvider();
+      let after: string;
+      let via: string;
+      if (real) {
+        const system = await buildContextPackMd('学术润色');
+        const reply = await runProviderText(
+          system,
+          buildPolishPrompt(before),
+        );
+        after = extractLatexBody(reply);
+        via = model;
+      } else {
+        after = rulePolish(before);
+        via = '规则润色（离线）';
+      }
+      if (!after.trim()) {
+        setNote('模型未返回有效内容，请重试');
+      } else if (after.trim() === before.trim()) {
+        setNote('未产生修改建议（离线规则未命中冗余表达；配置模型服务可获得深度润色）');
+      } else {
+        setProposal({ file, before, after, kind: 'polish', label: 'AI 润色', via });
+      }
+    } catch (e) {
+      setNote(`润色失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const draftNewSection = async () => {
+    const file = activeTexFile();
+    if (!file) {
+      setNote('请先在编辑器打开一个 .tex 文件');
+      return;
+    }
+    const title = window.prompt('新章节标题', '讨论（Discussion）');
+    if (!title || !title.trim()) return;
+    const before = useWorkspaceStore.getState().files[file] ?? '';
+    setAiBusy('起草');
+    try {
+      const { real, model } = resolveProvider();
+      let draft: string;
+      let via: string;
+      if (real) {
+        const system = await buildContextPackMd(`起草新章节：${title}`);
+        const reply = await runProviderText(
+          system,
+          `请为当前论文起草一节 \\section{${title.trim()}} 的完整草稿（与现有章节风格一致，引用仅使用上文列出的 citekey）。只输出该节的 LaTeX 源码（首行为 \\section 行），用 latex 代码围栏包裹，不要解释。`,
+        );
+        draft = extractLatexBody(reply);
+        via = model;
+      } else {
+        draft = draftSectionOffline(title.trim());
+        via = '离线模板起草';
+      }
+      if (!draft.trim()) {
+        setNote('模型未返回有效内容，请重试');
+        return;
+      }
+      const after = `${before.trimEnd()}\n${draft.trim()}\n`;
+      setProposal({ file, before, after, kind: 'draft-section', label: `起草新章节：${title.trim()}`, via });
+    } catch (e) {
+      setNote(`起草失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const applyProposal = () => {
+    if (!proposal) return;
+    const ws = useWorkspaceStore.getState();
+    ws.snapshotFile(proposal.file, `${proposal.label}前的快照`);
+    ws.updateFile(proposal.file, proposal.after);
+    clearProposal();
+    setNote(`已采纳「${proposal.label}」并自动创建快照（编辑器标签栏「历史」可恢复）`);
+  };
+
+  // 命令面板触发的 AI 动作
+  useEffect(() => {
+    if (agentAction === 'polish') {
+      useUiStore.setState({ agentAction: null });
+      void polishCurrentFile();
+    } else if (agentAction === 'draft') {
+      useUiStore.setState({ agentAction: null });
+      void draftNewSection();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentAction]);
+
+  // ------------------------------------------------------------------
+  // 内置工作流
+  // ------------------------------------------------------------------
+
   const startWorkflow = async (id: string) => {
     const def = BUILTIN_WORKFLOWS.find((w) => w.id === id);
     if (!def) return;
@@ -302,6 +443,38 @@ export function AgentPanel() {
           <pre>{contextPreview}</pre>
         </details>
       )}
+
+      {/* AI 改稿（diff 审批闭环） */}
+      <div className="sf-agent-ai">
+        <div className="sf-agent-wf-title">AI 改稿（diff 审批）</div>
+        <div className="sf-agent-ai-actions">
+          <button className="sf-btn" onClick={() => void polishCurrentFile()} disabled={!!aiBusy}>
+            {aiBusy === '润色' ? '润色中…' : '润色当前文件'}
+          </button>
+          <button className="sf-btn" onClick={() => void draftNewSection()} disabled={!!aiBusy}>
+            {aiBusy === '起草' ? '起草中…' : '起草新章节'}
+          </button>
+        </div>
+        {note && <p className="sf-agent-note">{note}</p>}
+        {proposal && (
+          <div className="sf-agent-approval">
+            <div className="sf-agent-run-head">
+              <strong>{proposal.label}</strong>
+              <span className="sf-chip dim">{proposal.via}</span>
+              <span className="sf-chip warn">待审批</span>
+            </div>
+            <DiffView before={proposal.before} after={proposal.after} filename={proposal.file} />
+            <div className="sf-lib-dialog-actions">
+              <button className="sf-btn" onClick={clearProposal}>
+                放弃
+              </button>
+              <button className="sf-btn sf-btn--primary" onClick={applyProposal}>
+                采纳修改（自动创建快照）
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="sf-agent-chat">
         {session ? (

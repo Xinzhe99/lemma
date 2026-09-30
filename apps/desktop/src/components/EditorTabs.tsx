@@ -1,9 +1,10 @@
-/** 编辑器标签条：顺序渲染 openTabs，active 高亮，单击切换，× 关闭。 */
+/** 编辑器标签条：顺序渲染 openTabs，active 高亮，单击切换，× 关闭；右侧可挂动作位。 */
 
+import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { useWorkspaceStore } from '../state/workspaceStore';
 
-export function EditorTabs() {
+export function EditorTabs({ actions }: { actions?: ReactNode }) {
   const openTabs = useWorkspaceStore((s) => s.openTabs);
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const setActive = useWorkspaceStore((s) => s.setActive);
@@ -33,6 +34,7 @@ export function EditorTabs() {
           </button>
         </span>
       ))}
+      {actions && <div className="tabbar-actions">{actions}</div>}
     </div>
   );
 }

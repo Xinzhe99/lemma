@@ -151,6 +151,35 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().requestPdfPicker(),
     },
     {
+      id: 'library.discover',
+      title: '文献发现：检索 arXiv + Crossref 并一键入库',
+      hint: '文献',
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setSidebarTab('library');
+        ui.setLibraryMode('discover');
+      },
+    },
+    {
+      id: 'agent.polish',
+      title: 'AI 润色当前文件（diff 审批后落盘）',
+      hint: 'Agent',
+      run: () => useUiStore.getState().requestAgentAction('polish'),
+    },
+    {
+      id: 'agent.draft',
+      title: 'AI 起草新章节（diff 审批后落盘）',
+      hint: 'Agent',
+      run: () => useUiStore.getState().requestAgentAction('draft'),
+    },
+    {
+      id: 'view.history',
+      title: '查看当前文件快照历史（可恢复）',
+      hint: '版本',
+      kbd: 'Ctrl+H',
+      run: () => useUiStore.getState().setHistoryOpen(true),
+    },
+    {
       id: 'agent.newSession',
       title: '新建 Agent 会话',
       hint: 'Agent',

@@ -1347,3 +1347,150 @@ kbd {
   align-self: center;
   padding: 0 10px;
 }
+
+/* ==========================================================================
+   第二轮集成：AI 改稿审批 / 快照历史 / 发现 tab / 标签栏动作位
+   ========================================================================== */
+
+/* 主按钮别名（历史命名统一） */
+.sf-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sf-btn--primary:hover {
+  background: var(--accent-dim);
+}
+.sf-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 标签栏动作位 */
+.tabbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+}
+.tab-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-1);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.tab-action:hover {
+  color: var(--fg-0);
+  border-color: var(--accent-dim);
+  background: var(--bg-3);
+}
+
+/* Agent 面板：AI 改稿区 */
+.sf-agent-ai {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+}
+.sf-agent-ai-actions {
+  display: flex;
+  gap: 6px;
+}
+.sf-agent-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--fg-1);
+  line-height: 1.4;
+}
+.sf-agent-approval {
+  margin-top: 8px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--warn) 6%, transparent);
+  max-height: 45vh;
+  overflow: auto;
+}
+
+/* 快照历史对话框 */
+.sf-snap {
+  width: 620px;
+}
+.sf-snap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+.sf-snap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+}
+.sf-snap-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sf-snap-label {
+  font-size: 12px;
+  color: var(--fg-0);
+}
+.sf-snap-time {
+  font-size: 10px;
+  color: var(--fg-2);
+}
+.sf-snap-preview {
+  font-size: 10px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 文献发现 tab */
+.sf-lib-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sf-lib-src {
+  text-transform: uppercase;
+  font-size: 9px;
+}
+.sf-lib-hit-title {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-0);
+  line-height: 1.4;
+}
+.sf-lib-hit-meta {
+  margin: 0;
+  font-size: 10px;
+  color: var(--fg-2);
+}
+.sf-lib-hit-abs {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-1);
+  line-height: 1.4;
+}
+.sf-lib-hit-actions {
+  display: flex;
+  justify-content: flex-end;
+}

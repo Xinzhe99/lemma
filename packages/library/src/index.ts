@@ -16,6 +16,9 @@ export { parseRis } from './importers/ris';
 export type { Http } from './fetchers';
 export { fetchByDoi, fetchByArxiv } from './fetchers';
 
+export type { PaperSearchHit } from './search';
+export { searchArxiv, searchCrossref, mergeSearchHits, buildArxivQuery } from './search';
+
 export { generateCitekey, disambiguateCitekey } from './citekey';
 
 export type { PdfPageText } from './pdf/extract';

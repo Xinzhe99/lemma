@@ -1,13 +1,19 @@
 /**
- * 文献库面板：条目列表（智能过滤器查询语言）/ 全文知识检索 / BibTeX·DOI·arXiv 导入。
+ * 文献库面板：条目列表（智能过滤器查询语言）/ 全文知识检索 / 文献发现（arXiv+Crossref 聚合检索，一键入库）/ 导入。
  */
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { applyFilter } from '@scholarforge/library';
+import {
+  applyFilter,
+  mergeSearchHits,
+  searchArxiv,
+  searchCrossref,
+  type PaperSearchHit,
+} from '@scholarforge/library';
 import type { ReadStatus } from '@scholarforge/shared';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
-import { useUiStore } from '../state/uiStore';
+import { useUiStore, type LibraryMode } from '../state/uiStore';
 
 const STATUS_LABEL: Record<ReadStatus, string> = {
   'to-read': '待读',
@@ -15,22 +21,36 @@ const STATUS_LABEL: Record<ReadStatus, string> = {
   done: '已读',
 };
 
+const MODE_LABEL: Record<LibraryMode, string> = {
+  list: '条目',
+  search: '知识检索',
+  discover: '发现',
+};
+
 export function LibraryPanel() {
   const papers = useLibraryStore((s) => s.papers);
   const indexReady = useLibraryStore((s) => s.indexReady);
   const importBibtex = useLibraryStore((s) => s.importBibtex);
+  const importHit = useLibraryStore((s) => s.importHit);
   const fetchMetadata = useLibraryStore((s) => s.fetchMetadata);
   const removePaper = useLibraryStore((s) => s.removePaper);
   const setReadStatus = useLibraryStore((s) => s.setReadStatus);
   const searchKnowledge = useLibraryStore((s) => s.searchKnowledge);
 
+  const mode = useUiStore((s) => s.libraryMode);
+  const setMode = useUiStore((s) => s.setLibraryMode);
   const dialog = useUiStore((s) => s.libraryDialog);
   const setDialog = useUiStore((s) => s.setLibraryDialog);
 
-  const [mode, setMode] = useState<'list' | 'search'>('list');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CitedRetrievedChunk[] | null>(null);
   const [searching, setSearching] = useState(false);
+
+  const [discoverQuery, setDiscoverQuery] = useState('');
+  const [hits, setHits] = useState<PaperSearchHit[] | null>(null);
+  const [discoverState, setDiscoverState] = useState<'idle' | 'searching' | 'done' | 'error'>('idle');
+  const [discoverMsg, setDiscoverMsg] = useState<string | null>(null);
+  const [importedKeys, setImportedKeys] = useState<string[]>([]);
 
   const [bibtexText, setBibtexText] = useState('');
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -38,10 +58,8 @@ export function LibraryPanel() {
   const [fetchId, setFetchId] = useState('');
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);
 
-  const filtered = useMemo(
-    () => (query.trim() ? applyFilter(papers, query) : papers),
-    [papers, query],
-  );
+  const filtered =
+    mode === 'list' && query.trim() ? applyFilter(papers, query) : papers;
 
   const runSearch = async () => {
     setSearching(true);
@@ -52,18 +70,53 @@ export function LibraryPanel() {
     }
   };
 
+  const runDiscover = async () => {
+    const q = discoverQuery.trim();
+    if (!q) return;
+    setDiscoverState('searching');
+    setDiscoverMsg(null);
+    try {
+      const [arxiv, crossref] = await Promise.allSettled([
+        searchArxiv(q, { fetch: (url, init) => fetch(url, init) }, 8),
+        searchCrossref(q, { fetch: (url, init) => fetch(url, init) }, 8),
+      ]);
+      const merged = mergeSearchHits([
+        ...(arxiv.status === 'fulfilled' ? arxiv.value : []),
+        ...(crossref.status === 'fulfilled' ? crossref.value : []),
+      ]);
+      setHits(merged);
+      setDiscoverState('done');
+      if (merged.length === 0) {
+        const bothFailed = arxiv.status === 'rejected' && crossref.status === 'rejected';
+        setDiscoverMsg(
+          bothFailed
+            ? '两个数据源都失败了（浏览器直连可能受跨域限制，桌面形态无此问题）'
+            : '无检索结果，试试更短的关键词',
+        );
+      }
+    } catch (e) {
+      setDiscoverState('error');
+      setDiscoverMsg(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const addToLibrary = (hit: PaperSearchHit) => {
+    const paper = importHit(hit);
+    setImportedKeys((keys) => [...keys, hitKey(hit)]);
+    setDiscoverMsg(`已入库：${paper.citekey}`);
+  };
+
   return (
     <div className="sf-lib">
       <div className="sf-lib-mode">
-        <button className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>
-          条目
-        </button>
-        <button className={mode === 'search' ? 'active' : ''} onClick={() => setMode('search')}>
-          知识检索
-        </button>
+        {(Object.keys(MODE_LABEL) as LibraryMode[]).map((m) => (
+          <button key={m} className={mode === m ? 'active' : ''} onClick={() => setMode(m)}>
+            {MODE_LABEL[m]}
+          </button>
+        ))}
       </div>
 
-      {mode === 'list' ? (
+      {mode === 'list' && (
         <>
           <div className="sf-lib-toolbar">
             <input
@@ -121,7 +174,9 @@ export function LibraryPanel() {
             {filtered.length === 0 && <p className="placeholder">无匹配条目</p>}
           </ul>
         </>
-      ) : (
+      )}
+
+      {mode === 'search' && (
         <>
           <div className="sf-lib-toolbar">
             <input
@@ -142,17 +197,88 @@ export function LibraryPanel() {
             {(results ?? []).map((c) => (
               <li key={c.id} className="sf-lib-chunk">
                 <div className="sf-lib-chunk-head">
-                  <code>[{c.citekey ?? c.paperId}{c.page !== undefined ? ` p.${c.page}` : ''}]</code>
+                  <code>
+                    [{c.citekey ?? c.paperId}
+                    {c.page !== undefined ? ` p.${c.page}` : ''}]
+                  </code>
                   {c.heading && <span>{c.heading}</span>}
                   <span className="sf-lib-score">{c.score.toFixed(3)}</span>
                 </div>
                 <p>{c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text}</p>
               </li>
             ))}
-            {results !== null && results.length === 0 && (
-              <p className="placeholder">未检索到相关片段</p>
+            {results !== null && results.length === 0 && <p className="placeholder">未检索到相关片段</p>}
+            {results === null && (
+              <p className="placeholder">输入问题后回车，例如：attention 机制的优点</p>
             )}
-            {results === null && <p className="placeholder">输入问题后回车，例如：attention 机制的优点</p>}
+          </ul>
+        </>
+      )}
+
+      {mode === 'discover' && (
+        <>
+          <div className="sf-lib-toolbar">
+            <input
+              className="sf-input sf-lib-filter"
+              placeholder="关键词检索 arXiv + Crossref…"
+              value={discoverQuery}
+              onChange={(e) => setDiscoverQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runDiscover();
+              }}
+            />
+            <button
+              className="sf-btn"
+              onClick={() => void runDiscover()}
+              disabled={discoverState === 'searching' || !discoverQuery.trim()}
+            >
+              {discoverState === 'searching' ? '检索中…' : '检索'}
+            </button>
+          </div>
+          {discoverMsg && <p className="sf-cites-msg">{discoverMsg}</p>}
+          <p className="sf-lib-count">结果在两个数据源间按 DOI/arXiv ID/标题去重合并</p>
+          <ul className="sf-lib-results">
+            {(hits ?? []).map((hit) => {
+              const key = hitKey(hit);
+              const imported = importedKeys.includes(key);
+              return (
+                <li key={key} className="sf-lib-chunk sf-lib-hit">
+                  <div className="sf-lib-chunk-head">
+                    <span className={`sf-chip dim sf-lib-src`}>{hit.source}</span>
+                    {hit.venue?.name && <span>{hit.venue.name}</span>}
+                    {hit.year !== undefined && <span>{hit.year}</span>}
+                  </div>
+                  <p className="sf-lib-hit-title">{hit.title}</p>
+                  <p className="sf-lib-hit-meta">
+                    {hit.authors
+                      .slice(0, 4)
+                      .map((a) => (a.given ? `${a.family} ${a.given}` : a.family))
+                      .join(', ')}
+                    {hit.authors.length > 4 ? ' 等' : ''}
+                  </p>
+                  {hit.abstract && (
+                    <p className="sf-lib-hit-abs">
+                      {hit.abstract.length > 160 ? `${hit.abstract.slice(0, 160)}…` : hit.abstract}
+                    </p>
+                  )}
+                  <div className="sf-lib-hit-actions">
+                    <button
+                      className="sf-btn"
+                      disabled={imported}
+                      onClick={() => addToLibrary(hit)}
+                    >
+                      {imported ? '已在库中' : '加入文献库'}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+            {hits !== null && hits.length === 0 && discoverState === 'done' && (
+              <p className="placeholder">无检索结果</p>
+            )}
+            {hits === null && (
+              <p className="placeholder">例如：vision language model、扩散模型 综述</p>
+            )}
           </ul>
         </>
       )}
@@ -172,7 +298,7 @@ export function LibraryPanel() {
               />
               {importResult && <p className="sf-cites-msg">{importResult}</p>}
               <div className="sf-lib-dialog-actions">
-              <button className="sf-btn" onClick={() => setDialog(null)}>
+                <button className="sf-btn" onClick={() => setDialog(null)}>
                   关闭
                 </button>
                 <button
@@ -245,4 +371,8 @@ export function LibraryPanel() {
       )}
     </div>
   );
+}
+
+function hitKey(hit: PaperSearchHit): string {
+  return hit.doi ?? hit.arxivId ?? hit.title.toLowerCase();
 }
