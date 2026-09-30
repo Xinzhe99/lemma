@@ -28,10 +28,11 @@ import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
 import { bibCitekeys } from '../projectDoc';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from '../agentTools';
+import { resolveToolApproval, rejectPendingApproval } from '../approval';
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
 
 const CITATION_RULE =
-  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n如需检索本地文献库或了解项目上下文，可以调用提供的工具（library.search_fulltext / project.context），结果会自动返回给你。';
+  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n可用工具：library.search_fulltext（检索本地文献库）、project.context（项目上下文）、citation.validate（引用核验）、tex.last_errors（编译日志）、tex.edit（修改稿件，需用户审批 diff 后生效）、citation.add（添加参考文献，需审批）、snapshot.create（创建快照）、tex.compile（触发编译）。写级操作会弹出 diff 审批卡，用户裁决结果会回传给你；被拒绝时请勿重试同一修改。';
 
 interface ProviderChoice {
   provider: ChatProvider;
@@ -160,6 +161,8 @@ export function AgentPanel() {
       store().appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       abortRef.current = null;
+      // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
+      rejectPendingApproval('会话已中止或结束，本次修改未生效');
     }
 
     // 学术诚信护栏：引用核查（5.6）
@@ -272,8 +275,23 @@ export function AgentPanel() {
     const ws = useWorkspaceStore.getState();
     ws.snapshotFile(proposal.file, `${proposal.label}前的快照`);
     ws.updateFile(proposal.file, proposal.after);
+    const token = proposal.token;
     clearProposal();
-    setNote(`已采纳「${proposal.label}」并自动创建快照（编辑器标签栏「历史」可恢复）`);
+    setNote(
+      token
+        ? '已采纳并回传给模型（agent 将基于修改后的稿件继续）'
+        : `已采纳「${proposal.label}」并自动创建快照（编辑器标签栏「历史」可恢复）`,
+    );
+    if (token) resolveToolApproval(token, true);
+  };
+
+  const discardProposal = () => {
+    const token = proposal?.token;
+    clearProposal();
+    if (token) {
+      resolveToolApproval(token, false);
+      setNote('已拒绝该修改并回传给模型');
+    }
   };
 
   // 命令面板触发的 AI 动作
@@ -418,15 +436,17 @@ export function AgentPanel() {
             <div className="sf-agent-run-head">
               <strong>{proposal.label}</strong>
               <span className="sf-chip dim">{proposal.via}</span>
-              <span className="sf-chip warn">待审批</span>
+              <span className={`sf-chip ${proposal.token ? 'err' : 'warn'}`}>
+                {proposal.token ? 'Agent 等待裁决' : '待审批'}
+              </span>
             </div>
             <DiffView before={proposal.before} after={proposal.after} filename={proposal.file} />
             <div className="sf-lib-dialog-actions">
-              <button className="sf-btn" onClick={clearProposal}>
-                放弃
+              <button className="sf-btn" onClick={discardProposal}>
+                放弃{proposal.token ? '（回传拒绝）' : ''}
               </button>
               <button className="sf-btn sf-btn--primary" onClick={applyProposal}>
-                采纳修改（自动创建快照）
+                采纳修改（自动创建快照{proposal.token ? '并回传' : ''}）
               </button>
             </div>
           </div>

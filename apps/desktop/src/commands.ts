@@ -6,8 +6,10 @@
 import type { Command } from './commandPalette';
 import { t } from './i18n';
 import { applyTheme } from './theme';
-import { MockEngine, diagnosticHint, runFullCompile } from '@scholarforge/compile';
 import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { runMockCompile, resolveCompileEntry } from './compileAction';
+import { requestToolApproval } from './approval';
+import { rulePolish } from './polish';
 import { useSettingsStore } from './state/settingsStore';
 import { useUiStore } from './state/uiStore';
 import { useWorkspaceStore } from './state/workspaceStore';
@@ -19,13 +21,6 @@ export interface CommandContext {
   focusFileTree: () => void;
   toast: (message: string) => void;
 }
-
-/** 浏览器形态的占位 CommandRunner：MockEngine 不执行命令，仅满足接口 */
-const idleRunner = {
-  async run(): Promise<{ code: number; stdout: string; stderr: string }> {
-    return { code: 0, stdout: '', stderr: '' };
-  },
-};
 
 export function buildCommands(ctx: CommandContext): Command[] {
   const raw: Command[] = [
@@ -105,29 +100,8 @@ export function buildCommands(ctx: CommandContext): Command[] {
       hint: ctx.t('hint.compile'),
       kbd: 'Ctrl+Enter',
       run: async () => {
-        const s = useWorkspaceStore.getState();
-        const entry = s.files['main.tex'] !== undefined ? 'main.tex' : s.entry;
-        if (!entry || !(entry in s.files)) {
-          ctx.toast('未找到可编译的 .tex 入口文件');
-          return;
-        }
-        s.setCompileStatus('running');
-        s.appendCompileLog(`▶ 开始编译 ${entry}（浏览器形态：MockEngine 模拟；本地 Tectonic 待 Tauri 桥接）`);
-        const result = await runFullCompile(
-          { files: s.files, entry },
-          new MockEngine({ latencyMs: 400 }),
-          idleRunner,
-        );
-        s.appendCompileLog(
-          `▣ ${result.engine} · ${result.passes} 趟 · ${result.durationMs}ms · ${result.success ? '成功' : '失败'}`,
-        );
-        for (const d of result.diagnostics) {
-          const loc = `${d.file ?? entry}${d.line ? `:${d.line}` : ''}`;
-          s.appendCompileLog(`  [${d.severity}] ${loc} ${d.message}`);
-          const hint = diagnosticHint(d);
-          if (hint) s.appendCompileLog(`    ↳ 修复提示：${hint}`);
-        }
-        s.setCompileStatus(result.success ? 'ok' : 'fail');
+        const result = await runMockCompile();
+        if (!result.ok && !result.entry) ctx.toast('未找到可编译的 .tex 入口文件');
       },
     },
     {
@@ -190,6 +164,37 @@ export function buildCommands(ctx: CommandContext): Command[] {
       title: '新建 Agent 会话',
       hint: 'Agent',
       run: () => useAgentHubStore.getState().newSession('host'),
+    },
+    {
+      id: 'agent.simulateToolEdit',
+      title: '演示：模拟 agent 调用 tex.edit（阻塞式 diff 审批闭环）',
+      hint: 'Agent',
+      run: async () => {
+        const ws = useWorkspaceStore.getState();
+        const file =
+          ws.activeTab && ws.files[ws.activeTab] !== undefined && ws.activeTab.endsWith('.tex')
+            ? ws.activeTab
+            : resolveCompileEntry();
+        if (!file) {
+          ctx.toast('请先打开一个 .tex 文件再演示');
+          return;
+        }
+        const before = ws.files[file]!;
+        const after = rulePolish(before);
+        if (after === before) {
+          ctx.toast('当前文件没有可演示的修改——试试写入含 "very / in order to / utilize" 等冗余表达的英文文本');
+          return;
+        }
+        const decision = await requestToolApproval({
+          file,
+          before,
+          after,
+          kind: 'tool-edit',
+          label: 'AI 修改稿件（tex.edit · 模拟）',
+          via: '演示命令（未配置模型时亦可体验完整审批闭环）',
+        });
+        ctx.toast(decision.approved ? `模型将收到裁决：${decision.note}` : `模型将收到裁决：${decision.note}`);
+      },
     },
     {
       id: 'agent.workflowReviewers',

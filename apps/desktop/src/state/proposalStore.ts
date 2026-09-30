@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 
-export type ProposalKind = 'polish' | 'draft-section';
+export type ProposalKind = 'polish' | 'draft-section' | 'tool-edit' | 'add-citation';
 
 export interface EditProposal {
   file: string;
@@ -15,6 +15,8 @@ export interface EditProposal {
   label: string;
   /** 产生方式：模型名或「规则润色（离线）」 */
   via: string;
+  /** 阻塞式审批令牌：由 agent 工具触发的提案携带，用户裁决后经 approval.ts 回传给模型 */
+  token?: string;
 }
 
 interface ProposalState {

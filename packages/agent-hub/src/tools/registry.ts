@@ -103,16 +103,20 @@ export const PAPER_TOOLS: ToolDef[] = [
   },
   {
     name: 'tex.edit',
-    description: '修改稿件源文件（unified diff），产生 diff 审批卡，用户采纳后才落盘。',
+    description:
+      '修改稿件源文件，产生 diff 审批卡，用户采纳后才落盘。修改内容三选一：diff（unified diff）、content（整文件替换）、find+replace（局部文本替换）。',
     permission: 'write',
     parameters: {
       type: 'object',
       properties: {
         file: str('相对项目根的文件路径'),
-        diff: str('unified diff 格式的修改内容'),
+        diff: str('unified diff 格式的修改内容（与 content/find 二选一）'),
+        content: str('修改后的完整文件内容（与 diff/find 二选一）'),
+        find: str('要替换的原文片段（与 replace 搭配，与 diff/content 二选一）'),
+        replace: str('替换后的文本'),
         summary: str('本次修改的一句话说明'),
       },
-      required: ['file', 'diff'],
+      required: ['file'],
     },
   },
   {
