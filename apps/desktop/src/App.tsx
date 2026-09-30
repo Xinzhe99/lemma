@@ -25,6 +25,7 @@ import { OutlinePanel } from './panels/OutlinePanel';
 import { CitationsPanel } from './panels/CitationsPanel';
 import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
+import { parseProjectZip } from '@scholarforge/compile';
 import { PdfReader } from '@scholarforge/library';
 
 const TOAST_MS = 2400;
@@ -39,6 +40,7 @@ export function App() {
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
   const requestPdfPicker = useUiStore((s) => s.requestPdfPicker);
   const pdfPickerTick = useUiStore((s) => s.pdfPickerTick);
+  const zipPickerTick = useUiStore((s) => s.zipPickerTick);
   const pdfView = useUiStore((s) => s.pdfView);
   const setPdfView = useUiStore((s) => s.setPdfView);
   const centerView = useUiStore((s) => s.centerView);
@@ -59,6 +61,7 @@ export function App() {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void initWorkspace();
@@ -71,6 +74,11 @@ export function App() {
   useEffect(() => {
     if (pdfPickerTick > 0) pdfInputRef.current?.click();
   }, [pdfPickerTick]);
+
+  // 命令面板触发项目 zip 导入（Overleaf: Menu → Source → Download Source）
+  useEffect(() => {
+    if (zipPickerTick > 0) zipInputRef.current?.click();
+  }, [zipPickerTick]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -290,6 +298,30 @@ export function App() {
           if (!file) return;
           const data = await file.arrayBuffer();
           setPdfView({ name: file.name, data });
+        }}
+      />
+
+      <input
+        ref={zipInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          try {
+            const parsed = parseProjectZip(new Uint8Array(await file.arrayBuffer()));
+            useWorkspaceStore
+              .getState()
+              .loadProject(file.name.replace(/\.zip$/i, '') || 'imported-project', parsed.entry, parsed.files);
+            showToast(
+              `已导入项目（入口 ${parsed.entry}，${Object.keys(parsed.files).length} 个文本文件` +
+                (parsed.skippedBinary.length > 0 ? `，跳过 ${parsed.skippedBinary.length} 个二进制文件）` : '）'),
+            );
+          } catch (err) {
+            showToast(`导入失败：${err instanceof Error ? err.message : String(err)}`);
+          }
         }}
       />
 

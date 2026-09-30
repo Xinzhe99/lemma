@@ -20,7 +20,14 @@ import {
   fetchByArxiv,
   type PaperSearchHit,
 } from '@scholarforge/library';
-import { chunkPaper, HashEmbeddingProvider, HybridRetriever } from '@scholarforge/knowledge';
+import {
+  chunkPaper,
+  HashEmbeddingProvider,
+  HybridRetriever,
+  OpenAICompatEmbeddings,
+  type EmbeddingProvider,
+} from '@scholarforge/knowledge';
+import { useSettingsStore } from './settingsStore';
 
 const STORAGE_KEY = 'sf-library';
 
@@ -32,6 +39,8 @@ interface LibraryState {
   papers: Paper[];
   /** 知识索引是否已构建完成（后台异步） */
   indexReady: boolean;
+  /** 当前嵌入来源：hash 本地 / api 语义嵌入 / api-fallback（API 失败已回退） */
+  indexMode: 'hash' | 'api' | 'api-fallback';
   importBibtex(text: string): { added: number; errors: string[] };
   /** 发现检索结果一键入库 */
   importHit(hit: PaperSearchHit): Paper;
@@ -65,12 +74,47 @@ function readPersisted(): PersistedLibrary | null {
 const persisted = readPersisted();
 
 // ---------------------------------------------------------------------------
-// 知识索引（模块级，随 papers 变更重建）
+// 知识索引（模块级，随 papers / 嵌入配置变更重建）
 // ---------------------------------------------------------------------------
 
-const embedder = new HashEmbeddingProvider(256);
+let embedder: EmbeddingProvider = new HashEmbeddingProvider(256);
+let embedderMode: 'hash' | 'api' | 'api-fallback' = 'hash';
 let retriever = new HybridRetriever();
 let paperById = new Map<string, Paper>();
+
+/** 依据设置选择嵌入源：激活服务 + 嵌入模型 → API；否则本地哈希 */
+function chooseEmbedder(): void {
+  const s = useSettingsStore.getState();
+  const cfg = s.providers.find((p) => p.id === s.activeProviderId);
+  const model = s.embeddingModel.trim();
+  if (cfg && cfg.baseUrl.trim() && cfg.apiKey.trim() && model) {
+    embedder = new OpenAICompatEmbeddings({
+      url: cfg.baseUrl.trim(),
+      apiKey: cfg.apiKey.trim(),
+      model,
+      fetchFn: (url, init) => fetch(url, init),
+    });
+    embedderMode = 'api';
+  } else {
+    embedder = new HashEmbeddingProvider(256);
+    embedderMode = 'hash';
+  }
+}
+
+/** API 嵌入失败时一次性回退本地哈希（后续调用继续用哈希，保证可用） */
+async function embedWithFallback(texts: string[]): Promise<number[][]> {
+  try {
+    return await embedder.embed(texts);
+  } catch (e) {
+    if (embedderMode === 'api') {
+      embedder = new HashEmbeddingProvider(256);
+      embedderMode = 'api-fallback';
+      console.warn('语义嵌入服务调用失败，已回退本地哈希嵌入：', e);
+      return embedder.embed(texts);
+    }
+    throw e;
+  }
+}
 
 async function rebuildIndex(papers: Paper[]): Promise<number> {
   const next = new HybridRetriever();
@@ -79,7 +123,7 @@ async function rebuildIndex(papers: Paper[]): Promise<number> {
   for (const paper of papers) {
     const chunks = chunkPaper(paper, paper.abstract);
     if (chunks.length === 0) continue;
-    const vectors = await embedder.embed(chunks.map((c) => c.text));
+    const vectors = await embedWithFallback(chunks.map((c) => c.text));
     next.addChunks(chunks, vectors);
     count += chunks.length;
   }
@@ -156,6 +200,7 @@ function seedPapers(): Paper[] {
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   papers: persisted?.papers ?? [],
   indexReady: false,
+  indexMode: 'hash',
 
   importBibtex(text) {
     const parsed = parseBibtex(text);
@@ -179,7 +224,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
     if (added.length > 0) {
       set({ papers: [...added, ...get().papers] });
-      void rebuildIndex(get().papers).then(() => set({ indexReady: true }));
+      void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
     }
     return { added: added.length, errors: parsed.errors };
   },
@@ -203,7 +248,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     };
     paper.citekey = disambiguateCitekey(generateCitekey(paper), existing);
     set({ papers: [paper, ...get().papers] });
-    void rebuildIndex(get().papers).then(() => set({ indexReady: true }));
+    void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
     return paper;
   },
 
@@ -225,7 +270,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         addedAt: Date.now(),
       };
       set({ papers: [paper, ...get().papers] });
-      void rebuildIndex(get().papers).then(() => set({ indexReady: true }));
+      void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
       return { ok: true, paper };
     } catch (e) {
       return {
@@ -237,7 +282,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   removePaper(id) {
     set({ papers: get().papers.filter((p) => p.id !== id) });
-    void rebuildIndex(get().papers).then(() => set({ indexReady: true }));
+    void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
   },
 
   setReadStatus(id, status) {
@@ -247,7 +292,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   async searchKnowledge(query, k = 5) {
     const trimmed = query.trim();
     if (!trimmed) return [];
-    const vector = (await embedder.embed([trimmed]))[0]!;
+    const vector = (await embedWithFallback([trimmed]))[0]!;
     const chunks = retriever.search({ queryVector: vector, queryText: trimmed, k });
     return chunks.map((c) => ({ ...c, citekey: paperById.get(c.paperId)?.citekey }));
   },
@@ -265,12 +310,23 @@ useLibraryStore.subscribe((s) => {
   }
 });
 
-/** 启动初始化：首次运行注入种子文献；随后重建知识索引。 */
+/** 启动初始化：首次运行注入种子文献；随后按嵌入配置重建知识索引。 */
 export async function initLibrary(): Promise<void> {
   const state = useLibraryStore.getState();
   if (!persisted?.seeded && state.papers.length === 0) {
     useLibraryStore.setState({ papers: seedPapers() });
   }
+  chooseEmbedder();
   await rebuildIndex(useLibraryStore.getState().papers);
-  useLibraryStore.setState({ indexReady: true });
+  useLibraryStore.setState({ indexReady: true, indexMode: embedderMode });
 }
+
+// 嵌入配置（激活服务 / 嵌入模型）变化时自动重建索引
+useSettingsStore.subscribe((s, prev) => {
+  if (s.embeddingModel !== prev.embeddingModel || s.activeProviderId !== prev.activeProviderId) {
+    chooseEmbedder();
+    void rebuildIndex(useLibraryStore.getState().papers).then(() =>
+      useLibraryStore.setState({ indexReady: true, indexMode: embedderMode }),
+    );
+  }
+});

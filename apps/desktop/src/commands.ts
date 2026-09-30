@@ -45,6 +45,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setTemplateWizardOpen(true),
     },
     {
+      id: 'project.importZip',
+      title: '导入 Overleaf / LaTeX 项目 zip',
+      hint: '项目',
+      run: () => useUiStore.getState().requestZipPicker(),
+    },
+    {
       id: 'file.new',
       title: ctx.t('cmd.newFile'),
       hint: ctx.t('hint.file'),

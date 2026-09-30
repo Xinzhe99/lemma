@@ -22,6 +22,8 @@ interface UiState {
   libraryMode: LibraryMode;
   /** 自增计数：App 监听后触发隐藏的 file input（PDF 选择器） */
   pdfPickerTick: number;
+  /** 自增计数：App 监听后触发隐藏的 file input（项目 zip 导入） */
+  zipPickerTick: number;
   pdfView: PdfView | null;
   centerView: 'editor' | 'pdf';
   /** 命令面板请求启动的内置工作流 id（AgentPanel 消费后清空） */
@@ -35,6 +37,7 @@ interface UiState {
   setLibraryDialog(dialog: LibraryDialog): void;
   setLibraryMode(mode: LibraryMode): void;
   requestPdfPicker(): void;
+  requestZipPicker(): void;
   setPdfView(view: PdfView | null): void;
   setCenterView(view: 'editor' | 'pdf'): void;
   setWorkflowLaunch(id: string | null): void;
@@ -48,6 +51,7 @@ export const useUiStore = create<UiState>((set) => ({
   libraryDialog: null,
   libraryMode: 'list',
   pdfPickerTick: 0,
+  zipPickerTick: 0,
   pdfView: null,
   centerView: 'editor',
   workflowLaunch: null,
@@ -59,6 +63,7 @@ export const useUiStore = create<UiState>((set) => ({
   setLibraryDialog: (dialog) => set({ libraryDialog: dialog }),
   setLibraryMode: (mode) => set({ libraryMode: mode }),
   requestPdfPicker: () => set((s) => ({ pdfPickerTick: s.pdfPickerTick + 1 })),
+  requestZipPicker: () => set((s) => ({ zipPickerTick: s.zipPickerTick + 1 })),
   setPdfView: (view) => set({ pdfView: view, centerView: view ? 'pdf' : 'editor' }),
   setCenterView: (view) => set({ centerView: view }),
   setWorkflowLaunch: (id) => set({ workflowLaunch: id }),

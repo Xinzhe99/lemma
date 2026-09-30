@@ -20,5 +20,9 @@ export { lineLocation, parseSynctex, sourceLocation } from './synctex';
 export { listTemplates, scaffoldProject, substitute } from './templates';
 export type { TemplateModule } from './templates';
 
+// 项目 zip 导入（Overleaf 导出等）
+export { parseProjectZip } from './zip';
+export type { ParsedProjectZip } from './zip';
+
 // quickfix
 export { diagnosticHint } from './quickfix';

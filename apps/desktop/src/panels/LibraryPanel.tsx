@@ -27,9 +27,16 @@ const MODE_LABEL: Record<LibraryMode, string> = {
   discover: '发现',
 };
 
+const INDEX_MODE_LABEL: Record<'hash' | 'api' | 'api-fallback', string> = {
+  hash: '就绪（本地哈希）',
+  api: '就绪（语义嵌入）',
+  'api-fallback': '已回退本地哈希',
+};
+
 export function LibraryPanel() {
   const papers = useLibraryStore((s) => s.papers);
   const indexReady = useLibraryStore((s) => s.indexReady);
+  const indexMode = useLibraryStore((s) => s.indexMode);
   const importBibtex = useLibraryStore((s) => s.importBibtex);
   const importHit = useLibraryStore((s) => s.importHit);
   const fetchMetadata = useLibraryStore((s) => s.fetchMetadata);
@@ -133,7 +140,8 @@ export function LibraryPanel() {
             </button>
           </div>
           <p className="sf-lib-count">
-            {filtered.length} / {papers.length} 条 · 知识索引 {indexReady ? '就绪' : '构建中…'}
+            {filtered.length} / {papers.length} 条 · 知识索引{' '}
+            {indexReady ? INDEX_MODE_LABEL[indexMode] : '构建中…'}
           </p>
           <ul className="sf-lib-list">
             {filtered.map((p) => (

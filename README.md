@@ -26,6 +26,15 @@ npm run typecheck   # 全部包类型检查
 npm run build       # 构建应用
 ```
 
+## 已实现（v0.1 浏览器形态）
+
+- LaTeX 编辑器（语法高亮 / 大纲跳转 / \cite 补全 / diff 视图）
+- 编译流水线（MockEngine 演示；Tectonic/latexmk 引擎待 Tauri 桥接）+ 6 套模板（含中文 ctex）+ Overleaf zip 一键导入
+- 文献库：BibTeX / DOI / arXiv 导入，发现检索（arXiv+Crossref 聚合去重一键入库），智能过滤，BM25+向量混合知识检索（可配语义嵌入，失败自动回退本地）
+- PDF 阅读器：四色语义标注，按文件持久化
+- Agent 中枢：Context Pack 注入流式对话（真实 provider 可调用只读论文域工具，多轮回填）、引用幻觉核查护栏、4 个内置工作流（含三审稿人仿真）
+- AI 改稿审批闭环：润色/起草 → diff 审批卡 → 采纳前强制快照 → 历史时间线一键恢复
+
 ## 平台说明
 
 应用通过 `apps/desktop/src/platform` 抽象本地能力（文件、进程、密钥）。当前提供

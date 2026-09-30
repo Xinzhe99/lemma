@@ -28,12 +28,15 @@ export type ProviderInput = Omit<ProviderConfig, 'id'> & { id?: string };
 export interface SettingsState {
   providers: ProviderConfig[];
   activeProviderId: string | null;
+  /** 语义嵌入模型名（可选，走当前激活服务的 /embeddings 端点；空则用本地哈希嵌入） */
+  embeddingModel: string;
   theme: Theme;
   language: Language;
   addProvider(input: ProviderInput): void;
   updateProvider(id: string, patch: Partial<Omit<ProviderConfig, 'id'>>): void;
   removeProvider(id: string): void;
   setActive(id: string | null): void;
+  setEmbeddingModel(model: string): void;
   setTheme(theme: Theme): void;
   setLanguage(language: Language): void;
 }
@@ -43,6 +46,7 @@ export const SETTINGS_STORAGE_KEY = 'sf-settings';
 interface PersistedSettings {
   providers: ProviderConfig[];
   activeProviderId: string | null;
+  embeddingModel: string;
   theme: Theme;
   language: Language;
 }
@@ -56,6 +60,7 @@ function readPersisted(): PersistedSettings | null {
     return {
       providers: v.providers,
       activeProviderId: typeof v.activeProviderId === 'string' ? v.activeProviderId : null,
+      embeddingModel: typeof v.embeddingModel === 'string' ? v.embeddingModel : '',
       theme: v.theme === 'light' ? 'light' : 'dark',
       language: v.language === 'en' ? 'en' : 'zh',
     };
@@ -69,6 +74,7 @@ const initial = readPersisted();
 export const useSettingsStore = create<SettingsState>()((set) => ({
   providers: initial?.providers ?? [],
   activeProviderId: initial?.activeProviderId ?? null,
+  embeddingModel: initial?.embeddingModel ?? '',
   theme: initial?.theme ?? 'dark',
   language: initial?.language ?? 'zh',
 
@@ -99,6 +105,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set((s) => ({ activeProviderId: id }));
   },
 
+  setEmbeddingModel(model) {
+    set({ embeddingModel: model });
+  },
+
   setTheme(theme) {
     set({ theme });
   },
@@ -114,6 +124,7 @@ useSettingsStore.subscribe((s) => {
       const snap: PersistedSettings = {
         providers: s.providers,
         activeProviderId: s.activeProviderId,
+        embeddingModel: s.embeddingModel,
         theme: s.theme,
         language: s.language,
       };

@@ -1,8 +1,8 @@
 /**
  * Agent 面板（集成核心）：
- * - 会话：Context Pack 注入（大纲/术语表/相关文献检索）→ Provider 流式回复 → 引用核查护栏；
+ * - 会话：Context Pack 注入 → 流式回复（真实 provider 可调用只读论文域工具，多轮回填）→ 引用核查护栏；
  * - AI 改稿：润色当前文件 / 起草新章节 → diff 提案 → 人工审批（采纳前强制快照，可随时恢复）；
- * - 工作流：内置 WorkflowDef 经 WorkflowRun 引擎执行（并行分支 + checkpoint 人工确认）。
+ * - 工作流：内置 WorkflowDef 经 WorkflowRun 引擎执行（并行分支 + checkpoint 人工确认，步骤可带工具）。
  * Provider 解析：设置里已配置并激活的 OpenAI 兼容服务；否则回显模式（零后端演示）。
  */
 
@@ -18,19 +18,20 @@ import {
   type ChatProvider,
   type WorkflowStepUiStatus,
 } from '@scholarforge/agent-hub';
-import type { AgentMessage, WorkflowDef } from '@scholarforge/shared';
+import type { AgentMessage, ToolDef, WorkflowDef } from '@scholarforge/shared';
 import { DiffView } from '@scholarforge/editor';
-import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@scholarforge/knowledge';
+import { validateCitations } from '@scholarforge/knowledge';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
-import { bibCitekeys, combinedDoc, outlineAcrossFiles } from '../projectDoc';
+import { bibCitekeys } from '../projectDoc';
+import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from '../agentTools';
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
 
 const CITATION_RULE =
-  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。';
+  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n如需检索本地文献库或了解项目上下文，可以调用提供的工具（library.search_fulltext / project.context），结果会自动返回给你。';
 
 interface ProviderChoice {
   provider: ChatProvider;
@@ -59,35 +60,10 @@ function resolveProvider(): ProviderChoice {
   return { provider: new EchoProvider(), model: 'echo', label: '回显模式（未配置模型服务）', real: false };
 }
 
-function outlineMd(files: Record<string, string>): string {
-  return outlineAcrossFiles(files)
-    .map(({ file, node }) => `${'  '.repeat(Math.max(0, node.level - 1))}- ${node.title}（${file}）`)
-    .join('\n');
-}
-
-async function buildContextPackMd(query: string): Promise<string> {
-  const files = useWorkspaceStore.getState().files;
-  const search = useLibraryStore.getState().searchKnowledge;
-  const chunks = await search(query, 5);
-  const pack = buildContextPack({
-    outline: outlineMd(files),
-    glossary: extractGlossary(combinedDoc(files)),
-    relatedChunks: chunks,
-    projectMemory: ['演示项目约定：所有 AI 修改须经 diff 审批后落盘，引用必须本地可验证。'],
-  });
-  return renderContextPackMd(pack);
-}
-
-function toAgentMessages(system: string, history: AgentMessage[], user: string): AgentMessage[] {
-  const now = Date.now();
-  const base: AgentMessage[] = [
-    { id: 'sys', role: 'system', content: system, createdAt: now },
-    ...history
-      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content.trim())
-      .map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt })),
-  ];
-  base.push({ id: 'user-new', role: 'user', content: user, createdAt: now + 1 });
-  return base;
+/** 工作流步骤声明的 allowedTools 与本形态已接通工具的交集 */
+function stepTools(allowed?: string[]): ToolDef[] {
+  if (!allowed || allowed.length === 0) return [];
+  return ENABLED_TOOLS.filter((t) => allowed.includes(t.name));
 }
 
 interface WorkflowUiState {
@@ -102,6 +78,8 @@ const WORKFLOW_VAR_DEFAULTS: Record<string, string> = {
   text: '本文提出了一种面向科研写作的智能体工作流。',
   target: 'NeurIPS',
   paper: 'ScholarForge 演示论文',
+  selection: 'In order to demonstrate the pipeline, we utilize a number of examples.',
+  styleNotes: '保持简洁',
 };
 
 export function AgentPanel() {
@@ -146,7 +124,7 @@ export function AgentPanel() {
   }, [newSession]);
 
   // ------------------------------------------------------------------
-  // 会话：流式回复 + 引用核查护栏
+  // 会话：流式回复（真实 provider 带工具多轮）+ 引用核查护栏
   // ------------------------------------------------------------------
 
   const send = async (text: string) => {
@@ -154,32 +132,32 @@ export function AgentPanel() {
     const sessionId = session?.id ?? hub.newSession('host');
     if (session?.status === 'streaming') return;
 
-    const system = await buildContextPackMd(text);
-    const history = (useAgentHubStore.getState().sessions.find((s) => s.id === sessionId)?.messages ?? []).slice(0, -2);
+    const system = (await buildContextPackMd(text)) + CITATION_RULE;
+    const history = (useAgentHubStore.getState().sessions.find((s) => s.id === sessionId)?.messages ?? [])
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(0, -2);
     hub.sendMessage(sessionId, text);
 
-    const { provider, model } = resolveProvider();
+    const { provider, model, real } = resolveProvider();
     const abort = new AbortController();
     abortRef.current = abort;
+    const store = () => useAgentHubStore.getState();
     let acc = '';
     try {
-      for await (const ev of provider.complete({
-        messages: toAgentMessages(system + CITATION_RULE, history, text),
+      acc = await runAgentTurn({
+        provider,
         model,
+        system,
+        history,
+        user: text,
+        tools: real ? ENABLED_TOOLS : [],
         signal: abort.signal,
-      })) {
-        if (ev.type === 'text-delta') {
-          acc += ev.delta;
-          useAgentHubStore.getState().appendDelta(sessionId, ev.delta);
-        } else if (ev.type === 'error') {
-          useAgentHubStore.getState().appendDelta(sessionId, `\n\n[Provider 错误] ${ev.message}`);
-          break;
-        }
-      }
+        onDelta: (delta) => store().appendDelta(sessionId, delta),
+        onToolCall: (call) => store().appendToolCall(sessionId, call),
+        onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
+      });
     } catch (e) {
-      useAgentHubStore
-        .getState()
-        .appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
+      store().appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       abortRef.current = null;
     }
@@ -193,16 +171,14 @@ export function AgentPanel() {
     ];
     const check = validateCitations(acc, validKeys);
     if (!check.ok) {
-      useAgentHubStore
-        .getState()
-        .appendDelta(
-          sessionId,
-          `\n\n---\n⚠️ **引用核查（学术诚信护栏）**：以下引用未在本地文献库或 refs.bib 中找到，疑似幻觉引用，请核实：${check.invalid
-            .map((k) => `[${k}]`)
-            .join(' ')}`,
-        );
+      store().appendDelta(
+        sessionId,
+        `\n\n---\n⚠️ **引用核查（学术诚信护栏）**：以下引用未在本地文献库或 refs.bib 中找到，疑似幻觉引用，请核实：${check.invalid
+          .map((k) => `[${k}]`)
+          .join(' ')}`,
+      );
     }
-    useAgentHubStore.getState().finishSession(sessionId, 'idle');
+    store().finishSession(sessionId, 'idle');
   };
 
   // ------------------------------------------------------------------
@@ -214,19 +190,6 @@ export function AgentPanel() {
     return active && active.endsWith('.tex') ? active : null;
   };
 
-  const runProviderText = async (system: string, prompt: string): Promise<string> => {
-    const { provider, model } = resolveProvider();
-    let acc = '';
-    for await (const ev of provider.complete({
-      messages: toAgentMessages(system, [], prompt),
-      model,
-    })) {
-      if (ev.type === 'text-delta') acc += ev.delta;
-      else if (ev.type === 'error') throw new Error(ev.message);
-    }
-    return acc;
-  };
-
   const polishCurrentFile = async () => {
     const file = activeTexFile();
     if (!file) {
@@ -236,15 +199,12 @@ export function AgentPanel() {
     const before = useWorkspaceStore.getState().files[file] ?? '';
     setAiBusy('润色');
     try {
-      const { real, model } = resolveProvider();
+      const { real, model, provider } = resolveProvider();
       let after: string;
       let via: string;
       if (real) {
         const system = await buildContextPackMd('学术润色');
-        const reply = await runProviderText(
-          system,
-          buildPolishPrompt(before),
-        );
+        const reply = await runAgentTurn({ provider, model, system, history: [], user: buildPolishPrompt(before) });
         after = extractLatexBody(reply);
         via = model;
       } else {
@@ -276,15 +236,18 @@ export function AgentPanel() {
     const before = useWorkspaceStore.getState().files[file] ?? '';
     setAiBusy('起草');
     try {
-      const { real, model } = resolveProvider();
+      const { real, model, provider } = resolveProvider();
       let draft: string;
       let via: string;
       if (real) {
         const system = await buildContextPackMd(`起草新章节：${title}`);
-        const reply = await runProviderText(
+        const reply = await runAgentTurn({
+          provider,
+          model,
           system,
-          `请为当前论文起草一节 \\section{${title.trim()}} 的完整草稿（与现有章节风格一致，引用仅使用上文列出的 citekey）。只输出该节的 LaTeX 源码（首行为 \\section 行），用 latex 代码围栏包裹，不要解释。`,
-        );
+          history: [],
+          user: `请为当前论文起草一节 \\section{${title.trim()}} 的完整草稿（与现有章节风格一致，引用仅使用上文列出的 citekey）。只输出该节的 LaTeX 源码（首行为 \\section 行），用 latex 代码围栏包裹，不要解释。`,
+        });
         draft = extractLatexBody(reply);
         via = model;
       } else {
@@ -326,7 +289,7 @@ export function AgentPanel() {
   }, [agentAction]);
 
   // ------------------------------------------------------------------
-  // 内置工作流
+  // 内置工作流（步骤可调用已接通的工具）
   // ------------------------------------------------------------------
 
   const startWorkflow = async (id: string) => {
@@ -347,41 +310,35 @@ export function AgentPanel() {
       phase: 'running',
     });
 
-    const contextMd = await buildContextPackMd(def.description);
+    const contextMd = (await buildContextPackMd(def.description)) + CITATION_RULE;
     const { provider, model } = resolveProvider();
     const run = new WorkflowRun(def, {
       async runStep(step, ctx) {
-        setWorkflow((w) =>
-          w ? { ...w, statuses: { ...w.statuses, [step.id]: 'running' } } : w,
-        );
+        setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'running' } } : w));
         const deps = (step.dependsOn ?? [])
           .map((d) => `【${def.steps.find((x) => x.id === d)?.name ?? d} 的结论】\n${(ctx.priorOutputs[d] ?? '').slice(0, 1500)}`)
           .join('\n\n');
         const prompt = step.prompt.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => vars[k] ?? '');
-        let acc = '';
         try {
-          for await (const ev of provider.complete({
-            messages: toAgentMessages(contextMd + CITATION_RULE, [], `${prompt}${deps ? `\n\n${deps}` : ''}`),
+          const acc = await runAgentTurn({
+            provider,
             model,
-          })) {
-            if (ev.type === 'text-delta') acc += ev.delta;
-            else if (ev.type === 'error') throw new Error(ev.message);
-          }
+            system: contextMd,
+            history: [],
+            user: `${prompt}${deps ? `\n\n${deps}` : ''}`,
+            tools: stepTools(step.allowedTools),
+          });
+          setWorkflow((w) =>
+            w ? { ...w, statuses: { ...w.statuses, [step.id]: 'done' }, outputs: { ...w.outputs, [step.id]: acc } } : w,
+          );
+          return acc;
         } catch (e) {
           setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'failed' } } : w));
           throw e;
         }
-        setWorkflow((w) =>
-          w
-            ? { ...w, statuses: { ...w.statuses, [step.id]: 'done' }, outputs: { ...w.outputs, [step.id]: acc } }
-            : w,
-        );
-        return acc;
       },
       async onCheckpoint(step) {
-        setWorkflow((w) =>
-          w ? { ...w, statuses: { ...w.statuses, [step.id]: 'checkpoint' } } : w,
-        );
+        setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'checkpoint' } } : w));
         const input = await new Promise<string>((resolve) => {
           checkpointResolve.current = resolve;
         });
@@ -482,7 +439,7 @@ export function AgentPanel() {
             session={session}
             onSend={(text) => void send(text)}
             onStop={() => abortRef.current?.abort()}
-            placeholder="向 agent 提问；回答将注入 Context Pack 并做引用核查…"
+            placeholder="向 agent 提问（配置模型服务后可自动检索文献库、读取项目上下文）…"
           />
         ) : (
           <p className="placeholder">初始化会话…</p>
@@ -511,9 +468,7 @@ export function AgentPanel() {
               onContinue={(stepId) => {
                 checkpointResolve.current?.('继续');
                 checkpointResolve.current = null;
-                setWorkflow((w) =>
-                  w ? { ...w, statuses: { ...w.statuses, [stepId]: 'running' } } : w,
-                );
+                setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [stepId]: 'running' } } : w));
               }}
             />
           </div>

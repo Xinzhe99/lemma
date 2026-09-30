@@ -30,6 +30,8 @@ interface AgentHubState {
   sendMessage(sessionId: string, text: string): void;
   appendDelta(sessionId: string, text: string): void;
   appendToolCall(sessionId: string, call: ToolCallRequest): void;
+  /** 回填工具执行结果（role=tool，携带 toolCallId 供 UI 折叠展示与协议续传） */
+  appendToolResult(sessionId: string, callId: string, content: string): void;
   finishSession(sessionId: string, status: AgentSessionStatus): void;
   /** upsert 一条 AgentRun（按 id 替换或置顶插入） */
   updateRun(run: AgentRun): void;
@@ -117,6 +119,23 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
           ],
         };
       }),
+    })),
+
+  appendToolResult: (sessionId, callId, content) =>
+    set((state) => ({
+      sessions: patchSession(state.sessions, sessionId, (s) => ({
+        ...s,
+        messages: [
+          ...s.messages,
+          {
+            id: createId(),
+            role: 'tool' as const,
+            toolCallId: callId,
+            content,
+            createdAt: Date.now(),
+          },
+        ],
+      })),
     })),
 
   finishSession: (sessionId, status) =>

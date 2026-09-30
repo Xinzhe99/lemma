@@ -1494,3 +1494,20 @@ kbd {
   display: flex;
   justify-content: flex-end;
 }
+
+/* 语义嵌入配置行（设置-模型服务） */
+.sf-embedding-row {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.sf-embedding-input {
+  flex: 1;
+  min-width: 0;
+}
+.sf-embedding-hint {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--fg-2);
+  line-height: 1.4;
+}
