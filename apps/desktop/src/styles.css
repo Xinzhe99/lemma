@@ -2274,3 +2274,12 @@ kbd {
   font-size: 12px;
   color: var(--fg-2);
 }
+
+/* 专注模式：隐藏一切非写作区 */
+.sf-focus .nav-rail,
+.sf-focus .sidebar,
+.sf-focus .agent-panel,
+.sf-focus .console,
+.sf-focus .topbar-right .status-chip {
+  display: none !important;
+}

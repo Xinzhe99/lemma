@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 
-export type SidebarTab = 'outline' | 'files' | 'citations' | 'library' | 'knowledge' | 'submit';
+export type SidebarTab = 'outline' | 'files' | 'citations' | 'library' | 'knowledge' | 'submit' | 'comments';
 /** knowledge 页签内的子页签：术语（静态）/ 笔记（动态加载） */
 export type KnowledgeTab = 'glossary' | 'notes';
 export type LibraryDialog = null | 'bibtex' | 'fetch';
@@ -65,6 +65,12 @@ interface UiState {
   citationPickerOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
+  /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
+  focusMode: boolean;
+  /** 写作统计面板 */
+  statsDialogOpen: boolean;
+  /** 拼写/用词检查（编辑器波浪线标注） */
+  spellcheckEnabled: boolean;
   /** 应用内 prompt/confirm 对话框（替代 window.prompt/confirm，Tauri WKWebView 下原生对话框不可用） */
   textDialog: TextDialogRequest | null;
 
@@ -91,6 +97,9 @@ interface UiState {
   setImageWizardOpen(open: boolean): void;
   setCitationPickerOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
+  setFocusMode(on: boolean): void;
+  setStatsDialogOpen(open: boolean): void;
+  setSpellcheckEnabled(on: boolean): void;
   openTextDialog(req: TextDialogRequest): void;
   closeTextDialog(): void;
 }
@@ -118,6 +127,9 @@ export const useUiStore = create<UiState>((set) => ({
   imageWizardOpen: false,
   citationPickerOpen: false,
   backupDialogOpen: false,
+  focusMode: false,
+  statsDialogOpen: false,
+  spellcheckEnabled: true,
   textDialog: null,
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -142,6 +154,9 @@ export const useUiStore = create<UiState>((set) => ({
   setImageWizardOpen: (open) => set({ imageWizardOpen: open }),
   setCitationPickerOpen: (open) => set({ citationPickerOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
+  setFocusMode: (on) => set({ focusMode: on }),
+  setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),
+  setSpellcheckEnabled: (on) => set({ spellcheckEnabled: on }),
   openTextDialog: (req) => set({ textDialog: req }),
   closeTextDialog: () => set({ textDialog: null }),
 }));

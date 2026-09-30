@@ -37,3 +37,23 @@ export function takePendingJump(file: string): JumpTarget | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// 光标桥：编辑器光标位置（行/列）供批注等功能读取（与跳转桥相互独立）
+// ---------------------------------------------------------------------------
+
+export interface CursorInfo {
+  file: string;
+  line: number;
+  col: number;
+}
+
+let cursor: CursorInfo = { file: '', line: 1, col: 1 };
+
+export function notifyCursor(info: CursorInfo): void {
+  cursor = info;
+}
+
+export function lastCursor(): CursorInfo {
+  return cursor;
+}

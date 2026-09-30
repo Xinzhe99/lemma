@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Image, Quote, Table } from 'lucide-react';
-import { EditorView, LatexEditor } from '@scholarforge/editor';
+import { EditorView, LatexEditor, spellcheckExtension } from '@scholarforge/editor';
 // 字号调节用的 CodeMirror 底层件（@scholarforge/editor 同源依赖，非新增包）
 import { keymap, type KeyBinding } from '@codemirror/view';
 import { Compartment, type Extension } from '@codemirror/state';
@@ -20,7 +20,7 @@ import { useLibraryStore } from '../state/libraryStore';
 import { useUiStore } from '../state/uiStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { bibEntries } from '../projectDoc';
-import { setJumpHandler, stashPendingJump, takePendingJump } from '../editorJump';
+import { setJumpHandler, stashPendingJump, takePendingJump, notifyCursor } from '../editorJump';
 import { setInsertHandler } from '../editorInsert';
 import { polishSelection, quickAsk } from '../aiActions';
 import { StatusBar } from './StatusBar';
@@ -109,6 +109,9 @@ export function EditorArea() {
   const papers = useLibraryStore((s) => s.papers);
   const selectionText = useUiStore((s) => s.selectionText);
   const setSelectionText = useUiStore((s) => s.setSelectionText);
+  // 拼写/用词检查开关（命令 edit.spellcheck 切换）：变化时经下方 useMemo 重建扩展，
+  // LatexEditor 的 extraExtensions compartment 随数组身份变化整体重配——等效 Compartment 切换
+  const spellcheckEnabled = useUiStore((s) => s.spellcheckEnabled);
 
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
@@ -127,7 +130,10 @@ export function EditorArea() {
       }),
     [],
   );
-  const extraExtensions = useMemo(() => [selectionTracker, cursorTracker], [cursorTracker]);
+  const extraExtensions = useMemo(
+    () => [selectionTracker, cursorTracker, spellcheckExtension(spellcheckEnabled)],
+    [cursorTracker, spellcheckEnabled],
+  );
 
   // —— 编辑器字号调节（挂载时读取 localStorage，快捷键经 Compartment 重设主题）——
   const [fontSize, setFontSize] = useState<number>(loadFontSize);

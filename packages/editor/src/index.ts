@@ -1,5 +1,5 @@
 /** @scholarforge/editor —— WS-A：LaTeX 编辑器（CodeMirror 6） */
-export const EDITOR_PACKAGE_VERSION = '0.6.0';
+export const EDITOR_PACKAGE_VERSION = '0.7.0';
 
 // 语法支持
 export {
@@ -57,6 +57,16 @@ export {
 // 静态检查（lint）
 export { lintLatex } from './lint';
 export type { LintIssue, LintSeverity, LintOptions } from './lint';
+
+// 拼写与学术用词检查（词表 + 纯函数 + 编辑器扩展）
+export {
+  checkText,
+  spellcheckExtension,
+  MISSPELLINGS,
+  CONFUSABLES,
+  type SpellIssue,
+  type Confusable,
+} from './spellcheck';
 
 // 可视化表格：tabular 解析/生成（表格编辑器数据层）
 export {

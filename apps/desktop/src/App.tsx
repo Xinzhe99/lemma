@@ -12,6 +12,7 @@ import {
   Library,
   ListTree,
   MessageSquare,
+  MessagesSquare,
   Quote,
   Send,
   Settings,
@@ -76,6 +77,8 @@ export function App() {
   const imageWizardOpen = useUiStore((s) => s.imageWizardOpen);
   const citationPickerOpen = useUiStore((s) => s.citationPickerOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
+  const focusMode = useUiStore((s) => s.focusMode);
+  const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
   const textDialog = useUiStore((s) => s.textDialog);
   const closeTextDialog = useUiStore((s) => s.closeTextDialog);
   const setHistoryOpen = useUiStore((s) => s.setHistoryOpen);
@@ -106,6 +109,12 @@ export function App() {
 
   useEffect(() => applyTheme(theme), [theme]);
 
+  // 专注模式：根节点打标，由 CSS 隐藏侧栏/导航/Agent 面板/控制台
+  useEffect(() => {
+    document.documentElement.classList.toggle('sf-focus', focusMode);
+    return () => document.documentElement.classList.remove('sf-focus');
+  }, [focusMode]);
+
   // 命令面板 / 阅读入口触发 PDF 文件选择
   useEffect(() => {
     if (pdfPickerTick > 0) pdfInputRef.current?.click();
@@ -126,6 +135,12 @@ export function App() {
       if (isQuickOpenTrigger(e)) {
         e.preventDefault();
         setQuickOpenOpen(true);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        const ui = useUiStore.getState();
+        ui.setFocusMode(!ui.focusMode);
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
@@ -160,6 +175,7 @@ export function App() {
     { id: 'library', label: t('nav.library'), icon: Library },
     { id: 'knowledge', label: t('nav.knowledge'), icon: Brain },
     { id: 'submit', label: t('nav.submit'), icon: Send },
+    { id: 'comments', label: t('nav.comments'), icon: MessagesSquare },
   ];
 
   const commands = useMemo(
@@ -242,6 +258,8 @@ export function App() {
           </>
         ) : sidebarTab === 'submit' ? (
           <LazyPanel file="SubmitPanel" labelKey="nav.submit" />
+        ) : sidebarTab === 'comments' ? (
+          <LazyPanel file="CommentsPanel" labelKey="nav.comments" />
         ) : (
           <LibraryPanel />
         )}
@@ -480,6 +498,8 @@ export function App() {
 
       {backupDialogOpen && <LazyFeatureDialog file="BackupDialog" onClose={() => useUiStore.getState().setBackupDialogOpen(false)} />}
 
+      {statsDialogOpen && <LazyFeatureDialog file="StatsDialog" onClose={() => useUiStore.getState().setStatsDialogOpen(false)} />}
+
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
       {toast && <div className="sf-toast">{toast}</div>}
@@ -503,11 +523,12 @@ function LazyFeatureDialog({
     | 'ImageWizard'
     | 'TextDialog'
     | 'CitationPicker'
-    | 'BackupDialog';
+    | 'BackupDialog'
+    | 'StatsDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

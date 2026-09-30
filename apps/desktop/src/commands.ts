@@ -82,6 +82,37 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setImageWizardOpen(true),
     },
     {
+      id: 'comments.open',
+      title: ctx.t('cmd.openComments'),
+      hint: '批注',
+      run: () => useUiStore.getState().setSidebarTab('comments'),
+    },
+    {
+      id: 'focus.toggle',
+      title: ctx.t('cmd.focusMode'),
+      hint: ctx.t('hint.view'),
+      kbd: 'Ctrl+Shift+Z',
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setFocusMode(!ui.focusMode);
+      },
+    },
+    {
+      id: 'stats.open',
+      title: ctx.t('cmd.writingStats'),
+      hint: ctx.t('hint.view'),
+      run: () => useUiStore.getState().setStatsDialogOpen(true),
+    },
+    {
+      id: 'edit.spellcheck',
+      title: ctx.t('cmd.spellcheck'),
+      hint: '编辑',
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setSpellcheckEnabled(!ui.spellcheckEnabled);
+      },
+    },
+    {
       id: 'app.backup',
       title: ctx.t('cmd.backup'),
       hint: ctx.t('hint.app'),

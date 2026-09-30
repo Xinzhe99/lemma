@@ -1,13 +1,16 @@
 /**
  * 状态栏（编辑区底部一行，sf-statusbar）：
- * 左 = 当前文件名 + dirty 圆点；右 = 字数 · 行数 · 光标行列 · 保存状态（● 未保存 / ✓ 已保存 + 相对时间）。
- * 字数与相对时间为导出的纯函数（countWords / relativeTime），便于单测与跨组件复用。
+ * 左 = 当前文件名 + dirty 圆点；右 = 字数 · 今日目标进度（wordsToday/goal，达标 ✓）· 行数 ·
+ * 光标行列 · 保存状态（● 未保存 / ✓ 已保存 + 相对时间）。
+ * 字数与相对时间为导出的纯函数（countWords / relativeTime），便于单测与跨组件复用；
+ * 目标进度 chip 数据来自 writingStats store（状态/state/writingStats）。
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
+import { useWritingStatsStore } from '../state/writingStats';
 import { hasSynctexIndex, jumpSourceToPdf } from '../synctexBridge';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +67,7 @@ const STRINGS = {
     syncDisabledTitle: '需要真实编译产出（真实编译后可用 PDF ↔ 源码同步）',
     syncNoPdf: '请先编译以生成 PDF 预览',
     syncNoHit: 'SyncTeX 未命中该文件',
+    goalChipTitle: '今日写作字数/目标（命令面板可改目标）',
   },
   en: {
     words: 'Words',
@@ -77,6 +81,7 @@ const STRINGS = {
     syncDisabledTitle: 'Requires a real compile (PDF ↔ source sync unavailable)',
     syncNoPdf: 'Compile first to generate the PDF preview',
     syncNoHit: 'No SyncTeX match for this file',
+    goalChipTitle: "Today's words / goal (adjust the goal from the command palette)",
   },
 } as const;
 
@@ -107,6 +112,14 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
   }, [lastSavedAt]);
 
   const fileName = activeTab ? activeTab.split('/').pop()! : '';
+
+  // 写作统计：字数旁的目标进度 chip（数据来自 writingStats store；挂载即校正跨天展示）
+  const wordsToday = useWritingStatsStore((s) => s.wordsToday);
+  const dailyGoal = useWritingStatsStore((s) => s.dailyGoal);
+  const ensureToday = useWritingStatsStore((s) => s.ensureToday);
+  useEffect(() => {
+    ensureToday();
+  }, [ensureToday]);
 
   // WS-2：SyncTeX 索引可用性为模块级单例（非响应式），索引仅在真实编译产出后变化；
   // 借 compileStatus 订阅在编译结束时重渲染，重读取 hasSynctexIndex()。
@@ -147,6 +160,9 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
       <span className="sf-statusbar-spacer" />
       <span className="sf-statusbar-item">
         {L.words} {words}
+      </span>
+      <span className="sf-statusbar-item sf-stats-goal-chip" title={L.goalChipTitle}>
+        {dailyGoal > 0 && wordsToday >= dailyGoal ? `✓ ${wordsToday}` : `${wordsToday}/${dailyGoal}`}
       </span>
       <span className="sf-statusbar-item">
         {L.lines} {lines}

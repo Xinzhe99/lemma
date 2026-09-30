@@ -45,6 +45,7 @@ vi.mock('zustand', async () => {
 import { StatusBar, countWords, relativeTime } from './StatusBar';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useUiStore } from '../state/uiStore';
+import { todayKey, useWritingStatsStore } from '../state/writingStats';
 import { hasSynctexIndex, jumpSourceToPdf, onPdfGoto, setSynctexIndex } from '../synctexBridge';
 import type { SynctexIndex } from '@scholarforge/compile';
 
@@ -152,6 +153,35 @@ describe('StatusBar 渲染', () => {
     const text = container!.textContent ?? '';
     expect(text).toContain('未打开文件');
     expect(text).toContain('行数 1');
+  });
+});
+
+describe('StatusBar 目标进度 chip（写作统计）', () => {
+  /** 状态栏渲染测试基线：chip 显式重置为当日 0/500，避免受自动统计订阅影响 */
+  function resetStats() {
+    useWritingStatsStore.setState({
+      today: todayKey(),
+      dailyGoal: 500,
+      wordsToday: 0,
+      history: {},
+      streakDays: 0,
+    });
+  }
+
+  it('字数旁显示 wordsToday/goal；达标后显示 ✓ wordsToday，title 提示命令面板可改目标', () => {
+    resetStats();
+    renderView();
+    let chip = container!.querySelector<HTMLElement>('.sf-stats-goal-chip');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent).toBe('0/500');
+    expect(chip!.title).toContain('今日写作字数/目标');
+    expect(chip!.title).toContain('命令面板可改目标');
+
+    act(() => {
+      useWritingStatsStore.setState({ wordsToday: 620 });
+    });
+    chip = container!.querySelector<HTMLElement>('.sf-stats-goal-chip');
+    expect(chip!.textContent).toBe('✓ 620');
   });
 });
 
