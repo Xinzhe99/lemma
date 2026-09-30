@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { EditorView, LatexEditor } from '@scholarforge/editor';
+import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { useUiStore } from '../state/uiStore';
@@ -35,6 +36,7 @@ const selectionTracker = EditorView.updateListener.of((update) => {
 });
 
 export function EditorArea() {
+  const t = useT();
   const files = useWorkspaceStore((s) => s.files);
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const openFile = useWorkspaceStore((s) => s.openFile);
@@ -78,7 +80,7 @@ export function EditorArea() {
   if (!activeTab) {
     return (
       <div className="sf-editor-placeholder">
-        <p className="placeholder">打开左侧文件开始编辑</p>
+        <p className="placeholder">{t('editor.pending')}</p>
       </div>
     );
   }
@@ -87,7 +89,7 @@ export function EditorArea() {
     return (
       <div className="sf-editor-placeholder">
         <div className="sf-editor-file">{activeTab}</div>
-        <p className="placeholder">该文件类型暂不支持文本编辑</p>
+        <p className="placeholder">{t('editor.unsupportedType')}</p>
       </div>
     );
   }
@@ -98,20 +100,20 @@ export function EditorArea() {
     <div className="sf-editor-host">
       {selectionText && activeTab.endsWith('.tex') && (
         <div className="sf-selbar">
-          <span className="sf-selbar-label">已选 {selectionText.length} 字</span>
+          <span className="sf-selbar-label">{t('selbar.selected', { n: selectionText.length })}</span>
           <button className="sf-btn" onClick={() => void polishSelection(selectionText)}>
-            润色
+            {t('selbar.polish')}
           </button>
           <button className="sf-btn" onClick={() => quickAsk('explain', selectionText)}>
-            解释
+            {t('selbar.explain')}
           </button>
           <button className="sf-btn" onClick={() => quickAsk('translate', selectionText)}>
-            翻译
+            {t('selbar.translate')}
           </button>
           <button className="sf-btn" onClick={() => quickAsk('find', selectionText)}>
-            找文献
+            {t('selbar.find')}
           </button>
-          <button className="sf-link-btn" onClick={() => setSelectionText('')} title="清除选区标记">
+          <button className="sf-link-btn" onClick={() => setSelectionText('')} title={t('selbar.clear')}>
             ×
           </button>
         </div>

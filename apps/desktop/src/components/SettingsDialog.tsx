@@ -62,7 +62,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const saveForm = () => {
     if (!form) return;
     const input = {
-      label: form.label.trim() || '未命名服务',
+      label: form.label.trim() || t('settings.unnamedProvider'),
       baseUrl: form.baseUrl.trim(),
       apiKey: form.apiKey.trim(),
       model: form.model.trim(),
@@ -177,17 +177,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               )}
 
               <div className="sf-appearance-row sf-embedding-row">
-                <span>语义嵌入模型（可选）</span>
+                <span>{t('settings.embedding')}</span>
                 <input
                   className="sf-input sf-embedding-input"
-                  placeholder="如 text-embedding-3-small / embedding-3，留空则用本地哈希嵌入"
+                  placeholder={t('settings.embeddingPlaceholder')}
                   value={embeddingModel}
                   onChange={(e) => setEmbeddingModel(e.target.value)}
                 />
               </div>
-              <p className="sf-embedding-hint">
-                配置后知识检索走当前激活服务的 /embeddings 端点（需该服务支持）；调用失败会自动回退本地哈希嵌入。
-              </p>
+              <p className="sf-embedding-hint">{t('settings.embeddingHint')}</p>
             </div>
           )}
 

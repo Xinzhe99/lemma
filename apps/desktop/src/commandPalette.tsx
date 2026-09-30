@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useT } from './i18n';
 
 export interface Command {
   id: string;
@@ -42,6 +43,7 @@ export function CommandPalette({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const t = useT();
 
   const results = useMemo(() => {
     return commands
@@ -84,7 +86,7 @@ export function CommandPalette({
         <input
           ref={inputRef}
           className="palette-input"
-          placeholder={placeholder ?? '输入命令…'}
+          placeholder={placeholder ?? t('palette.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -106,7 +108,7 @@ export function CommandPalette({
               </span>
             </li>
           ))}
-          {results.length === 0 && <li className="palette-empty">{emptyText ?? '无匹配命令'}</li>}
+          {results.length === 0 && <li className="palette-empty">{emptyText ?? t('palette.empty')}</li>}
         </ul>
       </div>
     </div>

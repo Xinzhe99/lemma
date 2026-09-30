@@ -1633,3 +1633,173 @@ kbd {
   max-height: 260px;
   overflow: auto;
 }
+
+/* ---------- WF-5：知识页签子页签（术语/笔记） ---------- */
+.sf-subtabs {
+  display: flex;
+  gap: 2px;
+  margin: 2px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sf-subtabs button {
+  flex: 1;
+  border: none;
+  background: var(--bg-1);
+  color: var(--fg-2);
+  font-size: 12px;
+  padding: 5px 0;
+  cursor: pointer;
+}
+
+.sf-subtabs button + button {
+  border-left: 1px solid var(--border);
+}
+
+.sf-subtabs button.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- WF-5：动态面板加载占位 ---------- */
+.sf-panel-loading {
+  padding: 12px 4px;
+}
+
+.sf-panel-fallback {
+  margin: 8px 0;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 7%, var(--bg-1));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-panel-fallback strong {
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.sf-panel-fallback p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+/* ---------- WF-5：全项目快照分组 ---------- */
+.sf-snap-group {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.sf-snap-group.current {
+  border-color: var(--accent-dim);
+}
+
+.sf-snap-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg-3);
+}
+
+.sf-snap-group-path {
+  font-size: 12px;
+  color: var(--fg-0);
+  word-break: break-all;
+}
+
+.sf-snap-group .sf-snap-list {
+  margin: 0;
+  padding: 4px 10px;
+  list-style: none;
+}
+
+/* ---------- WF-5：首启引导卡 ---------- */
+.sf-onboarding {
+  margin: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-1));
+  flex: none;
+}
+
+.sf-onboarding-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sf-onboarding-head strong {
+  font-size: 12px;
+}
+
+.sf-onboarding-head p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--fg-2);
+}
+
+.sf-onboarding-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sf-onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-onboarding-step-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.sf-onboarding-step-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sf-onboarding-step-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sf-onboarding-step-desc {
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.sf-onboarding-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}

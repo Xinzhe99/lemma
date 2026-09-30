@@ -21,8 +21,9 @@ import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from './projectDoc';
 import { requestToolApproval, type ApprovalFn } from './approval';
-import { resolveCompileEntry, runMockCompile } from './compileAction';
+import { resolveCompileEntry, runCompile } from './compileAction';
 import { applyUnifiedDiff } from './diffApply';
+import { findVenueProfile, listVenueNames } from './submission/venues';
 
 /** 本形态已接通的工具名（含写级，写级走人工审批） */
 export const ENABLED_TOOL_NAMES = [
@@ -34,6 +35,7 @@ export const ENABLED_TOOL_NAMES = [
   'citation.add',
   'snapshot.create',
   'tex.compile',
+  'submission.checklist',
 ] as const;
 
 export const ENABLED_TOOLS: ToolDef[] = PAPER_TOOLS.filter((t) =>
@@ -188,14 +190,41 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       return { created: true, file };
     },
     'tex.compile': async () => {
-      const result = await runMockCompile();
+      const result = await runCompile();
       return {
         success: result.ok,
         entry: result.entry,
         passes: result.passes,
         diagnostics: result.diagnostics,
-        note: '浏览器形态为模拟编译；结果与日志见编译输出面板',
+        note: '结果与日志见编译输出面板（桌面 Tauri 形态为真实 Tectonic 编译）',
       };
+    },
+    'submission.checklist': async (args) => {
+      // 注册表参数名为 journal；兼容 venue（WF-1 契约定为按 venue 匹配，两者取一即可）
+      const query =
+        typeof args.journal === 'string' && args.journal.trim()
+          ? args.journal
+          : typeof args.venue === 'string'
+            ? args.venue
+            : '';
+      if (!query.trim()) {
+        return {
+          matched: false,
+          query,
+          candidates: listVenueNames(),
+          note: '未提供期刊/会议名称（journal）；candidates 为内置投稿档案列表，可换用其中名称后重试',
+        };
+      }
+      const venue = findVenueProfile(query);
+      if (!venue) {
+        return {
+          matched: false,
+          query,
+          candidates: listVenueNames(),
+          note: `未匹配到「${query}」的投稿档案；candidates 为内置档案列表，可换用其中名称后重试`,
+        };
+      }
+      return { matched: true, query, venue };
     },
   });
 }

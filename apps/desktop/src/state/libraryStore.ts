@@ -28,6 +28,8 @@ import {
   type EmbeddingProvider,
 } from '@scholarforge/knowledge';
 import { useSettingsStore } from './settingsStore';
+import { useUiStore } from './uiStore';
+import { paperAnnotationKey, useAnnotationStore } from './annotationStore';
 
 const STORAGE_KEY = 'sf-library';
 
@@ -35,8 +37,13 @@ export interface CitedRetrievedChunk extends RetrievedChunk {
   citekey?: string;
 }
 
+/** openPdf 失败的错误码（面板按语言渲染文案）。 */
+export type OpenPdfError = 'no-paper' | 'no-attachment';
+
 interface LibraryState {
   papers: Paper[];
+  /** 库内 PDF 附件（内存态：paperId → bytes；重启后 pdfPath 标记仍在但需重新关联）。 */
+  pdfAttachments: Record<string, ArrayBuffer>;
   /** 知识索引是否已构建完成（后台异步） */
   indexReady: boolean;
   /** 当前嵌入来源：hash 本地 / api 语义嵌入 / api-fallback（API 失败已回退） */
@@ -46,7 +53,15 @@ interface LibraryState {
   importHit(hit: PaperSearchHit): Paper;
   fetchMetadata(kind: 'doi' | 'arxiv', id: string): Promise<{ ok: true; paper: Paper } | { ok: false; error: string }>;
   removePaper(id: string): void;
+  /** 批量删除（L5）：一次重建索引，并级联清理附件与标注绑定。 */
+  removePapers(ids: string[]): void;
   setReadStatus(id: string, status: ReadStatus): void;
+  /** 批量标记阅读状态（L5）。 */
+  setReadStatusBulk(ids: string[], status: ReadStatus): void;
+  /** 关联本地 PDF：bytes 存内存 map，paper.pdfPath 标记为 `${citekey}.pdf`。 */
+  attachPdf(paperId: string, data: ArrayBuffer): boolean;
+  /** 经 uiStore.setPdfView 打开库内附件；文件名固定 `${citekey}.pdf`，标注键绑定到 paperId。 */
+  openPdf(paperId: string): { ok: true; name: string } | { ok: false; error: OpenPdfError };
   searchKnowledge(query: string, k?: number): Promise<CitedRetrievedChunk[]>;
 }
 
@@ -199,6 +214,7 @@ function seedPapers(): Paper[] {
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   papers: persisted?.papers ?? [],
+  pdfAttachments: {},
   indexReady: false,
   indexMode: 'hash',
 
@@ -281,12 +297,62 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   removePaper(id) {
-    set({ papers: get().papers.filter((p) => p.id !== id) });
+    get().removePapers([id]);
+  },
+
+  removePapers(ids) {
+    const removing = new Set(ids);
+    const removed = get().papers.filter((p) => removing.has(p.id));
+    if (removed.length === 0) return;
+    // 级联清理：内存附件、标注键（paper:{id}）、文件名绑定
+    const annotations = useAnnotationStore.getState();
+    const attachments = { ...get().pdfAttachments };
+    for (const paper of removed) {
+      delete attachments[paper.id];
+      annotations.clear(paperAnnotationKey(paper.id));
+      if (paper.pdfPath) annotations.unbindPdfName(paper.pdfPath);
+    }
+    set({
+      papers: get().papers.filter((p) => !removing.has(p.id)),
+      pdfAttachments: attachments,
+    });
     void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
   },
 
   setReadStatus(id, status) {
     set({ papers: get().papers.map((p) => (p.id === id ? { ...p, readStatus: status } : p)) });
+  },
+
+  setReadStatusBulk(ids, status) {
+    const targets = new Set(ids);
+    set({
+      papers: get().papers.map((p) => (targets.has(p.id) ? { ...p, readStatus: status } : p)),
+    });
+  },
+
+  attachPdf(paperId, data) {
+    const paper = get().papers.find((p) => p.id === paperId);
+    if (!paper) return false;
+    // 存副本：pdfjs 可能转移（detach）调用方传入的 buffer
+    set((s) => ({
+      pdfAttachments: { ...s.pdfAttachments, [paperId]: data.slice(0) },
+      papers: s.papers.map((p) =>
+        p.id === paperId ? { ...p, pdfPath: `${p.citekey || p.id}.pdf` } : p,
+      ),
+    }));
+    return true;
+  },
+
+  openPdf(paperId) {
+    const paper = get().papers.find((p) => p.id === paperId);
+    if (!paper) return { ok: false, error: 'no-paper' };
+    const bytes = get().pdfAttachments[paperId];
+    if (!bytes) return { ok: false, error: 'no-attachment' };
+    const name = `${paper.citekey || paper.id}.pdf`;
+    // 标注键绑定到 paperId（App 层经 resolveKey 读/写），再传出副本避免 pdfjs 转移存储 buffer
+    useAnnotationStore.getState().bindPdfName(name, paperId);
+    useUiStore.getState().setPdfView({ name, data: bytes.slice(0) });
+    return { ok: true, name };
   },
 
   async searchKnowledge(query, k = 5) {

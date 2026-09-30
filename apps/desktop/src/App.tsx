@@ -4,18 +4,33 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, FileText, History, Library, ListTree, MessageSquare, Quote, Settings, Sparkles } from 'lucide-react';
+import {
+  BookOpen,
+  Brain,
+  FileText,
+  History,
+  Library,
+  ListTree,
+  MessageSquare,
+  Quote,
+  Send,
+  Settings,
+  Sparkles,
+} from 'lucide-react';
 import { CommandPalette } from './commandPalette';
 import { buildCommands } from './commands';
 import { useT } from './i18n';
 import { applyTheme } from './theme';
 import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
+import { quickAsk } from './aiActions';
 import { initLibrary } from './state/libraryStore';
 import { useAnnotationStore } from './state/annotationStore';
 import { useUiStore } from './state/uiStore';
 import { EditorTabs } from './components/EditorTabs';
 import { FileTree } from './components/FileTree';
+import { LazyPanel } from './components/LazyPanel';
+import { OnboardingCard } from './components/OnboardingCard';
 import { ResizableLayout } from './components/ResizableLayout';
 import { SettingsDialog } from './components/SettingsDialog';
 import { SnapshotDialog } from './components/SnapshotDialog';
@@ -23,6 +38,7 @@ import { EditorArea } from './components/EditorArea';
 import { TemplateWizard } from './components/TemplateWizard';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { CitationsPanel } from './panels/CitationsPanel';
+import { GlossaryPanel } from './panels/GlossaryPanel';
 import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
 import { parseProjectZip } from '@scholarforge/compile';
@@ -38,6 +54,8 @@ export function App() {
 
   const sidebarTab = useUiStore((s) => s.sidebarTab);
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
+  const knowledgeTab = useUiStore((s) => s.knowledgeTab);
+  const setKnowledgeTab = useUiStore((s) => s.setKnowledgeTab);
   const requestPdfPicker = useUiStore((s) => s.requestPdfPicker);
   const pdfPickerTick = useUiStore((s) => s.pdfPickerTick);
   const zipPickerTick = useUiStore((s) => s.zipPickerTick);
@@ -56,6 +74,7 @@ export function App() {
   const clearCompileLog = useWorkspaceStore((s) => s.clearCompileLog);
 
   const theme = useSettingsStore((s) => s.theme);
+  const language = useSettingsStore((s) => s.language);
   const annotationsByFile = useAnnotationStore((s) => s.byFile);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -107,6 +126,8 @@ export function App() {
     { id: 'files', label: t('nav.files'), icon: FileText },
     { id: 'citations', label: t('nav.citations'), icon: Quote },
     { id: 'library', label: t('nav.library'), icon: Library },
+    { id: 'knowledge', label: t('nav.knowledge'), icon: Brain },
+    { id: 'submit', label: t('nav.submit'), icon: Send },
   ];
 
   const commands = useMemo(
@@ -160,6 +181,34 @@ export function App() {
           <OutlinePanel />
         ) : sidebarTab === 'citations' ? (
           <CitationsPanel />
+        ) : sidebarTab === 'knowledge' ? (
+          <>
+            <div className="sf-subtabs" role="tablist">
+              <button
+                role="tab"
+                aria-selected={knowledgeTab === 'glossary'}
+                className={knowledgeTab === 'glossary' ? 'active' : ''}
+                onClick={() => setKnowledgeTab('glossary')}
+              >
+                {t('knowledge.glossary')}
+              </button>
+              <button
+                role="tab"
+                aria-selected={knowledgeTab === 'notes'}
+                className={knowledgeTab === 'notes' ? 'active' : ''}
+                onClick={() => setKnowledgeTab('notes')}
+              >
+                {t('knowledge.notes')}
+              </button>
+            </div>
+            {knowledgeTab === 'glossary' ? (
+              <GlossaryPanel />
+            ) : (
+              <LazyPanel file="NotesPanel" labelKey="knowledge.notes" />
+            )}
+          </>
+        ) : sidebarTab === 'submit' ? (
+          <LazyPanel file="SubmitPanel" labelKey="nav.submit" />
         ) : (
           <LibraryPanel />
         )}
@@ -175,16 +224,16 @@ export function App() {
             className={`tab ${centerView === 'editor' ? 'active' : ''}`}
             onClick={() => setCenterView('editor')}
           >
-            编辑器
+            {t('center.editorTab')}
           </button>
           <button
             className={`tab ${centerView === 'pdf' ? 'active' : ''}`}
             onClick={() => setCenterView('pdf')}
           >
-            PDF · {pdfView.name}
+            {t('center.pdfTab')} · {pdfView.name}
           </button>
           <button className="sf-link-btn sf-pdfbar-close" onClick={() => setPdfView(null)}>
-            关闭
+            {t('center.closePdf')}
           </button>
         </div>
       ) : (
@@ -193,17 +242,17 @@ export function App() {
             <>
               <button
                 className="tab-action"
-                title="AI 润色当前文件（diff 审批后落盘）"
+                title={t('tab.polishTitle')}
                 onClick={() => requestAgentAction('polish')}
               >
-                <Sparkles size={13} /> 润色
+                <Sparkles size={13} /> {t('tab.polish')}
               </button>
               <button
                 className="tab-action"
-                title="快照历史（AI 修改自动创建，可恢复）"
+                title={t('tab.historyTitle')}
                 onClick={() => setHistoryOpen(true)}
               >
-                <History size={13} /> 历史
+                <History size={13} /> {t('tab.history')}
               </button>
             </>
           }
@@ -214,11 +263,22 @@ export function App() {
           <PdfReader
             key={pdfView.name}
             data={pdfView.data}
-            annotations={annotationsByFile[pdfFileKey(pdfView.name)] ?? []}
+            language={language}
+            annotations={annotationsByFile[useAnnotationStore.getState().resolveKey(pdfView.name)] ?? []}
             onCreateAnnotation={(a) => {
-              const key = pdfFileKey(pdfView.name);
-              useAnnotationStore.getState().add(key, { ...a, paperId: key });
+              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+              const paperId = useAnnotationStore.getState().paperIdOf(pdfView.name) ?? '';
+              useAnnotationStore.getState().add(key, { ...a, paperId: paperId || a.paperId });
             }}
+            onDeleteAnnotation={(id) => {
+              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+              useAnnotationStore.getState().remove(key, id);
+            }}
+            askActions={[
+              { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
+              { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
+              { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
+            ]}
           />
         ) : (
           <EditorArea />
@@ -254,6 +314,7 @@ export function App() {
       <div className="panel-title">
         <MessageSquare size={14} /> {t('agent.title')}
       </div>
+      <OnboardingCard />
       <AgentPanel />
     </aside>
   );
@@ -272,7 +333,7 @@ export function App() {
           >
             {t(compileLabelKey)}
           </span>
-          <span className="status-chip">Git ◐</span>
+          <span className="status-chip">{t('topbar.gitChip')}</span>
           <button className="icon-btn" title={t('cmd.settings')} onClick={() => setSettingsOpen(true)}>
             <Settings size={16} />
           </button>
@@ -316,11 +377,17 @@ export function App() {
               .getState()
               .loadProject(file.name.replace(/\.zip$/i, '') || 'imported-project', parsed.entry, parsed.files);
             showToast(
-              `已导入项目（入口 ${parsed.entry}，${Object.keys(parsed.files).length} 个文本文件` +
-                (parsed.skippedBinary.length > 0 ? `，跳过 ${parsed.skippedBinary.length} 个二进制文件）` : '）'),
+              t('toast.zipImported', {
+                entry: parsed.entry,
+                count: Object.keys(parsed.files).length,
+                skipped:
+                  parsed.skippedBinary.length > 0
+                    ? t('toast.zipSkipped', { count: parsed.skippedBinary.length })
+                    : '',
+              }),
             );
           } catch (err) {
-            showToast(`导入失败：${err instanceof Error ? err.message : String(err)}`);
+            showToast(t('toast.zipImportFailed', { reason: err instanceof Error ? err.message : String(err) }));
           }
         }}
       />
@@ -343,9 +410,4 @@ export function App() {
       {toast && <div className="sf-toast">{toast}</div>}
     </div>
   );
-}
-
-/** PDF 标注的持久化键：按文件名记忆（同名文件重开时恢复标注） */
-function pdfFileKey(name: string): string {
-  return `pdf:${name}`;
 }

@@ -1,0 +1,143 @@
+/**
+ * 文献库面板补充样式（WF-4：详情视图 / 批量操作条 / 引用格式预览 / PDF 关联按钮）。
+ * 基础 sf-lib-* 规则在 styles.css；此处只放新增类与展开态。
+ */
+
+/* 条目头行：多选框 + citekey + 标题（点击整行展开详情） */
+.sf-lib-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+.sf-lib-head:focus-visible {
+  outline: 1px solid var(--accent-dim);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+.sf-lib-row--expanded .sf-lib-title {
+  color: var(--accent);
+}
+.sf-lib-check {
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.sf-lib-head .sf-lib-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-lib-head .sf-lib-key {
+  flex: 0 0 auto;
+}
+
+/* 行内动作区：状态下拉 + PDF 按钮 + 删除 */
+.sf-lib-row .sf-lib-actions {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sf-lib-pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+/* L5 批量操作条 */
+.sf-lib-batch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.sf-lib-batch-count {
+  font-size: 11px;
+  color: var(--fg-1);
+  margin-right: auto;
+}
+.sf-lib-batch-delete {
+  border-color: color-mix(in srgb, var(--err) 45%, var(--border));
+  color: var(--err);
+}
+
+/* L1 条目详情视图 */
+.sf-lib-detail {
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+.sf-lib-detail-grid {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 4px 10px;
+  margin: 0;
+}
+.sf-lib-detail-grid dt {
+  font-size: 10px;
+  color: var(--fg-2);
+  padding-top: 1px;
+}
+.sf-lib-detail-grid dd {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-1);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.sf-lib-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sf-lib-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.sf-lib-links a:hover {
+  text-decoration: underline;
+}
+
+/* 引用格式预览：样式切换 + 斜体渲染 */
+.sf-lib-cite-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.sf-lib-cite-tabs button {
+  padding: 1px 8px;
+  font-size: 10px;
+  background: var(--bg-3);
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sf-lib-cite-tabs button.active {
+  color: var(--fg-0);
+  border-color: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.sf-lib-cite-preview {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-3);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--fg-1);
+}
+.sf-lib-cite-preview em {
+  font-style: italic;
+  color: var(--fg-0);
+}

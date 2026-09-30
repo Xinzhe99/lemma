@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { t } from './i18n';
+import { defineMessages, getDict, t } from './i18n';
+
+/** 允许只有 zh 的例外：语言自称（简体中文）与故意验证回退的产品代号 */
+const ZH_ONLY_ALLOWLIST = new Set(['settings.lang.zh', 'app.codename']);
 
 describe('i18n', () => {
   it('zh/en 均可取到对应译文', () => {
@@ -18,21 +21,64 @@ describe('i18n', () => {
     expect(t('no.such.key', 'en')).toBe('no.such.key');
   });
 
-  it('字典覆盖壳 UI 主要区域（命令面板/设置/文件树/编译/Agent）', () => {
+  it('支持 {name} 插值变量', () => {
+    expect(t('selbar.selected', 'zh', { n: 12 })).toBe('已选 12 字');
+    expect(t('selbar.selected', 'en', { n: 12 })).toBe('12 chars selected');
+    expect(t('toast.verdict', 'en', { note: 'approved' })).toBe('Model receives verdict: approved');
+  });
+
+  it('en 完整性：除允许例外，每键必有非空 en 与非空 zh', () => {
+    const dict = getDict();
+    const keys = Object.keys(dict);
+    expect(keys.length).toBeGreaterThan(120);
+    const missing: string[] = [];
+    for (const key of keys) {
+      if (ZH_ONLY_ALLOWLIST.has(key)) continue;
+      const entry = dict[key]!;
+      if (!entry.zh || !entry.zh.trim()) missing.push(`${key}: zh 空`);
+      if (!entry.en || !entry.en.trim()) missing.push(`${key}: en 缺失/空`);
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('字典覆盖壳 UI 主要区域（命令面板/设置/文件树/编译/Agent/知识/投稿/快照/引导）', () => {
     const areas = [
       'palette.trigger',
       'cmd.compile',
       'cmd.newProject',
       'nav.files',
+      'nav.knowledge',
+      'nav.submit',
+      'knowledge.glossary',
+      'knowledge.notes',
+      'panel.loadFailed',
       'tree.rename',
       'console.title',
       'agent.provider',
       'settings.tab.providers',
       'settings.field.apiKey',
+      'settings.embedding',
+      'wiz.create',
+      'cites.bodyCited',
+      'outline.empty',
+      'selbar.polish',
+      'snap.title',
+      'onboarding.title',
       'about.designDoc',
     ];
     for (const key of areas) {
       expect(t(key, 'zh')).not.toBe(key);
+      expect(t(key, 'en')).not.toBe(key);
     }
+  });
+
+  it('defineMessages：注册新键可供 t 使用，且不覆盖已有键', () => {
+    const local = defineMessages({
+      'notes.testKey': { zh: '测试笔记', en: 'Test note' },
+      'nav.files': { zh: '被覆盖？', en: 'Overwritten?' },
+    });
+    expect(local['notes.testKey']!.zh).toBe('测试笔记');
+    expect(t('notes.testKey', 'en')).toBe('Test note');
+    expect(t('nav.files', 'en')).toBe('Files'); // 壳内字典优先，未被覆盖
   });
 });

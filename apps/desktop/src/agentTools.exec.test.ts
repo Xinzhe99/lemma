@@ -178,3 +178,87 @@ describe('runAgentTurn 工具循环', () => {
     expect(useWorkspaceStore.getState().files['main.tex']).toContain('utilize');
   });
 });
+
+describe('submission.checklist 工具（WF-1 投稿档案查询）', () => {
+  it('已加入 ENABLED_TOOLS 暴露给模型（只读权限）', () => {
+    expect(ENABLED_TOOLS.map((t) => t.name)).toContain('submission.checklist');
+  });
+
+  it('传 "NeurIPS"：返回含页数与匿名字段的完整档案', async () => {
+    const executor = createAppToolExecutor();
+    const result = (await executor.execute({
+      id: 'sc1',
+      tool: 'submission.checklist',
+      args: { journal: 'NeurIPS' },
+    })) as {
+      matched: boolean;
+      query: string;
+      venue: {
+        id: string;
+        name: string;
+        pageLimit: string;
+        template: string;
+        anonymity: string;
+        supplementary: string;
+        aiPolicy: string;
+        notes: string;
+      };
+    };
+    expect(result.matched).toBe(true);
+    expect(result.query).toBe('NeurIPS');
+    expect(result.venue.id).toBe('neurips');
+    expect(result.venue.pageLimit).toContain('9');
+    expect(result.venue.anonymity).toContain('双盲');
+    expect(result.venue.template).toBeTruthy();
+    expect(result.venue.supplementary).toBeTruthy();
+    expect(result.venue.aiPolicy).toBeTruthy();
+    expect(result.venue.notes).toBeTruthy();
+  });
+
+  it('模糊匹配：别名、大小写、venue 参数名均可命中', async () => {
+    const executor = createAppToolExecutor();
+    const nips = (await executor.execute({
+      id: 'sc2a',
+      tool: 'submission.checklist',
+      args: { journal: 'nips' },
+    })) as { matched: boolean; venue: { id: string } };
+    expect(nips.matched).toBe(true);
+    expect(nips.venue.id).toBe('neurips');
+
+    // 注册表必填字段为 journal；传空串时回退读 venue（WF-1 契约的 args.venue）
+    const iclr = (await executor.execute({
+      id: 'sc2b',
+      tool: 'submission.checklist',
+      args: { journal: '', venue: 'ICLR' },
+    })) as { matched: boolean; venue: { id: string } };
+    expect(iclr.matched).toBe(true);
+    expect(iclr.venue.id).toBe('iclr');
+
+    const tpami = (await executor.execute({
+      id: 'sc2c',
+      tool: 'submission.checklist',
+      args: { journal: 'IEEE TPAMI' },
+    })) as { venue: { id: string } };
+    expect(tpami.venue.id).toBe('tpami');
+  });
+
+  it('无匹配：matched=false 并返回内置候选列表', async () => {
+    const executor = createAppToolExecutor();
+    const result = (await executor.execute({
+      id: 'sc3',
+      tool: 'submission.checklist',
+      args: { journal: 'Journal of Nowhere 123' },
+    })) as { matched: boolean; candidates: string[]; note: string };
+    expect(result.matched).toBe(false);
+    expect(result.candidates.length).toBeGreaterThanOrEqual(10);
+    expect(result.candidates).toContain('NeurIPS');
+    expect(result.note).toContain('未匹配');
+  });
+
+  it('缺 journal 参数被注册表 schema 拦截（runAgentTurn 会捕获并回传 error）', async () => {
+    const executor = createAppToolExecutor();
+    await expect(executor.execute({ id: 'sc4', tool: 'submission.checklist', args: {} })).rejects.toThrow(
+      '参数校验失败',
+    );
+  });
+});

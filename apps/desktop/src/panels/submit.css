@@ -1,0 +1,193 @@
+/* WF-1 投稿工作台（SubmitPanel 专用，自包含；全局样式见 styles.css）。
+   颜色全部走全局主题变量，随暗/亮主题联动。 */
+
+.sf-submit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.sf-submit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sf-submit-select {
+  max-width: 60%;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font-size: 12px;
+}
+
+.sf-submit-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sf-submit-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sf-submit-empty {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sf-submit-fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-submit-field dt {
+  font-size: 11px;
+  color: var(--fg-2);
+  margin-bottom: 2px;
+}
+
+.sf-submit-field dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-0);
+  line-height: 1.55;
+}
+
+.sf-submit-coverletter {
+  align-self: flex-start;
+}
+
+/* ---------- 打包自检 ---------- */
+
+.sf-submit-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-submit-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+}
+
+.sf-submit-check-mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sf-submit-check--ok .sf-submit-check-mark {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+}
+
+.sf-submit-check--err .sf-submit-check-mark {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 16%, transparent);
+}
+
+.sf-submit-check--err .sf-submit-check-item {
+  color: var(--err);
+}
+
+.sf-submit-check-item {
+  font-size: 12px;
+  color: var(--fg-0);
+}
+
+.sf-submit-check-detail {
+  font-size: 11px;
+  color: var(--fg-1);
+  margin-top: 1px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.sf-submit-export-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sf-submit-lastexport {
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.sf-submit-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--warn);
+}
+
+/* ---------- 期刊推荐 ---------- */
+
+.sf-submit-recs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-submit-rec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+}
+
+.sf-submit-rec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sf-submit-rec-reason {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-1);
+  line-height: 1.55;
+}
+
+.sf-submit-rec-set {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: 11px;
+}

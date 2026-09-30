@@ -1,0 +1,524 @@
+/*
+ * WF-2 知识底座 UI 样式（NotesPanel / GlossaryPanel：卡片双链 / 标注转卡片 / 术语定位 / 风格档案）。
+ * 只追加新类，不改全局 styles.css；颜色一律走全局 CSS 变量，跟随明暗主题。
+ */
+
+/* ---------- 公共骨架 ---------- */
+
+.sf-knowledge {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sf-knowledge-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--fg-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sf-knowledge-count {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 14px;
+}
+
+.sf-knowledge-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sf-knowledge-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.sf-knowledge .placeholder {
+  margin: 0;
+}
+
+.sf-notes-status {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--border));
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+/* ---------- N1 新建卡片表单 ---------- */
+
+.sf-notes-new {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-notes-new-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--fg-2);
+}
+
+.sf-notes-input {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-0);
+  font-size: 12px;
+  padding: 6px 8px;
+  width: 100%;
+  font-family: inherit;
+}
+
+.sf-notes-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sf-notes-textarea {
+  resize: vertical;
+  min-height: 64px;
+  font-family: var(--mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  line-height: 1.5;
+}
+
+.sf-notes-new-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sf-notes-hint {
+  font-size: 10px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- N2 标注列表 ---------- */
+
+.sf-notes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-notes-annots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.sf-notes-annot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+  padding: 6px 8px;
+}
+
+.sf-notes-annot-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sf-notes-annot-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--fg-2);
+  min-width: 0;
+}
+
+.sf-notes-file {
+  font-size: 10px;
+  color: var(--fg-1);
+  background: var(--bg-1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+.sf-notes-annot-quote {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-notes-annot-done {
+  color: var(--ok);
+  cursor: default;
+}
+
+/* 标注四色语义点（method/finding/question/citation，与阅读器语义一致） */
+.sf-sem-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 50%, var(--border));
+}
+
+.sf-sem-dot--method {
+  color: var(--accent);
+  background: var(--accent);
+}
+
+.sf-sem-dot--finding {
+  color: var(--ok);
+  background: var(--ok);
+}
+
+.sf-sem-dot--question {
+  color: var(--warn);
+  background: var(--warn);
+}
+
+.sf-sem-dot--citation {
+  color: #b18cff; /* 与侧栏渐变紫一致，无对应全局变量 */
+  background: #b18cff;
+}
+
+/* ---------- N1 卡片列表 / 双链 / 反向链接 ---------- */
+
+.sf-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sf-note-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  scroll-margin: 6px;
+}
+
+.sf-note-card--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.sf-note-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sf-note-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-0);
+  overflow-wrap: anywhere;
+}
+
+.sf-note-card-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--fg-2);
+}
+
+.sf-note-card-body {
+  font-size: 12px;
+  color: var(--fg-1);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* [[双链]] chip */
+.sf-wikilink {
+  font: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 999px;
+  padding: 0 7px;
+  margin: 0 1px;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.sf-wikilink:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.sf-wikilink--missing {
+  color: var(--fg-2);
+  background: transparent;
+  border-style: dashed;
+  cursor: default;
+}
+
+/* 反向链接区 */
+.sf-note-backlinks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+
+.sf-note-backlinks-label {
+  font-size: 10px;
+  color: var(--fg-2);
+  flex: none;
+}
+
+.sf-note-backlinks-empty {
+  font-size: 10px;
+  color: var(--fg-2);
+  opacity: 0.7;
+}
+
+.sf-backlink-chip {
+  font-size: 10px;
+  color: var(--fg-1);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  cursor: pointer;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-backlink-chip:hover {
+  color: var(--fg-0);
+  border-color: var(--accent-dim);
+}
+
+.sf-note-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sf-note-card-actions .sf-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.sf-note-card-del:hover {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 45%, var(--border));
+}
+
+.sf-note-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-note-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- N4 术语面板（GlossaryPanel） ---------- */
+
+.sf-glossary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-glossary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  color: var(--fg-1);
+  cursor: pointer;
+  font: inherit;
+}
+
+.sf-glossary-row:hover {
+  border-color: var(--accent-dim);
+  color: var(--fg-0);
+}
+
+.sf-glossary-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.sf-glossary-term {
+  font-size: 12px;
+  color: var(--fg-0);
+  overflow-wrap: anywhere;
+}
+
+.sf-glossary-abbr {
+  font-size: 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex: none;
+}
+
+.sf-glossary-locate {
+  flex: none;
+  margin-left: auto;
+  color: var(--fg-2);
+}
+
+.sf-glossary-row:hover .sf-glossary-locate {
+  color: var(--accent);
+}
+
+.sf-glossary-trans {
+  font-size: 11px;
+  color: var(--fg-2);
+  padding-left: 2px;
+}
+
+.sf-glossary-issues ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sf-glossary-issue {
+  font-size: 11px;
+  color: var(--fg-1);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: var(--bg-2);
+}
+
+.sf-glossary-issue--error {
+  border-left-color: var(--err);
+}
+
+/* ---------- N5 风格档案 ---------- */
+
+.sf-style {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sf-style-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.sf-style-cell {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 7px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  text-align: center;
+}
+
+.sf-style-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-style-label {
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--fg-2);
+}
+
+.sf-style-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sf-style-notes li {
+  font-size: 11px;
+  color: var(--fg-1);
+  padding-left: 10px;
+  position: relative;
+}
+
+.sf-style-notes li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--fg-2);
+}

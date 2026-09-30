@@ -3,11 +3,13 @@
  */
 
 import { useMemo, useState } from 'react';
+import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { bibCitekeys, citedKeys } from '../projectDoc';
 
 export function CitationsPanel() {
+  const t = useT();
   const files = useWorkspaceStore((s) => s.files);
   const papers = useLibraryStore((s) => s.papers);
   const importBibtex = useLibraryStore((s) => s.importBibtex);
@@ -24,30 +26,36 @@ export function CitationsPanel() {
   const importFromBib = () => {
     if (!bibPath) return;
     const result = importBibtex(files[bibPath] ?? '');
-    setMessage(`已从 ${bibPath} 导入 ${result.added} 条${result.errors.length ? `（${result.errors.length} 条提示）` : ''}`);
+    setMessage(
+      t('cites.imported', {
+        path: bibPath,
+        n: result.added,
+        errors: result.errors.length ? t('cites.importErrors', { n: result.errors.length }) : '',
+      }),
+    );
   };
 
   return (
     <div className="sf-cites">
       <div className="sf-cites-summary">
-        <span>正文引用 {cited.length}</span>
+        <span>{t('cites.bodyCited', { n: cited.length })}</span>
         <span className={missingInBib.length ? 'sf-chip err' : 'sf-chip ok'}>
-          bib 缺失 {missingInBib.length}
+          {t('cites.missingBib', { n: missingInBib.length })}
         </span>
         <span className={missingInLib.length ? 'sf-chip warn' : 'sf-chip ok'}>
-          库缺失 {missingInLib.length}
+          {t('cites.missingLib', { n: missingInLib.length })}
         </span>
       </div>
 
       {missingInLib.length > 0 && bibPath && (
         <button className="sf-btn sf-cites-import" onClick={importFromBib}>
-          从 {bibPath} 导入文献库
+          {t('cites.importFrom', { path: bibPath })}
         </button>
       )}
       {message && <p className="sf-cites-msg">{message}</p>}
 
       {cited.length === 0 ? (
-        <p className="placeholder">正文暂无 \cite 引用</p>
+        <p className="placeholder">{t('cites.empty')}</p>
       ) : (
         <ul className="sf-cites-list">
           {cited.map((key) => (
@@ -55,10 +63,10 @@ export function CitationsPanel() {
               <code className="sf-cites-key">{key}</code>
               <span className="sf-cites-chips">
                 <span className={bibSet.has(key) ? 'sf-chip ok' : 'sf-chip err'}>
-                  {bibSet.has(key) ? 'bib ✓' : 'bib ✗'}
+                  {bibSet.has(key) ? t('cites.inBib') : t('cites.notInBib')}
                 </span>
                 <span className={libSet.has(key) ? 'sf-chip ok' : 'sf-chip dim'}>
-                  {libSet.has(key) ? '文献库 ✓' : '文献库 ✗'}
+                  {libSet.has(key) ? t('cites.inLib') : t('cites.notInLib')}
                 </span>
               </span>
             </li>

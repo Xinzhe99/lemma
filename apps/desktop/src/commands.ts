@@ -1,13 +1,13 @@
 /**
  * 命令面板命令注册表：面向真实 store 动作；UI 侧回调（打开设置、聚焦文件树、toast）经 ctx 注入。
  * compile.run 已接入 WS-B 编译流水线（浏览器形态使用 MockEngine，真实引擎待 Tauri CommandRunner 桥）。
+ * WF-5：全部标题/提示入 i18n；补投稿（打包/venue）、知识（笔记/术语）入口与 W7/W11 工作流命令。
  */
 
 import type { Command } from './commandPalette';
-import { t } from './i18n';
 import { applyTheme } from './theme';
 import { useAgentHubStore } from '@scholarforge/agent-hub';
-import { runMockCompile, resolveCompileEntry } from './compileAction';
+import { runCompile, resolveCompileEntry } from './compileAction';
 import { requestToolApproval } from './approval';
 import { rulePolish } from './polish';
 import { useSettingsStore } from './state/settingsStore';
@@ -15,8 +15,8 @@ import { useUiStore } from './state/uiStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 
 export interface CommandContext {
-  /** 翻译函数（通常来自 useT()） */
-  t: (key: string) => string;
+  /** 翻译函数（通常来自 useT()，支持 {name} 插值） */
+  t: (key: string, vars?: Record<string, string | number>) => string;
   openSettings: () => void;
   focusFileTree: () => void;
   toast: (message: string) => void;
@@ -35,14 +35,14 @@ export function buildCommands(ctx: CommandContext): Command[] {
     },
     {
       id: 'project.template',
-      title: '从模板新建项目（6 套起步模板，含中文 ctex）',
-      hint: '项目',
+      title: ctx.t('cmd.template'),
+      hint: ctx.t('hint.project'),
       run: () => useUiStore.getState().setTemplateWizardOpen(true),
     },
     {
       id: 'project.importZip',
-      title: '导入 Overleaf / LaTeX 项目 zip',
-      hint: '项目',
+      title: ctx.t('cmd.importZip'),
+      hint: ctx.t('hint.project'),
       run: () => useUiStore.getState().requestZipPicker(),
     },
     {
@@ -100,14 +100,14 @@ export function buildCommands(ctx: CommandContext): Command[] {
       hint: ctx.t('hint.compile'),
       kbd: 'Ctrl+Enter',
       run: async () => {
-        const result = await runMockCompile();
-        if (!result.ok && !result.entry) ctx.toast('未找到可编译的 .tex 入口文件');
+        const result = await runCompile();
+        if (!result.ok && !result.entry) ctx.toast(ctx.t('toast.noTexEntry'));
       },
     },
     {
       id: 'library.importBibtex',
-      title: '导入 BibTeX 到文献库',
-      hint: '文献',
+      title: ctx.t('cmd.importBibtex'),
+      hint: ctx.t('hint.library'),
       run: () => {
         const ui = useUiStore.getState();
         ui.setSidebarTab('library');
@@ -116,8 +116,8 @@ export function buildCommands(ctx: CommandContext): Command[] {
     },
     {
       id: 'library.fetchMetadata',
-      title: '按 DOI / arXiv ID 抓取文献元数据',
-      hint: '文献',
+      title: ctx.t('cmd.fetchMetadata'),
+      hint: ctx.t('hint.library'),
       run: () => {
         const ui = useUiStore.getState();
         ui.setSidebarTab('library');
@@ -126,14 +126,14 @@ export function buildCommands(ctx: CommandContext): Command[] {
     },
     {
       id: 'reader.openPdf',
-      title: '打开本地 PDF 阅读（标注 + 选中即问）',
-      hint: '阅读',
+      title: ctx.t('cmd.openPdf'),
+      hint: ctx.t('hint.reading'),
       run: () => useUiStore.getState().requestPdfPicker(),
     },
     {
       id: 'library.discover',
-      title: '文献发现：检索 arXiv + Crossref 并一键入库',
-      hint: '文献',
+      title: ctx.t('cmd.discover'),
+      hint: ctx.t('hint.library'),
       run: () => {
         const ui = useUiStore.getState();
         ui.setSidebarTab('library');
@@ -142,33 +142,33 @@ export function buildCommands(ctx: CommandContext): Command[] {
     },
     {
       id: 'agent.polish',
-      title: 'AI 润色当前文件（diff 审批后落盘）',
-      hint: 'Agent',
+      title: ctx.t('cmd.agentPolish'),
+      hint: ctx.t('hint.agent'),
       run: () => useUiStore.getState().requestAgentAction('polish'),
     },
     {
       id: 'agent.draft',
-      title: 'AI 起草新章节（diff 审批后落盘）',
-      hint: 'Agent',
+      title: ctx.t('cmd.agentDraft'),
+      hint: ctx.t('hint.agent'),
       run: () => useUiStore.getState().requestAgentAction('draft'),
     },
     {
       id: 'view.history',
-      title: '查看当前文件快照历史（可恢复）',
-      hint: '版本',
+      title: ctx.t('cmd.history'),
+      hint: ctx.t('hint.version'),
       kbd: 'Ctrl+H',
       run: () => useUiStore.getState().setHistoryOpen(true),
     },
     {
       id: 'agent.newSession',
-      title: '新建 Agent 会话',
-      hint: 'Agent',
+      title: ctx.t('cmd.newSession'),
+      hint: ctx.t('hint.agent'),
       run: () => useAgentHubStore.getState().newSession('host'),
     },
     {
       id: 'agent.simulateToolEdit',
-      title: '演示：模拟 agent 调用 tex.edit（阻塞式 diff 审批闭环）',
-      hint: 'Agent',
+      title: ctx.t('cmd.simulateToolEdit'),
+      hint: ctx.t('hint.agent'),
       run: async () => {
         const ws = useWorkspaceStore.getState();
         const file =
@@ -176,13 +176,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
             ? ws.activeTab
             : resolveCompileEntry();
         if (!file) {
-          ctx.toast('请先打开一个 .tex 文件再演示');
+          ctx.toast(ctx.t('toast.needTexFile'));
           return;
         }
         const before = ws.files[file]!;
         const after = rulePolish(before);
         if (after === before) {
-          ctx.toast('当前文件没有可演示的修改——试试写入含 "very / in order to / utilize" 等冗余表达的英文文本');
+          ctx.toast(ctx.t('toast.noDemoChange'));
           return;
         }
         const decision = await requestToolApproval({
@@ -190,29 +190,73 @@ export function buildCommands(ctx: CommandContext): Command[] {
           before,
           after,
           kind: 'tool-edit',
-          label: 'AI 修改稿件（tex.edit · 模拟）',
-          via: '演示命令（未配置模型时亦可体验完整审批闭环）',
+          label: ctx.t('approval.demoEditLabel'),
+          via: ctx.t('approval.demoEditVia'),
         });
-        ctx.toast(decision.approved ? `模型将收到裁决：${decision.note}` : `模型将收到裁决：${decision.note}`);
+        ctx.toast(ctx.t('toast.verdict', { note: decision.note }));
       },
     },
     {
       id: 'agent.workflowReviewers',
-      title: '运行工作流：三审稿人仿真（W6）',
-      hint: 'Agent',
+      title: ctx.t('cmd.wfReviewers'),
+      hint: ctx.t('hint.agent'),
       run: () => useUiStore.getState().setWorkflowLaunch('w6-reviewer-sim'),
     },
     {
       id: 'agent.workflowPolish',
-      title: '运行工作流：学术润色（W3，含 diff 审批检查点）',
-      hint: 'Agent',
+      title: ctx.t('cmd.wfPolish'),
+      hint: ctx.t('hint.agent'),
       run: () => useUiStore.getState().setWorkflowLaunch('w3-polish'),
     },
     {
       id: 'agent.workflowChecklist',
-      title: '运行工作流：预提交自检（W10）',
-      hint: 'Agent',
+      title: ctx.t('cmd.wfChecklist'),
+      hint: ctx.t('hint.agent'),
       run: () => useUiStore.getState().setWorkflowLaunch('w10-pre-submission'),
+    },
+    {
+      id: 'agent.workflowRebuttal',
+      title: ctx.t('cmd.wfRebuttal'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().setWorkflowLaunch('w7-rebuttal'),
+    },
+    {
+      id: 'agent.workflowCoverLetter',
+      title: ctx.t('cmd.wfCoverLetter'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().launchWorkflow('w11-cover-letter', { journal: '', highlights: '' }),
+    },
+    {
+      id: 'submit.open',
+      title: ctx.t('cmd.submitPackage'),
+      hint: ctx.t('hint.submit'),
+      run: () => useUiStore.getState().setSidebarTab('submit'),
+    },
+    {
+      id: 'submit.venue',
+      title: ctx.t('cmd.submitVenue'),
+      hint: ctx.t('hint.submit'),
+      run: () => useUiStore.getState().setSidebarTab('submit'),
+    },
+    {
+      id: 'knowledge.notes',
+      title: ctx.t('cmd.openNotes'),
+      hint: ctx.t('hint.knowledge'),
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setSidebarTab('knowledge');
+        ui.setKnowledgeTab('notes');
+      },
+    },
+    {
+      id: 'knowledge.glossary',
+      title: ctx.t('cmd.openGlossary'),
+      hint: ctx.t('hint.knowledge'),
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setSidebarTab('knowledge');
+        ui.setKnowledgeTab('glossary');
+      },
     },
   ];
 

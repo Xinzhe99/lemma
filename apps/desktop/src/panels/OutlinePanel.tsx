@@ -3,17 +3,19 @@
  */
 
 import { useMemo } from 'react';
+import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { outlineAcrossFiles, resolveEntry } from '../projectDoc';
 import { jumpTo } from '../editorJump';
 
 export function OutlinePanel() {
+  const t = useT();
   const files = useWorkspaceStore((s) => s.files);
   const entry = resolveEntry(files);
   const items = useMemo(() => outlineAcrossFiles(files), [files]);
 
   if (items.length === 0) {
-    return <p className="placeholder">未发现章节（\section / \subsection）</p>;
+    return <p className="placeholder">{t('outline.empty')}</p>;
   }
 
   return (

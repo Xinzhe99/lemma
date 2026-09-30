@@ -21,6 +21,9 @@ export { searchArxiv, searchCrossref, mergeSearchHits, buildArxivQuery } from '.
 
 export { generateCitekey, disambiguateCitekey } from './citekey';
 
+export type { CitationStyle, CitationSegment } from './cite';
+export { formatCitation, parseCitationSegments, CITATION_STYLES } from './cite';
+
 export type { PdfPageText } from './pdf/extract';
 export { extractSections } from './pdf/extract';
 export type { PdfTextResult, PdfTextPage } from './pdf/pdfjs';
@@ -31,5 +34,5 @@ export { tokenize, buildBm25 } from './bm25';
 
 export { annotationToCard } from './annotationToNote';
 
-export type { PdfReaderProps } from './reader/PdfReader';
+export type { PdfReaderProps, PdfAskAction, PdfReaderLang } from './reader/PdfReader';
 export { PdfReader } from './reader/PdfReader';

@@ -3,7 +3,10 @@
  * - 会话：Context Pack 注入 → 流式回复（真实 provider 可调用只读论文域工具，多轮回填）→ 引用核查护栏；
  * - AI 改稿：润色当前文件 / 起草新章节 → diff 提案 → 人工审批（采纳前强制快照，可随时恢复）；
  * - 工作流：内置 WorkflowDef 经 WorkflowRun 引擎执行（并行分支 + checkpoint 人工确认，步骤可带工具）。
+ *   WF-3：启动统一走 WorkflowLauncher 表单（无原生 prompt）；W10 完成渲染结构化自检报告；
+ *   W7 完成渲染按审稿人分段的 Rebuttal；完成的 run 留存到 agent-hub store（历史可恢复）。
  * Provider 解析：设置里已配置并激活的 OpenAI 兼容服务；否则回显模式（零后端演示）。
+ * WF-3 A5：面板文案 zh/en 自包含字典（不碰全局 i18n.ts）。
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -13,11 +16,12 @@ import {
   WorkflowRun,
   WorkflowRunView,
   useAgentHubStore,
+  type CompletedRun,
   type WorkflowStepUiStatus,
 } from '@scholarforge/agent-hub';
-import type { WorkflowDef } from '@scholarforge/shared';
+import { createId, type WorkflowDef } from '@scholarforge/shared';
 import { DiffView } from '@scholarforge/editor';
-import { useSettingsStore } from '../state/settingsStore';
+import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
@@ -32,7 +36,10 @@ import {
   polishSelection,
 } from '../aiActions';
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
-import { ReviewPanel } from './ReviewPanel';
+import { ReviewPanel, RebuttalPanel } from './ReviewPanel';
+import { ChecklistReport } from './ChecklistReport';
+import { WorkflowLauncher } from '../components/WorkflowLauncher';
+import './agent-extra.css';
 
 /** 工作流步骤声明的 allowedTools 与本形态已接通工具的交集 */
 function stepTools(allowed?: string[]) {
@@ -47,22 +54,109 @@ interface WorkflowUiState {
   phase: 'running' | 'done' | 'failed';
 }
 
-const WORKFLOW_VAR_DEFAULTS: Record<string, string> = {
-  section: 'Introduction',
-  text: '本文提出了一种面向科研写作的智能体工作流。',
-  target: 'NeurIPS',
-  paper: 'ScholarForge 演示论文',
-  selection: 'In order to demonstrate the pipeline, we utilize a number of examples.',
-  styleNotes: '保持简洁',
-};
+// ---------------------------------------------------------------------------
+// 双语字典（自包含）
+// ---------------------------------------------------------------------------
+
+const STRINGS = {
+  zh: {
+    newSession: '新会话',
+    aiTitle: 'AI 改稿（diff 审批）',
+    polish: '润色当前文件',
+    polishing: '润色中…',
+    draft: '起草新章节',
+    drafting: '起草中…',
+    pendingChip: '待审批',
+    agentChip: 'Agent 等待裁决',
+    discard: '放弃',
+    discardToken: '放弃（回传拒绝）',
+    apply: '采纳修改（自动创建快照）',
+    applyToken: '采纳修改（自动创建快照并回传）',
+    chatPlaceholder: '向 agent 提问（配置模型服务后可自动检索文献库、读取项目上下文）…',
+    sessionInit: '初始化会话…',
+    wfTitle: '内置工作流',
+    contextPreview: '当前上下文包预览',
+    phaseDone: '已完成',
+    phaseFailed: '失败',
+    phaseRunning: '运行中',
+    collapse: '收起',
+    historyTitle: '运行历史',
+    historyEmpty: '暂无完成的工作流（完成一次后会留存在本机）',
+    historyRestore: '点击恢复该 run 的产物视图',
+    clearHistory: '清空',
+    noTex: '请先在编辑器打开一个 .tex 文件',
+    emptyReply: '模型未返回有效内容，请重试',
+    polishNoChange: '未产生修改建议（离线规则未命中冗余表达；配置模型服务可获得深度润色）',
+    polishFail: (msg: string) => `润色失败：${msg}`,
+    draftFail: (msg: string) => `起草失败：${msg}`,
+    appliedToken: '已采纳并回传给模型（agent 将基于修改后的稿件继续）',
+    applied: (label: string) => `已采纳「${label}」并自动创建快照（编辑器标签栏「历史」可恢复）`,
+    rejectedToken: '已拒绝该修改并回传给模型',
+    draftTitlePrompt: '新章节标题',
+    offlineRulePolish: '规则润色（离线）',
+    offlineDraft: '离线模板起草',
+  },
+  en: {
+    newSession: 'New session',
+    aiTitle: 'AI editing (diff approval)',
+    polish: 'Polish current file',
+    polishing: 'Polishing…',
+    draft: 'Draft new section',
+    drafting: 'Drafting…',
+    pendingChip: 'Pending approval',
+    agentChip: 'Awaiting agent verdict',
+    discard: 'Discard',
+    discardToken: 'Discard (send rejection)',
+    apply: 'Apply (snapshot auto-created)',
+    applyToken: 'Apply (snapshot + send back)',
+    chatPlaceholder: 'Ask the agent (with a model service it can search your library and read project context)…',
+    sessionInit: 'Initializing session…',
+    wfTitle: 'Built-in workflows',
+    contextPreview: 'Context Pack preview',
+    phaseDone: 'Done',
+    phaseFailed: 'Failed',
+    phaseRunning: 'Running',
+    collapse: 'Collapse',
+    historyTitle: 'Run history',
+    historyEmpty: 'No completed workflows yet (runs are kept locally once finished)',
+    historyRestore: 'Click to restore this run',
+    clearHistory: 'Clear',
+    noTex: 'Open a .tex file in the editor first',
+    emptyReply: 'Model returned no content; please retry',
+    polishNoChange: 'No changes proposed (offline rules found nothing; configure a model service for deep polishing)',
+    polishFail: (msg: string) => `Polish failed: ${msg}`,
+    draftFail: (msg: string) => `Draft failed: ${msg}`,
+    appliedToken: 'Applied and sent back to the model (the agent continues on the revised manuscript)',
+    applied: (label: string) => `Applied "${label}" with an auto snapshot (restorable from editor "History")`,
+    rejectedToken: 'Rejected and sent back to the model',
+    draftTitlePrompt: 'New section title',
+    offlineRulePolish: 'Rule-based polish (offline)',
+    offlineDraft: 'Offline template draft',
+  },
+} as const;
+
+/** 异步回调里读当前语言的文案（避免闭包里的语言过期） */
+function tr() {
+  return STRINGS[useSettingsStore.getState().language] as (typeof STRINGS)[Language];
+}
+
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 export function AgentPanel() {
   const sessions = useAgentHubStore((s) => s.sessions);
   const activeSessionId = useAgentHubStore((s) => s.activeSessionId);
   const newSession = useAgentHubStore((s) => s.newSession);
+  const completedRuns = useAgentHubStore((s) => s.completedRuns);
+  const clearCompletedRuns = useAgentHubStore((s) => s.clearCompletedRuns);
 
   const providers = useSettingsStore((s) => s.providers);
   const activeProviderId = useSettingsStore((s) => s.activeProviderId);
+  const language = useSettingsStore((s) => s.language);
+  const t = STRINGS[language] as (typeof STRINGS)[Language];
 
   const launchRequest = useUiStore((s) => s.workflowLaunch);
   const setWorkflowLaunch = useUiStore((s) => s.setWorkflowLaunch);
@@ -75,6 +169,7 @@ export function AgentPanel() {
   const setNote = useProposalStore((s) => s.setNote);
 
   const [workflow, setWorkflow] = useState<WorkflowUiState | null>(null);
+  const [launchForm, setLaunchForm] = useState<{ def: WorkflowDef; presetVars: Record<string, string> } | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [contextPreview, setContextPreview] = useState('');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
@@ -110,7 +205,7 @@ export function AgentPanel() {
   const polishCurrentFile = async () => {
     const file = activeTexFile();
     if (!file) {
-      setNote('请先在编辑器打开一个 .tex 文件');
+      setNote(tr().noTex);
       return;
     }
     const before = useWorkspaceStore.getState().files[file] ?? '';
@@ -126,17 +221,17 @@ export function AgentPanel() {
         via = model;
       } else {
         after = rulePolish(before);
-        via = '规则润色（离线）';
+        via = tr().offlineRulePolish;
       }
       if (!after.trim()) {
-        setNote('模型未返回有效内容，请重试');
+        setNote(tr().emptyReply);
       } else if (after.trim() === before.trim()) {
-        setNote('未产生修改建议（离线规则未命中冗余表达；配置模型服务可获得深度润色）');
+        setNote(tr().polishNoChange);
       } else {
         setProposal({ file, before, after, kind: 'polish', label: 'AI 润色', via });
       }
     } catch (e) {
-      setNote(`润色失败：${e instanceof Error ? e.message : String(e)}`);
+      setNote(tr().polishFail(e instanceof Error ? e.message : String(e)));
     } finally {
       setAiBusy(null);
     }
@@ -145,10 +240,10 @@ export function AgentPanel() {
   const draftNewSection = async () => {
     const file = activeTexFile();
     if (!file) {
-      setNote('请先在编辑器打开一个 .tex 文件');
+      setNote(tr().noTex);
       return;
     }
-    const title = window.prompt('新章节标题', '讨论（Discussion）');
+    const title = window.prompt(tr().draftTitlePrompt, '讨论（Discussion）');
     if (!title || !title.trim()) return;
     const before = useWorkspaceStore.getState().files[file] ?? '';
     setAiBusy('起草');
@@ -169,16 +264,16 @@ export function AgentPanel() {
         via = model;
       } else {
         draft = draftSectionOffline(title.trim());
-        via = '离线模板起草';
+        via = tr().offlineDraft;
       }
       if (!draft.trim()) {
-        setNote('模型未返回有效内容，请重试');
+        setNote(tr().emptyReply);
         return;
       }
       const after = `${before.trimEnd()}\n${draft.trim()}\n`;
       setProposal({ file, before, after, kind: 'draft-section', label: `起草新章节：${title.trim()}`, via });
     } catch (e) {
-      setNote(`起草失败：${e instanceof Error ? e.message : String(e)}`);
+      setNote(tr().draftFail(e instanceof Error ? e.message : String(e)));
     } finally {
       setAiBusy(null);
     }
@@ -191,11 +286,7 @@ export function AgentPanel() {
     ws.updateFile(proposal.file, proposal.after);
     const token = proposal.token;
     clearProposal();
-    setNote(
-      token
-        ? '已采纳并回传给模型（agent 将基于修改后的稿件继续）'
-        : `已采纳「${proposal.label}」并自动创建快照（编辑器标签栏「历史」可恢复）`,
-    );
+    setNote(token ? tr().appliedToken : tr().applied(proposal.label));
     if (token) resolveToolApproval(token, true);
   };
 
@@ -204,7 +295,7 @@ export function AgentPanel() {
     clearProposal();
     if (token) {
       resolveToolApproval(token, false);
-      setNote('已拒绝该修改并回传给模型');
+      setNote(tr().rejectedToken);
     }
   };
 
@@ -222,26 +313,26 @@ export function AgentPanel() {
 
   // ------------------------------------------------------------------
   // 内置工作流（步骤可调用已接通的工具）
+  // WF-3 A1：启动一律先弹 WorkflowLauncher 表单（收集缺失变量，一次提交），
+  // 三处来源统一：面板按钮 / 命令面板（含 workflowLaunchVars 预填）/ W7 衔接 presetVars。
   // ------------------------------------------------------------------
 
-  const startWorkflow = async (id: string, presetVars?: Record<string, string>) => {
+  const requestLaunch = (id: string, presetVars?: Record<string, string>) => {
     const def = BUILTIN_WORKFLOWS.find((w) => w.id === id);
     if (!def) return;
+    setLaunchForm({ def, presetVars: presetVars ?? {} });
+  };
 
-    const vars: Record<string, string> = { ...presetVars };
-    for (const key of def.inputs) {
-      if (vars[key] !== undefined && vars[key] !== '') continue;
-      const value = window.prompt(`工作流「${def.name}」需要输入：${key}`, WORKFLOW_VAR_DEFAULTS[key] ?? '');
-      if (value === null) return;
-      vars[key] = value.trim();
-    }
-
+  const executeWorkflow = async (def: WorkflowDef, vars: Record<string, string>) => {
     setWorkflow({
       def,
       statuses: Object.fromEntries(def.steps.map((s) => [s.id, 'pending'])) as Record<string, WorkflowStepUiStatus>,
       outputs: {},
       phase: 'running',
     });
+
+    const startedAt = Date.now();
+    const outputsAcc: Record<string, string> = {}; // completeRun 用（React state 在异步回调里不可靠）
 
     const contextMd = (await buildContextPackMd(def.description)) + CITATION_RULE;
     const { provider, model } = resolveProvider();
@@ -261,6 +352,7 @@ export function AgentPanel() {
             user: `${prompt}${deps ? `\n\n${deps}` : ''}`,
             tools: stepTools(step.allowedTools),
           });
+          outputsAcc[step.id] = acc;
           setWorkflow((w) =>
             w ? { ...w, statuses: { ...w.statuses, [step.id]: 'done' }, outputs: { ...w.outputs, [step.id]: acc } } : w,
           );
@@ -293,16 +385,42 @@ export function AgentPanel() {
           }
         : w,
     );
+
+    // WF-3 A3：完成的 run 留存（store 持久化 sf-agent-runs，上限 10 条）
+    if (result.status === 'done') {
+      useAgentHubStore.getState().completeRun({
+        id: createId(),
+        workflowId: def.id,
+        workflowName: def.name,
+        startedAt,
+        endedAt: Date.now(),
+        outputs: outputsAcc,
+      });
+    }
   };
 
-  // 命令面板触发的待启动工作流
+  // 命令面板触发的待启动工作流（workflowLaunchVars 里的变量不进入表单）
   useEffect(() => {
     if (launchRequest) {
+      const presetVars = useUiStore.getState().workflowLaunchVars ?? undefined;
       setWorkflowLaunch(null);
-      void startWorkflow(launchRequest);
+      requestLaunch(launchRequest, presetVars);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchRequest]);
+
+  /** 从历史恢复一次已完成的 run（statuses 全 done，产物可展开复查） */
+  const restoreRun = (run: CompletedRun) => {
+    const def = BUILTIN_WORKFLOWS.find((w) => w.id === run.workflowId);
+    if (!def) return;
+    setLaunchForm(null);
+    setWorkflow({
+      def,
+      statuses: Object.fromEntries(def.steps.map((s) => [s.id, 'done' as const])) as Record<string, WorkflowStepUiStatus>,
+      outputs: run.outputs,
+      phase: 'done',
+    });
+  };
 
   const previewContext = async () => {
     setContextPreview(await buildContextPackMd(''));
@@ -323,26 +441,26 @@ export function AgentPanel() {
             setWorkflow(null);
           }}
         >
-          新会话
+          {t.newSession}
         </button>
       </div>
 
       {showContext && contextPreview && (
         <details className="sf-agent-context" open>
-          <summary>当前上下文包预览</summary>
+          <summary>{t.contextPreview}</summary>
           <pre>{contextPreview}</pre>
         </details>
       )}
 
       {/* AI 改稿（diff 审批闭环） */}
       <div className="sf-agent-ai">
-        <div className="sf-agent-wf-title">AI 改稿（diff 审批）</div>
+        <div className="sf-agent-wf-title">{t.aiTitle}</div>
         <div className="sf-agent-ai-actions">
           <button className="sf-btn" onClick={() => void polishCurrentFile()} disabled={!!aiBusy}>
-            {aiBusy === '润色' ? '润色中…' : '润色当前文件'}
+            {aiBusy === '润色' ? t.polishing : t.polish}
           </button>
           <button className="sf-btn" onClick={() => void draftNewSection()} disabled={!!aiBusy}>
-            {aiBusy === '起草' ? '起草中…' : '起草新章节'}
+            {aiBusy === '起草' ? t.drafting : t.draft}
           </button>
         </div>
         {note && <p className="sf-agent-note">{note}</p>}
@@ -352,16 +470,16 @@ export function AgentPanel() {
               <strong>{proposal.label}</strong>
               <span className="sf-chip dim">{proposal.via}</span>
               <span className={`sf-chip ${proposal.token ? 'err' : 'warn'}`}>
-                {proposal.token ? 'Agent 等待裁决' : '待审批'}
+                {proposal.token ? t.agentChip : t.pendingChip}
               </span>
             </div>
             <DiffView before={proposal.before} after={proposal.after} filename={proposal.file} />
             <div className="sf-lib-dialog-actions">
               <button className="sf-btn" onClick={discardProposal}>
-                放弃{proposal.token ? '（回传拒绝）' : ''}
+                {proposal.token ? t.discardToken : t.discard}
               </button>
               <button className="sf-btn sf-btn--primary" onClick={applyProposal}>
-                采纳修改（自动创建快照{proposal.token ? '并回传' : ''}）
+                {proposal.token ? t.applyToken : t.apply}
               </button>
             </div>
           </div>
@@ -374,15 +492,15 @@ export function AgentPanel() {
             session={session}
             onSend={(text) => send(text)}
             onStop={() => abortChat()}
-            placeholder="向 agent 提问（配置模型服务后可自动检索文献库、读取项目上下文）…"
+            placeholder={t.chatPlaceholder}
           />
         ) : (
-          <p className="placeholder">初始化会话…</p>
+          <p className="placeholder">{t.sessionInit}</p>
         )}
       </div>
 
       <div className="sf-agent-workflows">
-        <div className="sf-agent-wf-title">内置工作流</div>
+        <div className="sf-agent-wf-title">{t.wfTitle}</div>
         {workflow ? (
           <div className="sf-agent-run">
             <div className="sf-agent-run-head">
@@ -390,10 +508,10 @@ export function AgentPanel() {
               <span
                 className={`sf-chip ${workflow.phase === 'done' ? 'ok' : workflow.phase === 'failed' ? 'err' : 'warn'}`}
               >
-                {workflow.phase === 'done' ? '已完成' : workflow.phase === 'failed' ? '失败' : '运行中'}
+                {workflow.phase === 'done' ? t.phaseDone : workflow.phase === 'failed' ? t.phaseFailed : t.phaseRunning}
               </span>
               <button className="sf-link-btn" onClick={() => setWorkflow(null)}>
-                收起
+                {t.collapse}
               </button>
             </div>
             <WorkflowRunView
@@ -410,16 +528,22 @@ export function AgentPanel() {
               <ReviewPanel
                 outputs={workflow.outputs}
                 onDraftRebuttal={(reviews) =>
-                  void startWorkflow('w7-rebuttal', { reviews, manuscript: combinedDoc(useWorkspaceStore.getState().files) })
+                  requestLaunch('w7-rebuttal', { reviews, manuscript: combinedDoc(useWorkspaceStore.getState().files) })
                 }
               />
+            )}
+            {workflow.def.id === 'w7-rebuttal' && workflow.outputs['finalize'] && (
+              <RebuttalPanel output={workflow.outputs['finalize']} />
+            )}
+            {workflow.def.id === 'w10-pre-submission' && workflow.outputs['report'] && (
+              <ChecklistReport output={workflow.outputs['report']} />
             )}
           </div>
         ) : (
           <ul className="sf-agent-wf-list">
             {BUILTIN_WORKFLOWS.map((w) => (
               <li key={w.id}>
-                <button className="sf-btn sf-agent-wf-btn" onClick={() => void startWorkflow(w.id)}>
+                <button className="sf-btn sf-agent-wf-btn" onClick={() => requestLaunch(w.id)}>
                   {w.name}
                 </button>
               </li>
@@ -427,6 +551,50 @@ export function AgentPanel() {
           </ul>
         )}
       </div>
+
+      {/* WF-3 A3：运行历史（localStorage 持久化，点击恢复产物视图） */}
+      <div className="sf-agent-history">
+        <div className="sf-agent-run-head">
+          <div className="sf-agent-wf-title" style={{ margin: 0 }}>
+            {t.historyTitle}
+          </div>
+          {completedRuns.length > 0 && (
+            <button className="sf-link-btn sf-agent-history-clear" onClick={clearCompletedRuns}>
+              {t.clearHistory}
+            </button>
+          )}
+        </div>
+        {completedRuns.length === 0 ? (
+          <p className="sf-agent-history-empty">{t.historyEmpty}</p>
+        ) : (
+          <ul className="sf-agent-history-list">
+            {completedRuns.map((run) => (
+              <li key={run.id}>
+                <button className="sf-agent-history-item" onClick={() => restoreRun(run)} title={t.historyRestore}>
+                  <span className="sf-chip dim">✓</span>
+                  <span className="sf-agent-history-name">{run.workflowName}</span>
+                  <span className="sf-agent-history-time">{formatTime(run.endedAt)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* WF-3 A1：工作流启动表单（替代原生 prompt）；key 保证每次启动重置表单状态 */}
+      {launchForm && (
+        <WorkflowLauncher
+          key={`${launchForm.def.id}:${JSON.stringify(launchForm.presetVars)}`}
+          def={launchForm.def}
+          presetVars={launchForm.presetVars}
+          onCancel={() => setLaunchForm(null)}
+          onSubmit={(vars) => {
+            const def = launchForm.def;
+            setLaunchForm(null);
+            void executeWorkflow(def, vars);
+          }}
+        />
+      )}
     </div>
   );
 }

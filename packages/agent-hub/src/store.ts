@@ -18,10 +18,67 @@ export interface AgentSession {
   status: AgentSessionStatus;
 }
 
+/** 已完成工作流的留存记录（WF-3 A3）：刷新页面后可从历史恢复查看产物 */
+export interface CompletedRun {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  startedAt: number;
+  endedAt: number;
+  /** stepId → 步骤最终输出（markdown 文本） */
+  outputs: Record<string, string>;
+}
+
+/** localStorage 持久化 key（sf-agent-runs） */
+export const COMPLETED_RUNS_STORAGE_KEY = 'sf-agent-runs';
+/** 历史上限：最多保留 10 条（新的在前） */
+export const COMPLETED_RUNS_LIMIT = 10;
+
+/** 宽容校验单条持久化记录：字段类型不符时丢弃，避免脏数据进入 store */
+function isCompletedRun(v: unknown): v is CompletedRun {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' &&
+    typeof o.workflowId === 'string' &&
+    typeof o.workflowName === 'string' &&
+    typeof o.startedAt === 'number' &&
+    typeof o.endedAt === 'number' &&
+    typeof o.outputs === 'object' &&
+    o.outputs !== null &&
+    Object.values(o.outputs).every((x) => typeof x === 'string')
+  );
+}
+
+/** 从 localStorage 安全恢复（解析失败 / 结构不符 / 环境无 localStorage 均回退为空） */
+function loadCompletedRuns(): CompletedRun[] {
+  try {
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(COMPLETED_RUNS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isCompletedRun).slice(0, COMPLETED_RUNS_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function persistCompletedRuns(runs: CompletedRun[]): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(COMPLETED_RUNS_STORAGE_KEY, JSON.stringify(runs));
+    }
+  } catch {
+    /* 持久化失败不打断 UI（如隐私模式/配额满） */
+  }
+}
+
 interface AgentHubState {
   sessions: AgentSession[];
   activeSessionId: string | null;
   runs: AgentRun[];
+  /** 最近完成的工作流（新的在前，上限 COMPLETED_RUNS_LIMIT，localStorage 持久化） */
+  completedRuns: CompletedRun[];
 
   /** 新建会话并激活，返回会话 id */
   newSession(providerId: string): string;
@@ -35,6 +92,10 @@ interface AgentHubState {
   finishSession(sessionId: string, status: AgentSessionStatus): void;
   /** upsert 一条 AgentRun（按 id 替换或置顶插入） */
   updateRun(run: AgentRun): void;
+  /** 记录一条已完成的工作流 run（置顶、截断到上限并持久化） */
+  completeRun(run: CompletedRun): void;
+  /** 清空历史（含持久化副本） */
+  clearCompletedRuns(): void;
 }
 
 function patchSession(
@@ -49,6 +110,7 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
   sessions: [],
   activeSessionId: null,
   runs: [],
+  completedRuns: loadCompletedRuns(),
 
   newSession: (providerId) => {
     const id = createId();
@@ -151,4 +213,18 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
       else runs.unshift(run);
       return { runs };
     }),
+
+  completeRun: (run) =>
+    set((state) => {
+      // 同 id 幂等：替换旧记录而非重复置顶
+      const rest = state.completedRuns.filter((r) => r.id !== run.id);
+      const completedRuns = [run, ...rest].slice(0, COMPLETED_RUNS_LIMIT);
+      persistCompletedRuns(completedRuns);
+      return { completedRuns };
+    }),
+
+  clearCompletedRuns: () => {
+    persistCompletedRuns([]);
+    set({ completedRuns: [] });
+  },
 }));

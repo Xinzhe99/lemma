@@ -4,29 +4,31 @@
 
 import { useState } from 'react';
 import { listTemplates, scaffoldProject } from '@scholarforge/compile';
+import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useUiStore } from '../state/uiStore';
 
 export function TemplateWizard({ onDone }: { onDone: (message: string) => void }) {
+  const tr = useT();
   const templates = listTemplates();
   const loadProject = useWorkspaceStore((s) => s.loadProject);
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
   const setTemplateWizardOpen = useUiStore((s) => s.setTemplateWizardOpen);
 
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? '');
-  const [title, setTitle] = useState('未命名论文');
-  const [authors, setAuthors] = useState('作者姓名');
+  const [title, setTitle] = useState(tr('wiz.defaultTitle'));
+  const [authors, setAuthors] = useState(tr('wiz.defaultAuthors'));
 
-  const selected = templates.find((t) => t.id === templateId);
+  const selected = templates.find((tpl) => tpl.id === templateId);
 
   const create = () => {
     if (!selected) return;
     const fileMap = scaffoldProject(selected.id, {
-      title: title.trim() || '未命名论文',
-      authors: authors.trim() || '作者姓名',
+      title: title.trim() || tr('wiz.defaultTitle'),
+      authors: authors.trim() || tr('wiz.defaultAuthors'),
       DATE: new Date().toISOString().slice(0, 10),
       VENUE: selected.venue,
-      ABSTRACT: '（待填写摘要）',
+      ABSTRACT: tr('wiz.defaultAbstract'),
     });
     const files: Record<string, string> = {};
     for (const [path, content] of Object.entries(fileMap)) {
@@ -35,42 +37,42 @@ export function TemplateWizard({ onDone }: { onDone: (message: string) => void }
     loadProject(title.trim() || selected.id, selected.entry, files);
     setSidebarTab('files');
     setTemplateWizardOpen(false);
-    onDone(`已按模板「${selected.name}」创建项目`);
+    onDone(tr('wiz.created', { name: selected.name }));
   };
 
   return (
     <div className="sf-dialog-overlay" onMouseDown={() => setTemplateWizardOpen(false)}>
       <div className="sf-dialog sf-wiz" onMouseDown={(e) => e.stopPropagation()}>
         <header className="sf-dialog-header">
-          <strong>新建项目（模板向导）</strong>
+          <strong>{tr('wiz.title')}</strong>
         </header>
         <div className="sf-dialog-body">
           <ul className="sf-wiz-list">
-            {templates.map((t) => (
+            {templates.map((tpl) => (
               <li
-                key={t.id}
-                className={`sf-wiz-item ${t.id === templateId ? 'active' : ''}`}
-                onClick={() => setTemplateId(t.id)}
+                key={tpl.id}
+                className={`sf-wiz-item ${tpl.id === templateId ? 'active' : ''}`}
+                onClick={() => setTemplateId(tpl.id)}
               >
-                <strong>{t.name}</strong>
-                <span>{t.description}</span>
+                <strong>{tpl.name}</strong>
+                <span>{tpl.description}</span>
               </li>
             ))}
           </ul>
           <label className="sf-form-field">
-            标题
+            {tr('wiz.fieldTitle')}
             <input className="sf-input" value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           <label className="sf-form-field">
-            作者
+            {tr('wiz.fieldAuthors')}
             <input className="sf-input" value={authors} onChange={(e) => setAuthors(e.target.value)} />
           </label>
           <div className="sf-lib-dialog-actions">
             <button className="sf-btn" onClick={() => setTemplateWizardOpen(false)}>
-              取消
+              {tr('wiz.cancel')}
             </button>
             <button className="sf-btn sf-btn--primary" onClick={create} disabled={!selected}>
-              创建项目
+              {tr('wiz.create')}
             </button>
           </div>
         </div>
