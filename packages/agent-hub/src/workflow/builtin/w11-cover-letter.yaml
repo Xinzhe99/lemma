@@ -1,0 +1,50 @@
+id: w11-cover-letter
+name: Cover Letter 起草
+description: 面向目标期刊/会议起草投稿信：结合稿件贡献、期刊定位与编辑关注点，产出可直接编辑的 cover letter。
+inputs:
+  - journal
+  - highlights
+steps:
+  - id: research
+    name: 分析期刊定位
+    prompt: |
+      你在为投稿 {{journal}} 起草 cover letter 做准备。
+      请执行：
+      1. 调用 project.context 了解稿件结构与贡献。
+      2. 调用 library.search_fulltext 检索库内发表在相近场所的相关文献，总结该场所近年的主题偏好。
+      3. 输出：期刊定位摘要（读者群、主题范围、近期关注点）+ 稿件贡献的三条一句话概括。
+      稿件亮点（作者提示）：{{highlights}}
+    allowedTools:
+      - project.context
+      - library.search_fulltext
+    modelTier: cheap
+
+  - id: draft
+    name: 起草 Cover Letter
+    prompt: |
+      基于上一步的期刊定位与贡献概括，起草一封 cover letter：
+      1. 结构：称呼（Dear Editors）→ 投稿声明（标题+文章类型）→ 背景与贡献（3 条以内，与期刊定位呼应）→ 与期刊范围的匹配说明 → 声明（原创性、未一稿多投、无利益冲突）→ 推荐审稿人可选段 → 落款。
+      2. 语气专业克制，全信 250 词以内；不夸大贡献。
+      3. 输出英文信件正文（markdown），并在文末附中文要点对照。
+    dependsOn:
+      - research
+    modelTier: flagship
+
+  - id: review
+    name: 作者审阅检查点
+    prompt: |
+      自查草稿：逐项核对声明部分措辞是否稳妥、贡献表述是否与稿件一致、字数是否达标。
+      输出自查清单后停在检查点，等待作者确认或修改意见（确认输入中写明补充要求，如「补推荐审稿人」）。
+    dependsOn:
+      - draft
+    checkpoint: true
+    modelTier: cheap
+
+  - id: finalize
+    name: 定稿
+    prompt: |
+      用户已在检查点给出确认/修改意见（见 checkpointInput）。
+      按意见修订并输出最终 cover letter：英文正文（可直接粘贴投稿系统）+ 中文对照要点 + 待作者手工确认的占位项清单（如 ORCID、推荐审稿人邮箱）。
+    dependsOn:
+      - review
+    modelTier: cheap

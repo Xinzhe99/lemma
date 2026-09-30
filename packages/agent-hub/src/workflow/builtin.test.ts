@@ -2,14 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { BUILTIN_WORKFLOWS, getBuiltinWorkflow, parseWorkflowYaml, WORKFLOW_YAML_SOURCES } from './builtin';
 
 describe('内置工作流 YAML', () => {
-  it('5 个内置工作流全部解析成功且结构合法', () => {
-    expect(BUILTIN_WORKFLOWS).toHaveLength(5);
+  it('6 个内置工作流全部解析成功且结构合法', () => {
+    expect(BUILTIN_WORKFLOWS).toHaveLength(6);
     expect(BUILTIN_WORKFLOWS.map((w) => w.id)).toEqual([
       'w2-section-draft',
       'w3-polish',
       'w6-reviewer-sim',
       'w7-rebuttal',
       'w10-pre-submission',
+      'w11-cover-letter',
     ]);
     for (const w of BUILTIN_WORKFLOWS) {
       expect(w.name.length).toBeGreaterThan(0);
@@ -71,6 +72,13 @@ describe('内置工作流 YAML', () => {
     const finalize = w7.steps.find((s) => s.id === 'finalize')!;
     expect(finalize.allowedTools).toContain('tex.edit');
     expect(finalize.allowedTools).toContain('citation.validate');
+  });
+
+  it('W11：cover letter 含期刊定位(带工具)与作者审阅检查点', () => {
+    const w11 = getBuiltinWorkflow('w11-cover-letter')!;
+    expect(w11.steps.map((s) => s.id)).toEqual(['research', 'draft', 'review', 'finalize']);
+    expect(w11.steps.find((s) => s.id === 'review')!.checkpoint).toBe(true);
+    expect(w11.steps[0]!.allowedTools).toContain('library.search_fulltext');
   });
 });
 

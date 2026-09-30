@@ -24,5 +24,9 @@ export type { TemplateModule } from './templates';
 export { parseProjectZip } from './zip';
 export type { ParsedProjectZip } from './zip';
 
+// 项目导出与投稿打包清单
+export { buildProjectZip, packagingChecklist } from './export';
+export type { PackagingCheckItem } from './export';
+
 // quickfix
 export { diagnosticHint } from './quickfix';
