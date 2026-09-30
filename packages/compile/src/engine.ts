@@ -24,6 +24,7 @@ export interface LatexEngine {
  * - V2（当前）：`tectonic -X compile <entry>`，本实现采用；
  * - V1（旧版）：等价于 `tectonic <entry>`，去掉 `-X compile` 即可，
  *   两代均支持 --keep-logs / --print / --outdir。
+ * `--synctex` 让引擎同时落盘 .synctex.gz（PDF ↔ 源码双向跳转索引，宿主负责回读注册）；
  * `--print` 会把完整编译日志打到 stdout，因此无需回读 .log 文件；
  * PDF 由 tectonic 落盘到 outDir（缺省 cwd），二进制回读由宿主负责（pdf 字段留空）。
  */
@@ -32,7 +33,7 @@ export class TectonicEngine implements LatexEngine {
 
   async compile(input: CompileInput, runner: CommandRunner): Promise<CompileResult> {
     const started = Date.now();
-    const args = ['-X', 'compile', '--keep-logs', '--print'];
+    const args = ['-X', 'compile', '--keep-logs', '--print', '--synctex'];
     if (input.outDir) args.push('--outdir', input.outDir);
     args.push(input.entry);
     const { code, stdout, stderr } = await runner.run('tectonic', args, { cwd: input.cwd ?? '.' });
@@ -50,13 +51,14 @@ export class TectonicEngine implements LatexEngine {
 /**
  * 系统 TeX Live / MiKTeX 的 latexmk 编排。诊断解析 stdout+stderr；
  * 完整 .log 的回读需宿主把内容合并进 stdout 或后续扩展 CommandRunner。
+ * `-synctex=1` 让引擎同时产出 .synctex.gz（PDF ↔ 源码双向跳转索引）。
  */
 export class LatexmkEngine implements LatexEngine {
   readonly kind = 'latexmk' as const;
 
   async compile(input: CompileInput, runner: CommandRunner): Promise<CompileResult> {
     const started = Date.now();
-    const args = ['-pdf', '-interaction=nonstopmode', '-file-line-error'];
+    const args = ['-pdf', '-interaction=nonstopmode', '-synctex=1', '-file-line-error'];
     if (input.outDir) args.push(`-outdir=${input.outDir}`);
     args.push(input.entry);
     const { code, stdout, stderr } = await runner.run('latexmk', args, { cwd: input.cwd ?? '.' });

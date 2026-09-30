@@ -69,11 +69,32 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setTableEditorOpen(true),
     },
     {
+      id: 'search.global',
+      title: ctx.t('cmd.globalSearch'),
+      hint: ctx.t('hint.edit'),
+      kbd: 'Ctrl+Shift+F',
+      run: () => useUiStore.getState().setSearchPanelOpen(true),
+    },
+    {
+      id: 'insert.image',
+      title: ctx.t('cmd.insertImage'),
+      hint: '编辑',
+      run: () => useUiStore.getState().setImageWizardOpen(true),
+    },
+    {
       id: 'file.new',
       title: ctx.t('cmd.newFile'),
       hint: ctx.t('hint.file'),
-      run: () => {
-        const path = window.prompt(ctx.t('prompt.newFilePath'), 'sections/notes.tex');
+      run: async () => {
+        // 新建文件经应用内文本对话框收集路径（原生对话框在 Tauri WKWebView 不可用）；toast 保留
+        const path = await new Promise<string | null>((resolve) => {
+          useUiStore.getState().openTextDialog({
+            title: ctx.t('prompt.newFilePath'),
+            initial: 'sections/notes.tex',
+            mode: 'prompt',
+            resolve,
+          });
+        });
         const trimmed = path?.trim();
         if (!trimmed) return;
         useWorkspaceStore.getState().createFile(trimmed, '');

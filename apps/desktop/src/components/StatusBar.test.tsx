@@ -44,6 +44,9 @@ vi.mock('zustand', async () => {
 
 import { StatusBar, countWords, relativeTime } from './StatusBar';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { useUiStore } from '../state/uiStore';
+import { hasSynctexIndex, jumpSourceToPdf, onPdfGoto, setSynctexIndex } from '../synctexBridge';
+import type { SynctexIndex } from '@scholarforge/compile';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -149,5 +152,94 @@ describe('StatusBar 渲染', () => {
     const text = container!.textContent ?? '';
     expect(text).toContain('未打开文件');
     expect(text).toContain('行数 1');
+  });
+});
+
+describe('StatusBar「⇄ PDF」同步按钮（WS-2 源码 → PDF）', () => {
+  /** 手造最小 SynctexIndex：main.tex 第 1 行 → 第 1 页 */
+  const INDEX: SynctexIndex = {
+    version: 1,
+    inputs: [{ tag: 1, path: 'main.tex' }],
+    blocks: [{ page: 1, tag: 1, line: 1, x: 0, y: 0, w: 10000, h: 20000 }],
+  };
+
+  const findSyncButton = (): HTMLButtonElement => {
+    const btn = [...(container!.querySelectorAll('button'))].find((b) => b.textContent === '⇄ PDF');
+    expect(btn, '未找到 ⇄ PDF 按钮').toBeDefined();
+    return btn as HTMLButtonElement;
+  };
+
+  afterEach(() => {
+    setSynctexIndex(null);
+    useUiStore.setState({ pdfView: null, centerView: 'editor' });
+  });
+
+  it('无索引时 disabled 且 title 提示需要真实编译产出', () => {
+    setSynctexIndex(null);
+    renderView();
+    const btn = findSyncButton();
+    expect(btn.disabled).toBe(true);
+    expect(btn.title).toContain('需要真实编译产出');
+  });
+
+  it('索引可用且 PDF 预览已打开 → 点击广播 onPdfGoto（以活动文件首行为基准）', () => {
+    setSynctexIndex(INDEX);
+    useUiStore.setState({ pdfView: { name: 'main.pdf', data: new ArrayBuffer(0) } });
+    renderView();
+    const btn = findSyncButton();
+    expect(btn.disabled).toBe(false);
+    expect(btn.title).toContain('跳转到该文件首次出现在 PDF 的位置');
+    const gotos: { page: number; y?: number }[] = [];
+    const off = onPdfGoto((g) => gotos.push(g));
+    act(() => {
+      btn.click();
+    });
+    off();
+    expect(gotos).toEqual([{ page: 1, y: 0 }]);
+  });
+
+  it('索引可用但 PDF 预览未打开 → 记录编译日志提示，不广播', () => {
+    setSynctexIndex(INDEX);
+    useUiStore.setState({ pdfView: null });
+    renderView();
+    const gotos: { page: number; y?: number }[] = [];
+    const off = onPdfGoto((g) => gotos.push(g));
+    act(() => {
+      findSyncButton().click();
+    });
+    off();
+    expect(gotos).toEqual([]);
+    expect(useWorkspaceStore.getState().compileLog.join('\n')).toContain('请先编译以生成 PDF 预览');
+  });
+
+  it('索引未命中当前活动文件 → 记录编译日志提示，不广播', () => {
+    setSynctexIndex({
+      version: 1,
+      inputs: [{ tag: 1, path: 'other.tex' }],
+      blocks: [{ page: 1, tag: 1, line: 1, x: 0, y: 0, w: 10000, h: 20000 }],
+    });
+    useUiStore.setState({ pdfView: { name: 'main.pdf', data: new ArrayBuffer(0) } });
+    renderView();
+    expect(jumpSourceToPdf('main.tex', 1)).toBe(false); // 索引确不含 main.tex
+    const gotos: { page: number; y?: number }[] = [];
+    const off = onPdfGoto((g) => gotos.push(g));
+    act(() => {
+      findSyncButton().click();
+    });
+    off();
+    expect(gotos).toEqual([]);
+    expect(useWorkspaceStore.getState().compileLog.join('\n')).toContain('SyncTeX 未命中该文件');
+  });
+
+  it('hasSynctexIndex 随真实编译注册翻转（编译状态驱动重渲染后按钮启用）', () => {
+    setSynctexIndex(null);
+    renderView();
+    expect(findSyncButton().disabled).toBe(true);
+    act(() => {
+      setSynctexIndex(INDEX);
+      useWorkspaceStore.setState({ compileStatus: 'ok' });
+    });
+    expect(hasSynctexIndex()).toBe(true);
+    expect(findSyncButton().disabled).toBe(false);
   });
 });

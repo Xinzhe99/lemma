@@ -7,6 +7,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
+import { useUiStore } from '../state/uiStore';
+import { hasSynctexIndex, jumpSourceToPdf } from '../synctexBridge';
 
 // ---------------------------------------------------------------------------
 // 纯函数：混合字数统计（CJK 字符每字计 1，连续拉丁词计 1）
@@ -57,6 +59,11 @@ const STRINGS = {
     saved: '已保存',
     unsaved: '未保存',
     noFile: '未打开文件',
+    syncPdf: '⇄ PDF',
+    syncTitle: '跳转到该文件首次出现在 PDF 的位置',
+    syncDisabledTitle: '需要真实编译产出（真实编译后可用 PDF ↔ 源码同步）',
+    syncNoPdf: '请先编译以生成 PDF 预览',
+    syncNoHit: 'SyncTeX 未命中该文件',
   },
   en: {
     words: 'Words',
@@ -65,6 +72,11 @@ const STRINGS = {
     saved: 'Saved',
     unsaved: 'Unsaved',
     noFile: 'No file',
+    syncPdf: '⇄ PDF',
+    syncTitle: 'Jump to where this file first appears in the PDF',
+    syncDisabledTitle: 'Requires a real compile (PDF ↔ source sync unavailable)',
+    syncNoPdf: 'Compile first to generate the PDF preview',
+    syncNoHit: 'No SyncTeX match for this file',
   },
 } as const;
 
@@ -96,6 +108,23 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
 
   const fileName = activeTab ? activeTab.split('/').pop()! : '';
 
+  // WS-2：SyncTeX 索引可用性为模块级单例（非响应式），索引仅在真实编译产出后变化；
+  // 借 compileStatus 订阅在编译结束时重渲染，重读取 hasSynctexIndex()。
+  useWorkspaceStore((s) => s.compileStatus);
+  const syncAvailable = hasSynctexIndex();
+
+  // WS-2：源码 → PDF 同步（从简：以活动文件首行为基准，取该文件首次出现在 PDF 的位置）
+  const handleSyncToPdf = (): void => {
+    if (!activeTab) return;
+    if (!useUiStore.getState().pdfView) {
+      useWorkspaceStore.getState().appendCompileLog(`⚠ ${L.syncNoPdf}`);
+      return;
+    }
+    if (!jumpSourceToPdf(activeTab, 1)) {
+      useWorkspaceStore.getState().appendCompileLog(`⚠ ${L.syncNoHit}：${activeTab}`);
+    }
+  };
+
   return (
     <div className="sf-statusbar" role="status">
       <span className="sf-statusbar-item" title={activeTab ?? ''}>
@@ -106,6 +135,15 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
           </span>
         )}
       </span>
+      <button
+        type="button"
+        className="sf-statusbar-item"
+        disabled={!syncAvailable || activeTab === null}
+        title={!syncAvailable ? L.syncDisabledTitle : L.syncTitle}
+        onClick={handleSyncToPdf}
+      >
+        {L.syncPdf}
+      </button>
       <span className="sf-statusbar-spacer" />
       <span className="sf-statusbar-item">
         {L.words} {words}

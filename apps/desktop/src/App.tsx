@@ -45,6 +45,7 @@ import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
 import { parseProjectZip } from '@scholarforge/compile';
 import { PdfReader } from '@scholarforge/library';
+import { jumpPdfToSource, onPdfGoto } from './synctexBridge'; // WS-2 编译同步闭环（App 窄 carve-out）
 
 const TOAST_MS = 2400;
 
@@ -71,6 +72,10 @@ export function App() {
   const setTableEditorOpen = useUiStore((s) => s.setTableEditorOpen);
   const projectSwitcherOpen = useUiStore((s) => s.projectSwitcherOpen);
   const setProjectSwitcherOpen = useUiStore((s) => s.setProjectSwitcherOpen);
+  const searchPanelOpen = useUiStore((s) => s.searchPanelOpen);
+  const imageWizardOpen = useUiStore((s) => s.imageWizardOpen);
+  const textDialog = useUiStore((s) => s.textDialog);
+  const closeTextDialog = useUiStore((s) => s.closeTextDialog);
   const setHistoryOpen = useUiStore((s) => s.setHistoryOpen);
   const quickOpenOpen = useUiStore((s) => s.quickOpenOpen);
   const setQuickOpenOpen = useUiStore((s) => s.setQuickOpenOpen);
@@ -119,6 +124,11 @@ export function App() {
       if (isQuickOpenTrigger(e)) {
         e.preventDefault();
         setQuickOpenOpen(true);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        useUiStore.getState().setSearchPanelOpen(true);
         return;
       }
       if (isShortcutsTrigger(e, e.target)) {
@@ -237,6 +247,19 @@ export function App() {
     </aside>
   );
 
+  // —— WS-2 编译同步闭环（App 窄 carve-out）：订阅 onPdfGoto 并镜像为 PdfReader 的 goto props ——
+  const [pdfGotoPage, setPdfGotoPage] = useState<number | undefined>(undefined);
+  const [pdfGotoTick, setPdfGotoTick] = useState(0);
+  useEffect(
+    () =>
+      onPdfGoto((g) => {
+        setPdfGotoPage(g.page);
+        setPdfGotoTick((v) => v + 1);
+        setCenterView('pdf');
+      }),
+    [setCenterView],
+  );
+
   const editor = (
     <section className="center">
       {pdfView ? (
@@ -300,6 +323,11 @@ export function App() {
               { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
               { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
             ]}
+            onPagePoint={(p, x, y) => {
+              jumpPdfToSource(p, x, y);
+            }}
+            gotoPage={pdfGotoPage}
+            gotoTick={pdfGotoTick || undefined}
           />
         ) : (
           <EditorArea />
@@ -442,6 +470,12 @@ export function App() {
 
       {projectSwitcherOpen && <LazyFeatureDialog file="ProjectSwitcher" onClose={() => setProjectSwitcherOpen(false)} />}
 
+      {searchPanelOpen && <LazyFeatureDialog file="SearchPanel" onClose={() => useUiStore.getState().setSearchPanelOpen(false)} />}
+
+      {imageWizardOpen && <LazyFeatureDialog file="ImageWizard" onClose={() => useUiStore.getState().setImageWizardOpen(false)} />}
+
+      {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
+
       {toast && <div className="sf-toast">{toast}</div>}
     </div>
   );
@@ -452,8 +486,16 @@ export function App() {
  * components/ProjectSwitcher.tsx），约定导出与文件名同名、props 为 { onClose: () => void }。
  * glob 容忍文件暂缺（构建不报错），加载失败显示占位卡。
  */
-function LazyFeatureDialog({ file, onClose }: { file: 'TableEditor' | 'ProjectSwitcher'; onClose: () => void }) {
-  const modules = import.meta.glob<Record<string, unknown>>('./components/{TableEditor,ProjectSwitcher}.tsx');
+function LazyFeatureDialog({
+  file,
+  onClose,
+}: {
+  file: 'TableEditor' | 'ProjectSwitcher' | 'SearchPanel' | 'ImageWizard' | 'TextDialog';
+  onClose: () => void;
+}) {
+  const modules = import.meta.glob<Record<string, unknown>>(
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog}.tsx',
+  );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {

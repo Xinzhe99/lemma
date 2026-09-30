@@ -5,10 +5,16 @@
  *  - 逐项条目（✅/❌/⚠️ 或 [通过]/[未通过]/[需人工判断] 前缀 + 内容 + 「→ 建议」修复行）；
  *  - 无法结构化时降级为原文展示。
  * 附「导出 .md」（Blob 下载）。解析为纯函数，单测见 checklistReport.test.ts。
+ * WS-3 联动（检索与投稿工作台）：
+ *  - verdict !== 'pass' 时头部出现「去投稿工作台核对打包自检」按钮（setSidebarTab('submit')）；
+ *  - fail/manual 条目的建议附「复制建议」（clipboard，成功后短暂显示「已复制」）；
+ *  - 条目文本中的 `main.tex:42` / `main.tex 第 12 行` 定位引用渲染为可点链接（jumpTo）。
  */
 
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSettingsStore, type Language } from '../state/settingsStore';
+import { useUiStore } from '../state/uiStore';
+import { jumpTo } from '../editorJump';
 import './agent-extra.css';
 
 export type ChecklistStatus = 'pass' | 'fail' | 'manual';
@@ -118,6 +124,78 @@ export function parseChecklistReport(md: string): ChecklistReportData {
   };
 }
 
+// ---------------------------------------------------------------------------
+// WS-3 联动：.tex 定位引用（`main.tex: 42` / `main.tex：42` / `main.tex 第 42 行`）
+// ---------------------------------------------------------------------------
+
+export interface LocationRef {
+  file: string;
+  line: number;
+}
+
+/**
+ * 两种定位格式（PM 指定正则）：
+ *  1. `([\w\-\/]+\.tex)[:：]\s*(\d+)` —— main.tex:12 / main.tex： 12；
+ *  2. `([\w\-\/]+\.tex)\s*第\s*(\d+)\s*行` —— main.tex 第 12 行 / main.tex第12行。
+ * 全局交替匹配；每个出现位置各产生一项（不去重，渲染时一一对应可点链接）。
+ */
+const LOC_REF_RE =
+  /([\w\-/]+\.tex)\s*[:：]\s*(\d+)|([\w\-/]+\.tex)\s*第\s*(\d+)\s*行/g;
+
+/** 从文本中按出现次序提取 .tex 位置引用（无命中返回 []） */
+export function extractLocationRefs(text: string): LocationRef[] {
+  const refs: LocationRef[] = [];
+  if (!text) return refs;
+  LOC_REF_RE.lastIndex = 0;
+  for (const m of text.matchAll(LOC_REF_RE)) {
+    const file = m[1] ?? m[3];
+    const lineRaw = m[2] ?? m[4];
+    if (!file || !lineRaw) continue;
+    const line = Number.parseInt(lineRaw, 10);
+    if (Number.isFinite(line)) refs.push({ file, line });
+  }
+  return refs;
+}
+
+/** 条目文本 → （纯文本片段 | 可点定位链接）混合节点；链接点击经 jumpTo 跳编辑器对应行 */
+function renderLocationText(
+  text: string,
+  onJump: (ref: LocationRef) => void,
+  keyPrefix: string,
+): ReactNode[] {
+  const parts: ReactNode[] = [];
+  if (!text) return parts;
+  LOC_REF_RE.lastIndex = 0;
+  let last = 0;
+  let i = 0;
+  for (const m of text.matchAll(LOC_REF_RE)) {
+    const idx = m.index ?? 0;
+    if (idx > last) parts.push(text.slice(last, idx));
+    const file = m[1] ?? m[3];
+    const lineRaw = m[2] ?? m[4];
+    if (file && lineRaw) {
+      const ref: LocationRef = { file, line: Number.parseInt(lineRaw, 10) };
+      parts.push(
+        <button
+          key={`${keyPrefix}-${i++}`}
+          type="button"
+          className="sf-link-btn sf-checklist-loc"
+          title={`${ref.file}:${ref.line}`}
+          onClick={(e) => {
+            e.preventDefault();
+            onJump(ref);
+          }}
+        >
+          {m[0]}
+        </button>,
+      );
+    }
+    last = idx + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 const STRINGS = {
   zh: {
     title: '预提交自检报告',
@@ -130,6 +208,9 @@ const STRINGS = {
     exportDone: '已导出 .md',
     itemsCount: (n: number) => `共 ${n} 项`,
     emptyItems: '未解析到逐项条目',
+    gotoSubmit: '去投稿工作台核对打包自检',
+    copySuggestion: '复制建议',
+    copied: '已复制',
   },
   en: {
     title: 'Pre-submission Checklist Report',
@@ -142,8 +223,14 @@ const STRINGS = {
     exportDone: 'Exported .md',
     itemsCount: (n: number) => `${n} item(s)`,
     emptyItems: 'No checklist items parsed',
+    gotoSubmit: 'Review packing checklist in Submit workspace',
+    copySuggestion: 'Copy suggestion',
+    copied: 'Copied',
   },
 } as const;
+
+/** 「已复制」提示回弹时长 */
+const COPIED_MS = 1600;
 
 function stamp(): string {
   const d = new Date();
@@ -161,6 +248,37 @@ export function ChecklistReport({ output }: ChecklistReportProps) {
   const t = STRINGS[language] as (typeof STRINGS)[Language];
   const data = useMemo(() => parseChecklistReport(output), [output]);
 
+  // —— WS-3 联动：未通过 → 去投稿工作台；建议可复制；定位引用可跳转 ——
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
+
+  const gotoSubmit = useCallback(() => {
+    useUiStore.getState().setSidebarTab('submit');
+  }, []);
+
+  const jump = useCallback((ref: LocationRef) => {
+    jumpTo(ref);
+  }, []);
+
+  const copySuggestion = useCallback((index: number, text: string) => {
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopiedIdx(index);
+        if (copyTimer.current) clearTimeout(copyTimer.current);
+        copyTimer.current = setTimeout(() => setCopiedIdx(null), COPIED_MS);
+      })
+      .catch(() => {
+        /* 剪贴板不可用：静默忽略，不打断报告阅读 */
+      });
+  }, []);
+
   const exportMd = () => {
     const blob = new Blob([output], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -177,9 +295,16 @@ export function ChecklistReport({ output }: ChecklistReportProps) {
     <div className="sf-checklist" data-structured={data.structured ? 'true' : 'false'}>
       <div className="sf-checklist-head">
         <strong>{t.title}</strong>
-        <button className="sf-btn" onClick={exportMd}>
-          {t.exportMd}
-        </button>
+        <span className="sf-checklist-head-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {data.verdict !== 'pass' && (
+            <button type="button" className="sf-btn sf-checklist-goto-submit" onClick={gotoSubmit}>
+              {t.gotoSubmit}
+            </button>
+          )}
+          <button className="sf-btn" onClick={exportMd}>
+            {t.exportMd}
+          </button>
+        </span>
       </div>
 
       {data.structured ? (
@@ -198,22 +323,41 @@ export function ChecklistReport({ output }: ChecklistReportProps) {
                 <pre>{output}</pre>
               </div>
             ) : (
-              data.items.map((item, i) => (
-                <div key={i} className={`sf-checklist-item sf-checklist-item--${item.status}`}>
-                  <div className="sf-checklist-item-title">
-                    <span className="sf-checklist-item-badge" aria-label={t.itemStatus[item.status]}>
-                      {item.status === 'pass' ? '✅' : item.status === 'fail' ? '❌' : '⚠️'}
-                    </span>
-                    <span>{item.title}</span>
+              data.items.map((item, i) => {
+                const suggestion = item.suggestion;
+                const copyable = item.status !== 'pass' && typeof suggestion === 'string';
+                return (
+                  <div key={i} className={`sf-checklist-item sf-checklist-item--${item.status}`}>
+                    <div className="sf-checklist-item-title">
+                      <span className="sf-checklist-item-badge" aria-label={t.itemStatus[item.status]}>
+                        {item.status === 'pass' ? '✅' : item.status === 'fail' ? '❌' : '⚠️'}
+                      </span>
+                      <span>{renderLocationText(item.title, jump, `title-${i}`)}</span>
+                    </div>
+                    {item.detail && (
+                      <pre className="sf-checklist-item-detail">
+                        {renderLocationText(item.detail, jump, `detail-${i}`)}
+                      </pre>
+                    )}
+                    {suggestion && (
+                      <p className="sf-checklist-item-suggestion">
+                        → {t.suggestion}：{renderLocationText(suggestion, jump, `sug-${i}`)}
+                      </p>
+                    )}
+                    {copyable && (
+                      <p className="sf-checklist-item-copy" style={{ margin: '4px 0 0', paddingLeft: 25 }}>
+                        <button
+                          type="button"
+                          className="sf-btn sf-checklist-copy"
+                          onClick={() => copySuggestion(i, suggestion!)}
+                        >
+                          {copiedIdx === i ? t.copied : t.copySuggestion}
+                        </button>
+                      </p>
+                    )}
                   </div>
-                  {item.detail && <pre className="sf-checklist-item-detail">{item.detail}</pre>}
-                  {item.suggestion && (
-                    <p className="sf-checklist-item-suggestion">
-                      → {t.suggestion}：{item.suggestion}
-                    </p>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
             <p className="sf-checklist-count">{t.itemsCount(data.items.length)}</p>
           </div>

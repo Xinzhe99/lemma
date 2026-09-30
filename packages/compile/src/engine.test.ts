@@ -30,7 +30,8 @@ describe('TectonicEngine', () => {
     const res = await new TectonicEngine().compile(input, runner);
     expect(calls[0].cmd).toBe('tectonic');
     expect(calls[0].cwd).toBe('/tmp/proj');
-    expect(calls[0].args).toEqual(['-X', 'compile', '--keep-logs', '--print', '--outdir', 'build', 'main.tex']);
+    expect(calls[0].args).toEqual(['-X', 'compile', '--keep-logs', '--print', '--synctex', '--outdir', 'build', 'main.tex']);
+    expect(calls[0].args).toContain('--synctex'); // WS-2：产出 .synctex.gz 供 PDF ↔ 源码同步
     expect(res.success).toBe(false);
     expect(res.engine).toBe('tectonic');
     expect(res.diagnostics).toHaveLength(1);
@@ -44,7 +45,15 @@ describe('LatexmkEngine', () => {
     const { calls, runner } = recordingRunner({ code: 0, stdout: '', stderr: '' });
     const res = await new LatexmkEngine().compile(input, runner);
     expect(calls[0].cmd).toBe('latexmk');
-    expect(calls[0].args).toEqual(['-pdf', '-interaction=nonstopmode', '-file-line-error', '-outdir=build', 'main.tex']);
+    expect(calls[0].args).toEqual([
+      '-pdf',
+      '-interaction=nonstopmode',
+      '-synctex=1',
+      '-file-line-error',
+      '-outdir=build',
+      'main.tex',
+    ]);
+    expect(calls[0].args).toContain('-synctex=1'); // WS-2：interaction 参数旁产出 synctex 索引
     expect(res.success).toBe(true);
     expect(res.engine).toBe('latexmk');
   });

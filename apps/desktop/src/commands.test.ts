@@ -3,6 +3,7 @@ import { buildCommands, type CommandContext } from './commands';
 import { fuzzyScore } from './commandPalette';
 import { t } from './i18n';
 import { useUiStore } from './state/uiStore';
+import { useWorkspaceStore } from './state/workspaceStore';
 
 const ctx: CommandContext = {
   t: (key, vars) => t(key, 'en', vars),
@@ -104,5 +105,31 @@ describe('buildCommands', () => {
     shortcuts!.run?.();
     expect(useUiStore.getState().shortcutsOpen).toBe(true);
     useUiStore.getState().setShortcutsOpen(false);
+  });
+
+  it('file.new 经应用内文本对话框收集路径：确认创建 + toast 保留，取消不创建', async () => {
+    const toasts: string[] = [];
+    const cmd = buildCommands({ ...ctx, toast: (m) => toasts.push(m) }).find(
+      (c) => c.id === 'file.new',
+    )!;
+    const run = cmd.run as unknown as () => Promise<void>;
+
+    // 取消（resolve null）：不创建、无 toast
+    const cancelled = run();
+    const req = useUiStore.getState().textDialog;
+    expect(req?.mode).toBe('prompt');
+    expect(req?.title).toBeTruthy();
+    req!.resolve(null);
+    await cancelled;
+    expect(useWorkspaceStore.getState().files['sections/notes-new.tex']).toBeUndefined();
+    expect(toasts).toEqual([]);
+
+    // 输入路径确认：创建空文件 + toast
+    const confirmed = run();
+    useUiStore.getState().textDialog!.resolve('sections/notes-new.tex');
+    await confirmed;
+    expect(useWorkspaceStore.getState().files['sections/notes-new.tex']).toBe('');
+    expect(toasts.some((m) => m.includes('sections/notes-new.tex'))).toBe(true);
+    useUiStore.getState().closeTextDialog();
   });
 });

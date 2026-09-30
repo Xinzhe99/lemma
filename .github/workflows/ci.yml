@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # 前端主线：类型检查 → 单测 → 构建（Node 20 + npm 缓存）
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  # Rust 壳检查：仅当 apps/desktop/src-tauri/** 有变更时执行 cargo check
+  cargo-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect src-tauri changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            tauri:
+              - 'apps/desktop/src-tauri/**'
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.filter.outputs.tauri == 'true'
+      - name: Cargo check
+        if: steps.filter.outputs.tauri == 'true'
+        working-directory: apps/desktop/src-tauri
+        run: cargo check

@@ -26,6 +26,15 @@ npm run typecheck   # 全部包类型检查
 npm run build       # 构建应用
 ```
 
+## 已实现（v0.5.0 —— 大厂交付标准）
+
+- **数学公式实时预览**：悬停 `$...$`/`$$...$$`/`\(...\)`/`\[...\]` 即出 KaTeX 渲染浮层（缓存加速，错误回显原始 TeX）
+- **BibTeX 专用语法高亮**（条目/键/字段/值/注释分层）；**插图向导**（规范化路径 + 生成 includegraphics 代码 + 自动补 graphicx + 桌面形态真实写入图片）
+- **SyncTeX 双向同步**：真实编译产出同步数据，状态栏「⇄ PDF」源码定位 PDF；PDF 点击回跳源码行
+- **全项目搜索**（Ctrl+Shift+F）：跨文件实时搜索、大小写/整词开关、分组高亮、点击跳转；**W10 自检报告联动投稿工作台**（一键跳转 + 位置引用可点 + 复制修复建议）
+- **根级 ErrorBoundary**（崩溃不再白屏）；应用内对话框全面替代 window.prompt/confirm（Tauri WKWebView 兼容）
+- **发布工程**：GitHub Actions CI（web + cargo-check 双 job）、CHANGELOG、版本统一 0.5.0、Tauri bundle 启用（可打安装包）
+
 ## 已实现（v0.4 —— 生产可用性）
 
 - **真实编译与 PDF 应用内预览**：桌面形态自动探测 Tectonic / latexmk（用户机器 TeX Live 2024 即开即用），项目文件物化→编译→产物 base64 读回→自动打开 PDF 预览；首个 error 诊断自动跳转源码行；不可用时回退模拟引擎并说明

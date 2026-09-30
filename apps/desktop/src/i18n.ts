@@ -129,6 +129,8 @@ const dict: MessageDict = {
   'cmd.newFile': { zh: '新建文件', en: 'New file' },
   'cmd.save': { zh: '保存当前文件', en: 'Save current file' },
   'cmd.toggleTheme': { zh: '切换深色/浅色主题', en: 'Toggle dark/light theme' },
+  'cmd.globalSearch': { zh: '全局搜索（全项目）', en: 'Search across project' },
+  'cmd.insertImage': { zh: '插入图片', en: 'Insert image' },
   'cmd.settings': { zh: '打开设置', en: 'Open settings' },
   'cmd.focusTree': { zh: '聚焦文件树', en: 'Focus file tree' },
   'cmd.clearLog': { zh: '清空编译日志', en: 'Clear compile log' },

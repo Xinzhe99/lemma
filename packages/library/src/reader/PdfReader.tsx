@@ -10,6 +10,8 @@ import { createId, type Annotation, type HighlightSemantic } from '@scholarforge
  * - 选中后浮动工具条：四色高亮按钮 + 笔记输入 + askActions 自定义按钮（WF-4 L3，
  *   「PDF 选中即问」的 prop 注入契约——组件不感知 AI 动作，只渲染并回调选中文本）；
  * - 可折叠标注侧栏（WF-4 L4）：全部标注列表、四色筛选、删除（onDeleteAnnotation）、点击跳页。
+ * - WS-2 编译同步闭环：画布点击经 onPagePoint 回调 PDF 用户空间坐标（PDF → 源码）；
+ *   gotoTick 变化时跳到 gotoPage 并以全页半透明矩形闪烁提示（约 1s 褪去，源码 → PDF）。
  *
  * 精度限制：以“选区包围盒”近似换算 PDF 用户空间坐标 —— 跨行/跨栏选区的
  * 包围盒会大于实际文本范围，且未处理页面旋转与裁剪，仅适用于常规正立页面。
@@ -32,6 +34,12 @@ export interface PdfReaderProps {
   onDeleteAnnotation?: (id: string) => void;
   /** L3：选中浮条尾部渲染的自定义动作按钮。 */
   askActions?: PdfAskAction[];
+  /** WS-2：画布点击回调（PDF → 源码）——携带页码与 PDF 用户空间坐标；未传则点击不产生回调。 */
+  onPagePoint?: (page: number, x: number, y: number) => void;
+  /** WS-2：源码 → PDF 定位目标页（与 gotoTick 搭配；缺省或 <1 不生效）。 */
+  gotoPage?: number;
+  /** WS-2：定位触发计数 —— 变化时跳到 gotoPage 并闪烁高亮（约 1s 褪去）。 */
+  gotoTick?: number;
   /** UI 文案语言，默认中文。 */
   language?: PdfReaderLang;
   className?: string;
@@ -119,6 +127,9 @@ export function PdfReader({
   onCreateAnnotation,
   onDeleteAnnotation,
   askActions,
+  onPagePoint,
+  gotoPage,
+  gotoTick,
   language = 'zh',
   className,
 }: PdfReaderProps) {
@@ -138,6 +149,27 @@ export function PdfReader({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [semanticFilter, setSemanticFilter] = useState<HighlightSemantic | 'all'>('all');
   const scale = SCALES[scaleIndex] ?? 1;
+
+  // WS-2：gotoTick 变化 → 跳到 gotoPage + 全页半透明矩形闪烁（先立现，随后 1s 褪去）
+  const [flashVisible, setFlashVisible] = useState(false);
+  const [flashFading, setFlashFading] = useState(false);
+  const flashTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    if (!gotoTick || gotoPage === undefined || !Number.isFinite(gotoPage) || gotoPage < 1) return;
+    setPageNum(gotoPage);
+    setFlashVisible(true);
+    setFlashFading(false);
+    const t1 = setTimeout(() => setFlashFading(true), 50);
+    const t2 = setTimeout(() => {
+      setFlashVisible(false);
+      setFlashFading(false);
+    }, 1100);
+    flashTimers.current.push(t1, t2);
+    return () => {
+      for (const timer of flashTimers.current) clearTimeout(timer);
+      flashTimers.current = [];
+    };
+  }, [gotoTick, gotoPage]);
 
   // 加载文档（getDocument 会转移 buffer，复制一份）
   useEffect(() => {
@@ -247,6 +279,21 @@ export function PdfReader({
     window.getSelection()?.removeAllRanges();
     setToolbar(null);
     setNoteDraft('');
+  };
+
+  // WS-2：画布点击 → PDF 用户空间坐标回调（PDF → 源码同步；由宿主接 synctexBridge）
+  const handleCanvasClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    if (!onPagePoint || !viewport) return;
+    if (toolbarRef.current?.contains(event.target as Node)) return; // 工具条内部点击不参与定位
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return; // 拖选文字（标注/即问）不触发定位
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (!canvasRect) return;
+    const px = event.clientX - canvasRect.left;
+    const py = event.clientY - canvasRect.top;
+    if (px < 0 || py < 0 || px > canvasRect.width || py > canvasRect.height) return; // 画布外点击忽略
+    const point = viewport.convertToPdfPoint(px, py) as unknown as { x: number; y: number };
+    onPagePoint(pageNum, point.x, point.y);
   };
 
   const emitAnnotation = (semantic: HighlightSemantic | undefined, note: string): void => {
@@ -474,6 +521,7 @@ export function PdfReader({
             <div
               style={{ position: 'relative', width: pageWidth || undefined }}
               onMouseUp={handleMouseUp}
+              onClick={handleCanvasClick}
             >
               <canvas ref={canvasRef} style={{ display: 'block', border: '1px solid #d1d5db' }} />
               {viewport && (
@@ -513,6 +561,25 @@ export function PdfReader({
                       </span>
                     ))}
                   </div>
+                  {flashVisible && (
+                    <div
+                      data-testid="pdf-goto-flash"
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: pageWidth,
+                        height: pageHeight,
+                        zIndex: 3,
+                        pointerEvents: 'none',
+                        borderRadius: 4,
+                        border: '2px solid rgba(59, 130, 246, 0.8)',
+                        background: 'rgba(59, 130, 246, 0.18)',
+                        opacity: flashFading ? 0 : 1,
+                        transition: 'opacity 1s ease-out',
+                      }}
+                    />
+                  )}
                 </>
               )}
               {toolbar && (

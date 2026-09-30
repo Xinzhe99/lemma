@@ -1,5 +1,5 @@
 /**
- * 多项目管理对话框（sf-projects-*）：保存当前项目 / 打开 / 重命名（行内输入）/ 复制 / 删除（confirm）/
+ * 多项目管理对话框（sf-projects-*）：保存当前项目 / 打开 / 重命名（行内输入）/ 复制 / 删除（应用内确认对话框）/
  * 新建空白项目。挂载时自动把当前工作区写入固定 id（__current__）的临时记录供崩溃恢复，
  * 列表置顶展示「当前（未保存快照）」，可一键转正式保存。
  * 模态结构复用 sf-dialog 系列类；文案使用组件内 zh/en 本地字典（跟随 settingsStore.language）。
@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
+import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { CURRENT_PROJECT_ID, useProjectsStore, type ProjectRecord } from '../state/projectsStore';
 
@@ -86,7 +87,8 @@ export function ProjectSwitcher({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // 应用内确认对话框（删除确认）打开时，Esc 属于对话框的取消操作，不关闭本面板
+      if (e.key === 'Escape' && !useUiStore.getState().textDialog) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -109,7 +111,18 @@ export function ProjectSwitcher({ onClose }: { onClose: () => void }) {
   };
 
   const remove = (rec: ProjectRecord) => {
-    if (window.confirm(L.confirmRemove(rec.name))) removeProject(rec.id);
+    // 删除确认走应用内文本对话框（confirm 模式）：取消（null）保留，确认后移除
+    void new Promise<string | null>((resolve) => {
+      useUiStore.getState().openTextDialog({
+        title: L.confirmRemove(rec.name),
+        mode: 'confirm',
+        confirmText: L.remove,
+        resolve,
+      });
+    }).then((answer) => {
+      if (answer === null) return;
+      removeProject(rec.id);
+    });
   };
 
   const startRename = (rec: ProjectRecord) => {

@@ -2,17 +2,20 @@
  * 编译动作：Tauri 形态优先探测并使用真实引擎（tectonic → latexmk，经 proc_run 桥），
  * 都不可用或流程任一步失败时自动回退 MockEngine；浏览器形态直接 MockEngine。
  * 真实编译前先把项目文本文件物化到数据目录（引擎 cwd），成功后经 fs_read_base64 读回
- * PDF 产物并自动打开应用内预览；存在 error 级诊断时自动跳转到首个出错行。
+ * PDF 产物并自动打开应用内预览，随后回读 .synctex.gz 注册 SyncTeX 索引
+ * （PDF ↔ 源码双向跳转，synctexBridge 消费；模拟/浏览器路径一律置 null 停用同步）；
+ * 存在 error 级诊断时自动跳转到首个出错行。
  * 命令面板与 agent 工具 tex.compile 共用。
  */
 
-import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, runFullCompile } from '@scholarforge/compile';
+import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, parseSynctex, runFullCompile } from '@scholarforge/compile';
 import type { Diagnostic, ProjectFileMap } from '@scholarforge/shared';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useUiStore } from './state/uiStore';
 import { getPlatform } from './platform/types';
 import { tauriProcRun, tauriReadBase64 } from './platform/tauri';
 import { jumpTo } from './editorJump';
+import { setSynctexIndex } from './synctexBridge';
 
 const idleRunner = {
   async run(): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -85,6 +88,11 @@ export function pdfTargetFor(entry: string): string {
   return `${entry.replace(/\.tex$/i, '')}.pdf`;
 }
 
+/** 由入口推算 SyncTeX 索引相对路径：main.tex -> main.synctex.gz（与 pdfTargetFor 同一约定） */
+export function synctexTargetFor(entry: string): string {
+  return `${entry.replace(/\.tex$/i, '')}.synctex.gz`;
+}
+
 /** 把项目文本文件物化到真实引擎的工作目录（Tauri 数据目录）；返回写入的文件数 */
 export async function materializeProjectFiles(
   files: ProjectFileMap,
@@ -144,6 +152,7 @@ export async function runMockCompile(): Promise<CompileActionResult> {
   if (!entry) {
     s.appendCompileLog('✗ 未找到可编译的 .tex 入口文件');
     s.setCompileStatus('fail');
+    setSynctexIndex(null); // 模拟路径统一停用 PDF ↔ 源码同步
     return { ok: false, entry: '', passes: 0, diagnostics: 0 };
   }
   s.setCompileStatus('running');
@@ -157,6 +166,7 @@ export async function runMockCompile(): Promise<CompileActionResult> {
     `▣ ${result.engine} · ${result.passes} 趟 · ${result.durationMs}ms · ${result.success ? '成功' : '失败'}`,
   );
   logDiagnostics(entry, result.diagnostics);
+  setSynctexIndex(null); // 模拟引擎无真实产物：清除旧索引，停用 PDF ↔ 源码同步
   s.setCompileStatus(result.success ? 'ok' : 'fail');
   const jump = firstErrorJump(result.diagnostics);
   if (jump) jumpTo(jump);
@@ -227,6 +237,19 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
     } catch (e) {
       s.appendCompileLog(`⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${errText(e)}）。请检查引擎输出目录设置。`);
     }
+
+    // 回读 SyncTeX 索引并注册（PDF ↔ 源码双向跳转）；失败只记日志并停用同步，不影响编译结果
+    const synctexPath = synctexTargetFor(entry);
+    try {
+      const bytes = await tauriReadBase64(synctexPath);
+      setSynctexIndex(parseSynctex(bytes));
+      s.appendCompileLog(`🔗 SyncTeX 索引已注册（${synctexPath}，${bytes.length} 字节），PDF ↔ 源码同步可用`);
+    } catch (e) {
+      setSynctexIndex(null);
+      s.appendCompileLog(`⚠ SyncTeX 索引不可用（${synctexPath} 读取失败：${errText(e)}），PDF ↔ 源码同步已停用。`);
+    }
+  } else {
+    setSynctexIndex(null); // 编译失败：旧索引与最新源码不再一致，停用同步
   }
 
   // 存在 error 级诊断时跳转到首个出错行（无 error 不打扰）

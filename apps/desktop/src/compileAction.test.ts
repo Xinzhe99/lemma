@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it, afterEach } from 'vitest';
+import type { SynctexIndex } from '@scholarforge/compile';
 import type { Diagnostic } from '@scholarforge/shared';
 import {
   detectEngine,
@@ -14,10 +15,12 @@ import {
   probeFromError,
   probeFromRun,
   runCompile,
+  synctexTargetFor,
 } from './compileAction';
 import { base64ToBytes, tauriReadBase64 } from './platform/tauri';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { jumpTo, setJumpHandler } from './editorJump';
+import { hasSynctexIndex, setSynctexIndex } from './synctexBridge';
 
 const ok = (text = 'Tectonic 0.15.0'): { ok: boolean; text: string } => ({ ok: true, text });
 const bad = (text = '无法启动命令'): { ok: boolean; text: string } => ({ ok: false, text });
@@ -66,6 +69,18 @@ describe('pdfTargetFor（入口 → 产物 PDF 路径）', () => {
     expect(pdfTargetFor('paper')).toBe('paper.pdf');
     expect(pdfTargetFor('sections/paper.tex')).toBe('sections/paper.pdf');
     expect(pdfTargetFor('Main.TEX')).toBe('Main.pdf');
+  });
+});
+
+describe('synctexTargetFor（入口 → SyncTeX 索引路径，与 pdfTargetFor 对齐）', () => {
+  it('标准入口 main.tex → main.synctex.gz', () => {
+    expect(synctexTargetFor('main.tex')).toBe('main.synctex.gz');
+  });
+
+  it('无扩展名与子目录入口均按去扩展名推算', () => {
+    expect(synctexTargetFor('paper')).toBe('paper.synctex.gz');
+    expect(synctexTargetFor('sections/paper.tex')).toBe('sections/paper.synctex.gz');
+    expect(synctexTargetFor('Main.TEX')).toBe('Main.synctex.gz');
   });
 });
 
@@ -157,6 +172,7 @@ describe('base64ToBytes（PDF 产物读回的解码）', () => {
 describe('浏览器形态 runCompile（MockEngine，行为不变）', () => {
   afterEach(() => {
     setJumpHandler(null);
+    setSynctexIndex(null);
   });
 
   it('无 Tauri 桥时走 MockEngine 并产出成功结果与模拟日志', async () => {
@@ -176,6 +192,28 @@ describe('浏览器形态 runCompile（MockEngine，行为不变）', () => {
     const log = useWorkspaceStore.getState().compileLog.join('\n');
     expect(log).toContain('模拟引擎');
     expect(useWorkspaceStore.getState().compileStatus).toBe('ok');
+  });
+
+  it('模拟编译路径将 SyncTeX 索引置 null（清除旧真实编译的残留索引）', async () => {
+    useWorkspaceStore.setState({
+      projectName: 'test',
+      entry: 'main.tex',
+      files: { 'main.tex': '\\documentclass{article}\n\\begin{document}hi\\end{document}\n' },
+      openTabs: ['main.tex'],
+      activeTab: 'main.tex',
+      snapshots: {},
+      compileLog: [],
+      compileStatus: 'idle',
+    });
+    // 预置一个旧索引（手造 SynctexIndex 对象），模拟编译后必须停用同步
+    const staleIndex: SynctexIndex = {
+      version: 1,
+      inputs: [{ tag: 1, path: 'main.tex' }],
+      blocks: [{ page: 1, tag: 1, line: 12, x: 1000, y: 8000, w: 4000, h: 400 }],
+    };
+    setSynctexIndex(staleIndex);
+    await runCompile();
+    expect(hasSynctexIndex()).toBe(false);
   });
 
   it('error 级诊断存在时经 jumpTo 桥跳转到首个出错行', () => {

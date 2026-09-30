@@ -1,5 +1,7 @@
 /**
  * LaTeX 编辑器 React 组件：CodeMirror 6 完整 setup，受控 value 增量同步。
+ * filePath 以 .bib 结尾时经 Compartment 切换 BibTeX 高亮；LaTeX 模式下悬停
+ * 数学定界符（$...$ / \(...\) / $$...$$ / \[...\]）显示 KaTeX 实时预览浮层。
  */
 import { useCallback, useEffect, useRef } from 'react';
 import {
@@ -10,6 +12,7 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   highlightSpecialChars,
+  hoverTooltip,
   keymap,
   lineNumbers,
   rectangularSelection,
@@ -20,6 +23,8 @@ import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { foldGutter, foldKeymap, indentOnInput } from '@codemirror/language';
 import { latexSupport, type CitationEntry } from '../latex/completion';
+import { bibBase } from '../latex/bibLanguage';
+import { createMathPreviewElement, extractMathSpans } from '../latex/mathPreview';
 import { scholarforgeTheme } from '../latex/theme';
 
 /** 标记来自外部 value 同步的事务，避免 onChange 回声 */
@@ -30,6 +35,44 @@ const heightTheme = EditorView.theme({
   '.cm-scroller': { overflow: 'auto' },
 });
 
+/** .bib 文件走 BibTeX 高亮模式（大小写不敏感） */
+function isBibPath(filePath: string | undefined): boolean {
+  return (filePath ?? '').toLowerCase().endsWith('.bib');
+}
+
+/**
+ * 数学公式 hover 预览：悬停位置落在公式 span 内时弹 KaTeX 渲染浮层；
+ * 渲染失败回退为原始 TeX + 错误信息（createMathPreviewElement）。
+ */
+function mathHoverTooltip(): Extension {
+  return hoverTooltip((view, pos) => {
+    const spans = extractMathSpans(view.state.doc.toString());
+    const span = spans.find((s) => pos >= s.from && pos < s.to);
+    if (!span) return null;
+    return {
+      pos: span.from,
+      end: span.to,
+      above: true,
+      create: () => {
+        const dom = document.createElement('div');
+        dom.className = 'sf-math-hover';
+        // 内联样式承载浮层外观（不新增 CSS 文件）
+        dom.style.maxWidth = '460px';
+        dom.style.maxHeight = '300px';
+        dom.style.overflow = 'auto';
+        dom.style.padding = '6px 10px';
+        dom.style.fontSize = '13px';
+        dom.style.background = '#1c2029';
+        dom.style.border = '1px solid #343b4a';
+        dom.style.borderRadius = '6px';
+        dom.style.color = '#d7dce8';
+        dom.appendChild(createMathPreviewElement(span.tex, span.display));
+        return { dom };
+      },
+    };
+  });
+}
+
 export interface LatexEditorProps {
   value: string;
   onChange?: (v: string) => void;
@@ -37,6 +80,8 @@ export interface LatexEditorProps {
   extraExtensions?: Extension[];
   onCursorLine?: (line: number) => void;
   className?: string;
+  /** 当前文件路径：.bib 后缀切 BibTeX 高亮模式，缺省/其余为 LaTeX 模式 */
+  filePath?: string;
   /** 挂载/卸载时回调 EditorView 句柄（供 SyncTeX 跳转等宿主逻辑使用） */
   onEditorReady?: (view: EditorView | null) => void;
 }
@@ -55,6 +100,8 @@ export function LatexEditor(props: LatexEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const extraCompRef = useRef(new Compartment());
+  /** 语言侧扩展 compartment：LaTeX（含数学 hover 预览）与 BibTeX 之间切换 */
+  const langCompRef = useRef(new Compartment());
   const lastLineRef = useRef(0);
 
   const onChangeRef = useLatest(props.onChange);
@@ -66,6 +113,15 @@ export function LatexEditor(props: LatexEditorProps) {
 
   // 稳定引用的引用数据代理，使 latexSupport 无需重建
   const citationsProxy = useCallback(() => getCitationsRef.current?.() ?? [], []);
+
+  /** 按文件路径组装语言侧扩展：.bib → BibTeX；否则 LaTeX + 补全 + 数学 hover 预览 */
+  const langSideFor = useCallback(
+    (filePath: string | undefined): Extension[] =>
+      isBibPath(filePath)
+        ? bibBase()
+        : [latexSupport({ getCitations: citationsProxy }), mathHoverTooltip()],
+    [citationsProxy],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -96,7 +152,7 @@ export function LatexEditor(props: LatexEditorProps) {
           indentWithTab,
         ]),
         indentOnInput(),
-        latexSupport({ getCitations: citationsProxy }),
+        langCompRef.current.of(langSideFor(props.filePath)),
         scholarforgeTheme,
         heightTheme,
         EditorView.updateListener.of((vu) => {
@@ -159,6 +215,14 @@ export function LatexEditor(props: LatexEditorProps) {
     if (!view) return;
     view.dispatch({ effects: extraCompRef.current.reconfigure(extraExtensions ?? []) });
   }, [extraExtensions]);
+
+  // filePath 变化时切换语言侧（.bib ↔ LaTeX），不动编辑器实例与撤销栈
+  const filePath = props.filePath;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: langCompRef.current.reconfigure(langSideFor(filePath)) });
+  }, [filePath, langSideFor]);
 
   return <div ref={hostRef} className={className} style={{ height: '100%' }} />;
 }

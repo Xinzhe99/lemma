@@ -7,8 +7,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Table } from 'lucide-react';
+import { Image, Table } from 'lucide-react';
 import { EditorView, LatexEditor } from '@scholarforge/editor';
+// KaTeX 渲染所需样式（mathPreview hover 浮层；经 vite 打包，不改任何 .css 文件）
+import 'katex/dist/katex.min.css';
 import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
@@ -108,17 +110,30 @@ export function EditorArea() {
   }, []);
   const tableAction = tabActionsHost ? (
     createPortal(
-      <button
-        className="tab-action"
-        title={
-          language === 'en'
-            ? 'Visual table editor (insert tabular at cursor)'
-            : '可视化表格编辑器（插入 tabular 到光标处）'
-        }
-        onClick={() => useUiStore.getState().setTableEditorOpen(true)}
-      >
-        <Table size={13} /> {language === 'en' ? 'Table' : '表格'}
-      </button>,
+      <>
+        <button
+          className="tab-action"
+          title={
+            language === 'en'
+              ? 'Visual table editor (insert tabular at cursor)'
+              : '可视化表格编辑器（插入 tabular 到光标处）'
+          }
+          onClick={() => useUiStore.getState().setTableEditorOpen(true)}
+        >
+          <Table size={13} /> {language === 'en' ? 'Table' : '表格'}
+        </button>
+        <button
+          className="tab-action"
+          title={
+            language === 'en'
+              ? 'Figure wizard (pick image, insert \\includegraphics at cursor)'
+              : '插图向导（选图并插入 \\includegraphics 到光标处）'
+          }
+          onClick={() => useUiStore.getState().setImageWizardOpen(true)}
+        >
+          <Image size={13} /> {language === 'en' ? 'Figure' : '插图'}
+        </button>
+      </>,
       tabActionsHost,
     )
   ) : null;
@@ -195,6 +210,7 @@ export function EditorArea() {
           key={activeTab}
           value={content}
           onChange={(v) => updateFile(activeTab, v)}
+          filePath={activeTab}
           getCitations={() => citations}
           extraExtensions={extraExtensions}
           onEditorReady={(view) => {

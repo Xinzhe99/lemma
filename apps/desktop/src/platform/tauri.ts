@@ -5,6 +5,7 @@
  * - fs_read   { path: string }                     -> string（UTF-8 文本）
  * - fs_read_base64 { path: string }                -> string（二进制产物的 base64 编码，如编译 PDF）
  * - fs_write  { path: string, content: string }    -> null
+ * - fs_write_base64 { path: string, data: string } -> null（二进制写入，base64 编码，如插图向导的图片）
  * - fs_delete { path: string }                     -> null
  * - fs_list   {}                                   -> string[]（扁平虚拟路径）
  * - secret_get { key: string }                     -> string | null
@@ -96,6 +97,15 @@ export function base64ToBytes(encoded: string): Uint8Array {
 export async function tauriReadBase64(path: string): Promise<Uint8Array> {
   const encoded = await invoke<string>('fs_read_base64', { path });
   return base64ToBytes(encoded);
+}
+
+/**
+ * 写入二进制文件（base64 编码，如插图向导写入 figures/ 图片）。
+ * 桥接约定：fs_write_base64 { path, data } -> null，Rust 侧 base64 解码后落盘。
+ * 调用方应先确认 getPlatform().kind === 'tauri'，浏览器形态直接跳过。
+ */
+export async function tauriWriteFileBase64(path: string, data: string): Promise<void> {
+  await invoke<void>('fs_write_base64', { path, data });
 }
 
 /** 检测 __TAURI__：存在则用约定桥，否则回落 BrowserPlatform。 */

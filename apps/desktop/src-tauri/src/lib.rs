@@ -2,12 +2,14 @@
  * ScholarForge Tauri 壳（Rust 侧）。
  *
  * 桥接约定与 apps/desktop/src/platform/tauri.ts 一一对应：
- * - fs_read / fs_read_base64 / fs_write / fs_delete / fs_list：项目虚拟文件系统（数据目录下的相对路径）
+ * - fs_read / fs_read_base64 / fs_write / fs_write_base64 / fs_delete / fs_list：
+ *   项目虚拟文件系统（数据目录下的相对路径）；fs_write_base64 供二进制写入（插图向导的 figures/ 图片）
  * - secret_get / secret_set：API key 存取（当前为数据目录 JSON 文件；正式版换 OS keychain）
  * - proc_run：阻塞式命令执行（Tectonic/latexmk 编译与一次性 CLI agent 调用；流式 spawn 属后续增量）
  *
  * 边界说明：项目文件均为文本（LaTeX 工程），fs_read 以 UTF-8 读取；
- * 二进制产物（编译得到的 PDF）经 fs_read_base64 以 base64 编码返回，由前端解码为字节。
+ * 二进制产物（编译得到的 PDF）经 fs_read_base64 以 base64 编码返回，由前端解码为字节；
+ * 二进制写入（图片）经 fs_write_base64 以 base64 编码接收，Rust 侧解码后落盘。
  */
 
 use std::collections::BTreeMap;
@@ -106,6 +108,20 @@ fn fs_write(app: tauri::AppHandle, path: String, content: String) -> Result<(), 
 }
 
 #[tauri::command]
+fn fs_write_base64(app: tauri::AppHandle, path: String, data: String) -> Result<(), String> {
+    let rel = safe_rel(&path)?;
+    let target = base_dir(&app).join(&rel);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let clean: String = data.chars().filter(|c| !c.is_whitespace()).collect();
+    let bytes = BASE64_STANDARD
+        .decode(clean.as_bytes())
+        .map_err(|e| format!("base64 解码失败：{e}"))?;
+    fs::write(&target, bytes).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn fs_delete(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let rel = safe_rel(&path)?;
     let target = base_dir(&app).join(&rel);
@@ -195,6 +211,7 @@ pub fn run() {
             fs_read,
             fs_read_base64,
             fs_write,
+            fs_write_base64,
             fs_delete,
             fs_list,
             secret_get,

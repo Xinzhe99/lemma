@@ -2,9 +2,10 @@
  * WF-3 A2：parseChecklistReport 纯函数单测（node 环境即可，组件本身不渲染）。
  * 覆盖：总体结论三态宽容解析、✅/❌/⚠️ 与 [通过]/[未通过] 双标记形态、
  * 「→ 建议」修复行、续行 detail、未结构化降级。
+ * WS-3：extractLocationRefs 定位引用提取（冒号格式 / 中文「第 N 行」格式 / 多处 / 无命中）。
  */
 import { describe, expect, it } from 'vitest';
-import { classifyVerdict, parseChecklistReport } from './ChecklistReport';
+import { classifyVerdict, extractLocationRefs, parseChecklistReport } from './ChecklistReport';
 
 const MD_EMOJI = `# 投稿前自检报告
 
@@ -100,6 +101,44 @@ describe('parseChecklistReport（[通过]/[未通过] 括号形态 + 英文结�
     expect(data.items[2]!.suggestion).toContain('矢量图');
     expect(data.items[2]!.title).toContain('260dpi');
     expect(data.items[2]!.detail).toBeUndefined();
+  });
+});
+
+describe('extractLocationRefs（WS-3：.tex 定位引用）', () => {
+  it('格式一：冒号定位（半角/全角、带空格/不带空格）', () => {
+    expect(extractLocationRefs('见 main.tex: 42 处')).toEqual([{ file: 'main.tex', line: 42 }]);
+    expect(extractLocationRefs('见 main.tex：42 处')).toEqual([{ file: 'main.tex', line: 42 }]);
+    expect(extractLocationRefs('见 main.tex:12 处')).toEqual([{ file: 'main.tex', line: 12 }]);
+  });
+
+  it('格式二：中文「第 N 行」（带空格/不带空格）', () => {
+    expect(extractLocationRefs('错误位于 main.tex 第 12 行附近')).toEqual([{ file: 'main.tex', line: 12 }]);
+    expect(extractLocationRefs('错误位于 main.tex第3行')).toEqual([{ file: 'main.tex', line: 3 }]);
+  });
+
+  it('子目录路径与多处命中：按出现次序返回', () => {
+    const refs = extractLocationRefs(
+      '先查 sections/intro.tex:7 的段落，再查 main.tex: 42 与 refs.bib 之外与 main.tex 第 3 行',
+    );
+    expect(refs).toEqual([
+      { file: 'sections/intro.tex', line: 7 },
+      { file: 'main.tex', line: 42 },
+      { file: 'main.tex', line: 3 },
+    ]);
+  });
+
+  it('两种格式混合于同一条目文本', () => {
+    const refs = extractLocationRefs('main.tex: 5 与 method.tex 第 8 行 均需修改');
+    expect(refs).toEqual([
+      { file: 'main.tex', line: 5 },
+      { file: 'method.tex', line: 8 },
+    ]);
+  });
+
+  it('无命中：普通文本 / 只有 .tex 无行号 / 空串', () => {
+    expect(extractLocationRefs('这一段没有任何定位引用')).toEqual([]);
+    expect(extractLocationRefs('请检查 main.tex 的导言区')).toEqual([]);
+    expect(extractLocationRefs('')).toEqual([]);
   });
 });
 

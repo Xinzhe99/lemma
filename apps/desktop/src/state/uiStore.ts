@@ -17,6 +17,16 @@ export interface PdfView {
   data: ArrayBuffer;
 }
 
+/** 应用内文本对话框请求（Promise 风格：resolve 由 TextDialog 在用户确认/取消后调用） */
+export interface TextDialogRequest {
+  title: string;
+  initial?: string;
+  placeholder?: string;
+  confirmText?: string;
+  mode: 'prompt' | 'confirm';
+  resolve: (value: string | null) => void;
+}
+
 interface UiState {
   sidebarTab: SidebarTab;
   /** knowledge 页签内的子页签（术语/笔记） */
@@ -47,6 +57,12 @@ interface UiState {
   tableEditorOpen: boolean;
   /** 多项目管理器（顶栏项目名 / 命令面板触发） */
   projectSwitcherOpen: boolean;
+  /** 全项目搜索面板（Ctrl+Shift+F） */
+  searchPanelOpen: boolean;
+  /** 插图向导 */
+  imageWizardOpen: boolean;
+  /** 应用内 prompt/confirm 对话框（替代 window.prompt/confirm，Tauri WKWebView 下原生对话框不可用） */
+  textDialog: TextDialogRequest | null;
 
   setSidebarTab(tab: SidebarTab): void;
   setKnowledgeTab(tab: KnowledgeTab): void;
@@ -67,6 +83,10 @@ interface UiState {
   setSelectionText(text: string): void;
   setTableEditorOpen(open: boolean): void;
   setProjectSwitcherOpen(open: boolean): void;
+  setSearchPanelOpen(open: boolean): void;
+  setImageWizardOpen(open: boolean): void;
+  openTextDialog(req: TextDialogRequest): void;
+  closeTextDialog(): void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -88,6 +108,9 @@ export const useUiStore = create<UiState>((set) => ({
   selectionText: '',
   tableEditorOpen: false,
   projectSwitcherOpen: false,
+  searchPanelOpen: false,
+  imageWizardOpen: false,
+  textDialog: null,
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setKnowledgeTab: (tab) => set({ knowledgeTab: tab }),
@@ -107,4 +130,8 @@ export const useUiStore = create<UiState>((set) => ({
   setSelectionText: (text) => set({ selectionText: text }),
   setTableEditorOpen: (open) => set({ tableEditorOpen: open }),
   setProjectSwitcherOpen: (open) => set({ projectSwitcherOpen: open }),
+  setSearchPanelOpen: (open) => set({ searchPanelOpen: open }),
+  setImageWizardOpen: (open) => set({ imageWizardOpen: open }),
+  openTextDialog: (req) => set({ textDialog: req }),
+  closeTextDialog: () => set({ textDialog: null }),
 }));

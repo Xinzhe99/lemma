@@ -1,6 +1,7 @@
 /**
  * 项目文件树：由 files Record 按 "/" 嵌套渲染；文件夹可折叠（展开态存组件内 state）；
- * 悬停 ⋯ 菜单支持新建 / 重命名（prompt）/ 删除（confirm）。
+ * 悬停 ⋯ 菜单支持新建 / 重命名 / 删除（三者的输入与确认均走应用内文本对话框，
+ * 经 uiStore.openTextDialog 返回 Promise，Tauri WKWebView 下原生对话框不可用）。
  */
 
 import { useEffect, useState } from 'react';
@@ -20,7 +21,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useT } from '../i18n';
+import { useUiStore, type TextDialogRequest } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
+
+/** 打开应用内文本对话框并等待用户输入/确认（取消返回 null） */
+function askText(req: Omit<TextDialogRequest, 'resolve'>): Promise<string | null> {
+  return new Promise((resolve) => {
+    useUiStore.getState().openTextDialog({ ...req, resolve });
+  });
+}
 
 interface TreeNode {
   name: string;
@@ -91,32 +100,45 @@ export function FileTree() {
       return next;
     });
 
-  const promptNewFile = (dirHint: string) => {
-    const name = window.prompt(t('tree.newFilePrompt'), dirHint ? `${dirHint}/` : '');
-    const trimmed = name?.trim();
+  const promptNewFile = async (dirHint: string) => {
+    const answer = await askText({
+      title: t('tree.newFilePrompt'),
+      initial: dirHint ? `${dirHint}/` : '',
+      placeholder: dirHint ? undefined : 'sections/notes.tex',
+      confirmText: t('tree.newFile'),
+      mode: 'prompt',
+    });
+    const trimmed = answer?.trim();
     if (!trimmed) return;
     createFile(trimmed, '');
   };
 
-  const doRename = (node: TreeNode) => {
+  const doRename = async (node: TreeNode) => {
+    const target = await askText({
+      title: t('tree.renamePrompt'),
+      initial: node.path,
+      confirmText: t('tree.rename'),
+      mode: 'prompt',
+    });
+    const trimmed = target?.trim();
+    if (!trimmed || trimmed === node.path) return;
     if (node.dir) {
-      const target = window.prompt(t('tree.renamePrompt'), node.path);
-      const trimmed = target?.trim();
-      if (!trimmed || trimmed === node.path) return;
       const prefix = `${node.path}/`;
       for (const p of Object.keys(files)) {
         if (p.startsWith(prefix)) renameFile(p, `${trimmed}/${p.slice(prefix.length)}`);
       }
     } else {
-      const target = window.prompt(t('tree.renamePrompt'), node.path);
-      const trimmed = target?.trim();
-      if (!trimmed || trimmed === node.path) return;
       renameFile(node.path, trimmed);
     }
   };
 
-  const doDelete = (node: TreeNode) => {
-    if (!window.confirm(`${t('tree.deleteConfirm')} ${node.path}?`)) return;
+  const doDelete = async (node: TreeNode) => {
+    const answer = await askText({
+      title: `${t('tree.deleteConfirm')} ${node.path}?`,
+      confirmText: t('tree.delete'),
+      mode: 'confirm',
+    });
+    if (answer === null) return;
     if (node.dir) {
       const prefix = `${node.path}/`;
       for (const p of Object.keys(files)) if (p.startsWith(prefix)) deleteFile(p);
@@ -164,7 +186,7 @@ export function FileTree() {
                 data-action="new"
                 onClick={() => {
                   setMenuFor(null);
-                  promptNewFile(node.dir ? node.path : node.path.split('/').slice(0, -1).join('/'));
+                  void promptNewFile(node.dir ? node.path : node.path.split('/').slice(0, -1).join('/'));
                 }}
               >
                 <Plus size={13} /> {t('tree.newFile')}
@@ -174,7 +196,7 @@ export function FileTree() {
                 data-action="rename"
                 onClick={() => {
                   setMenuFor(null);
-                  doRename(node);
+                  void doRename(node);
                 }}
               >
                 <Pencil size={13} /> {t('tree.rename')}
@@ -184,7 +206,7 @@ export function FileTree() {
                 data-action="delete"
                 onClick={() => {
                   setMenuFor(null);
-                  doDelete(node);
+                  void doDelete(node);
                 }}
               >
                 <Trash2 size={13} /> {t('tree.delete')}
@@ -200,7 +222,7 @@ export function FileTree() {
   return (
     <div className="sf-tree">
       <div className="sf-tree-toolbar">
-        <button className="sf-tree-new" title={t('tree.newFile')} onClick={() => promptNewFile('')}>
+        <button className="sf-tree-new" title={t('tree.newFile')} onClick={() => void promptNewFile('')}>
           <Plus size={13} />
           <span>{t('tree.newFile')}</span>
         </button>

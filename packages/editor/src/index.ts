@@ -1,5 +1,5 @@
 /** @scholarforge/editor —— WS-A：LaTeX 编辑器（CodeMirror 6） */
-export const EDITOR_PACKAGE_VERSION = '0.1.0';
+export const EDITOR_PACKAGE_VERSION = '0.5.0';
 
 // 语法支持
 export {
@@ -8,6 +8,27 @@ export {
   latexHighlightStyle,
   latexBase,
 } from './latex/language';
+
+// BibTeX 语法支持（.bib 文件模式）
+export {
+  bibLanguage,
+  bibHighlightStyle,
+  bibBase,
+  bibStartState,
+  bibToken,
+  type BibState,
+} from './latex/bibLanguage';
+
+// 数学公式实时预览（KaTeX）
+export {
+  extractMathSpans,
+  renderMathPreview,
+  clearMathPreviewCache,
+  createMathPreviewElement,
+  type MathSpan,
+  type MathPreviewResult,
+  type RenderToStringFn,
+} from './latex/mathPreview';
 
 // 纯函数解析器
 export {

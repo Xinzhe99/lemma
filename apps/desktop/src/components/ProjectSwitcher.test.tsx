@@ -2,7 +2,7 @@
 /**
  * 测试环境说明同 QuickOpen.test.tsx：mock zustand 为仅依赖本包 react@18 的等价实现。
  * 覆盖：挂载写 __current__ 临时记录并置顶 / 一键转正式 / 保存（默认名、同名覆盖、空名回退）/
- * 列表行内容 / 打开（恢复 workspaceStore + onClose）/ 行内重命名 / 复制 / 删除（confirm）/
+ * 列表行内容 / 打开（恢复 workspaceStore + onClose）/ 行内重命名 / 复制 / 删除（应用内确认对话框）/
  * 新建空白项目 / Esc 与遮罩关闭 / zh-en 字典。
  */
 import { act } from 'react';
@@ -47,6 +47,7 @@ vi.mock('zustand', async () => {
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { CURRENT_PROJECT_ID, useProjectsStore } from '../state/projectsStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -120,6 +121,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  useUiStore.getState().closeTextDialog();
   const r = root;
   if (r) act(() => r.unmount());
   container?.remove();
@@ -233,18 +235,32 @@ describe('ProjectSwitcher', () => {
     expect(formalNames()).toEqual(['A 副本', 'A']);
   });
 
-  it('删除：confirm 确认后移除；confirm 取消则保留', () => {
+  it('删除：应用内确认对话框确认后移除；取消则保留', async () => {
     act(() => {
       useProjectsStore.getState().saveCurrent('A');
     });
-    const spy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    // 打开确认对话框（confirm 模式，标题含项目名与不可撤销提示）
     click(btn('删除', rowOf('A')));
-    expect(spy).toHaveBeenCalledTimes(1);
+    const req = useUiStore.getState().textDialog;
+    expect(req?.mode).toBe('confirm');
+    expect(req?.title).toContain('A');
+
+    // 取消（resolve null）：项目保留
+    req!.resolve(null);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
     expect(formalNames()).toEqual(['A']);
 
-    spy.mockReturnValue(true);
+    // 确认：项目移除
     click(btn('删除', rowOf('A')));
+    await act(async () => {
+      useUiStore.getState().textDialog!.resolve('');
+      await new Promise((r) => setTimeout(r, 0));
+    });
     expect(formalNames()).toEqual([]);
+    useUiStore.getState().closeTextDialog();
   });
 
   it('新建空白项目：载入最小可编译模板并 onClose', () => {
