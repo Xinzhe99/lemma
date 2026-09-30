@@ -37,6 +37,16 @@ export {
 export { lintLatex } from './lint';
 export type { LintIssue, LintSeverity, LintOptions } from './lint';
 
+// 可视化表格：tabular 解析/生成（表格编辑器数据层）
+export {
+  parseTabular,
+  gridToTabular,
+  escapeCell,
+  type TabularGrid,
+  type TabularParseError,
+  type TabularParseResult,
+} from './tablegen';
+
 // 主题
 export { scholarforgeTheme, EDITOR_COLORS } from './latex/theme';
 

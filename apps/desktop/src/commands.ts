@@ -57,6 +57,18 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().requestZipPicker(),
     },
     {
+      id: 'project.switch',
+      title: '切换 / 管理项目',
+      hint: '项目',
+      run: () => useUiStore.getState().setProjectSwitcherOpen(true),
+    },
+    {
+      id: 'table.insert',
+      title: '插入表格（可视化编辑器）',
+      hint: '编辑',
+      run: () => useUiStore.getState().setTableEditorOpen(true),
+    },
+    {
       id: 'file.new',
       title: ctx.t('cmd.newFile'),
       hint: ctx.t('hint.file'),

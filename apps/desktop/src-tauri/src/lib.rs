@@ -2,12 +2,12 @@
  * ScholarForge Tauri 壳（Rust 侧）。
  *
  * 桥接约定与 apps/desktop/src/platform/tauri.ts 一一对应：
- * - fs_read / fs_write / fs_delete / fs_list：项目虚拟文件系统（数据目录下的相对路径）
+ * - fs_read / fs_read_base64 / fs_write / fs_delete / fs_list：项目虚拟文件系统（数据目录下的相对路径）
  * - secret_get / secret_set：API key 存取（当前为数据目录 JSON 文件；正式版换 OS keychain）
  * - proc_run：阻塞式命令执行（Tectonic/latexmk 编译与一次性 CLI agent 调用；流式 spawn 属后续增量）
  *
- * 边界说明：项目文件均为文本（LaTeX 工程）；若出现非 UTF-8 二进制，
- * fs_read 以 lossy 解码返回并在内容上无法保证字节精确（PDF 不走平台 fs，不受影响）。
+ * 边界说明：项目文件均为文本（LaTeX 工程），fs_read 以 UTF-8 读取；
+ * 二进制产物（编译得到的 PDF）经 fs_read_base64 以 base64 编码返回，由前端解码为字节。
  */
 
 use std::collections::BTreeMap;
@@ -15,6 +15,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use tauri::Manager;
 
 fn base_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -80,6 +82,17 @@ fn fs_read(app: tauri::AppHandle, path: String) -> Result<String, String> {
     }
     let bytes = fs::read(&target).map_err(|e| e.to_string())?;
     Ok(String::from_utf8_lossy(&bytes).to_string())
+}
+
+#[tauri::command]
+fn fs_read_base64(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let rel = safe_rel(&path)?;
+    let target = base_dir(&app).join(&rel);
+    if !target.is_file() {
+        return Err(format!("文件不存在：{rel}"));
+    }
+    let bytes = fs::read(&target).map_err(|e| e.to_string())?;
+    Ok(BASE64_STANDARD.encode(bytes))
 }
 
 #[tauri::command]
@@ -180,6 +193,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             fs_read,
+            fs_read_base64,
             fs_write,
             fs_delete,
             fs_list,

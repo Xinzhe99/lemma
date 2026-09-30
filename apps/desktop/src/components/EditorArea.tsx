@@ -6,13 +6,17 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Table } from 'lucide-react';
 import { EditorView, LatexEditor } from '@scholarforge/editor';
 import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { useUiStore } from '../state/uiStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { bibEntries } from '../projectDoc';
 import { setJumpHandler, stashPendingJump, takePendingJump } from '../editorJump';
+import { setInsertHandler } from '../editorInsert';
 import { polishSelection, quickAsk } from '../aiActions';
 import { StatusBar } from './StatusBar';
 
@@ -80,6 +84,45 @@ export function EditorArea() {
     return () => setJumpHandler(null);
   }, [openFile]);
 
+  // 表格代码插入桥：TableEditor 经 insertAtCursor 把 tabular 写入当前编辑器光标处；卸载清理
+  useEffect(() => {
+    setInsertHandler((code) => {
+      const view = viewRef.current;
+      if (!view) return;
+      view.dispatch(view.state.replaceSelection(code));
+      view.focus();
+    });
+    return () => setInsertHandler(null);
+  }, []);
+
+  // 标签栏动作位「表格」按钮：动作区渲染在 App 内的 EditorTabs（本工作流不改 App），
+  // 用 portal 注入 .tabbar-actions（润色/历史 旁）；PDF 页签替换标签栏时自动隐藏。
+  const language = useSettingsStore((s) => s.language);
+  const [tabActionsHost, setTabActionsHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const sync = () => setTabActionsHost(document.querySelector<HTMLElement>('.tabbar-actions'));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+  const tableAction = tabActionsHost ? (
+    createPortal(
+      <button
+        className="tab-action"
+        title={
+          language === 'en'
+            ? 'Visual table editor (insert tabular at cursor)'
+            : '可视化表格编辑器（插入 tabular 到光标处）'
+        }
+        onClick={() => useUiStore.getState().setTableEditorOpen(true)}
+      >
+        <Table size={13} /> {language === 'en' ? 'Table' : '表格'}
+      </button>,
+      tabActionsHost,
+    )
+  ) : null;
+
   const citations = useMemo(() => {
     const seen = new Set<string>();
     const push = (c: { citekey: string; title: string; year?: number }) =>
@@ -97,6 +140,7 @@ export function EditorArea() {
   if (!activeTab) {
     return (
       <div className="sf-editor-host" style={{ display: 'flex', flexDirection: 'column' }}>
+        {tableAction}
         <div className="sf-editor-placeholder" style={{ flex: 1, minHeight: 0, justifyContent: 'center' }}>
           <p className="placeholder">{t('editor.pending')}</p>
         </div>
@@ -108,6 +152,7 @@ export function EditorArea() {
   if (!TEXT_EXT.test(activeTab)) {
     return (
       <div className="sf-editor-host" style={{ display: 'flex', flexDirection: 'column' }}>
+        {tableAction}
         <div
           className="sf-editor-placeholder"
           style={{ flex: 1, minHeight: 0, justifyContent: 'center' }}
@@ -124,6 +169,7 @@ export function EditorArea() {
 
   return (
     <div className="sf-editor-host" style={{ display: 'flex', flexDirection: 'column' }}>
+      {tableAction}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         {selectionText && activeTab.endsWith('.tex') && (
           <div className="sf-selbar">

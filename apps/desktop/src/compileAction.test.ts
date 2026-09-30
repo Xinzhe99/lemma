@@ -1,0 +1,211 @@
+/**
+ * 编译动作单测：引擎探测/选择、PDF 产物路径推算、文件物化、错误跳转定位、
+ * base64 解码（PDF 读回）与浏览器形态 MockEngine 回退。
+ * 全程不依赖真实进程：--version 探测结果一律以 ExecOutcome 注入。
+ */
+
+import { describe, expect, it, afterEach } from 'vitest';
+import type { Diagnostic } from '@scholarforge/shared';
+import {
+  detectEngine,
+  firstErrorJump,
+  materializeProjectFiles,
+  pdfTargetFor,
+  probeFromError,
+  probeFromRun,
+  runCompile,
+} from './compileAction';
+import { base64ToBytes, tauriReadBase64 } from './platform/tauri';
+import { useWorkspaceStore } from './state/workspaceStore';
+import { jumpTo, setJumpHandler } from './editorJump';
+
+const ok = (text = 'Tectonic 0.15.0'): { ok: boolean; text: string } => ({ ok: true, text });
+const bad = (text = '无法启动命令'): { ok: boolean; text: string } => ({ ok: false, text });
+
+describe('detectEngine（探测结果注入，不依赖真实进程）', () => {
+  it('tectonic 可用时优先选择 tectonic', () => {
+    expect(detectEngine({ tectonic: ok(), latexmk: bad() })).toBe('tectonic');
+    expect(detectEngine({ tectonic: ok(), latexmk: ok() })).toBe('tectonic');
+  });
+
+  it('tectonic 不可用、latexmk 可用时选择 latexmk', () => {
+    expect(detectEngine({ tectonic: bad(), latexmk: ok('latexmk 4.81 (TeX Live 2024)') })).toBe('latexmk');
+  });
+
+  it('两者都不可用返回 null（应回退模拟引擎）', () => {
+    expect(detectEngine({ tectonic: bad(), latexmk: bad() })).toBeNull();
+  });
+});
+
+describe('探测结果构造', () => {
+  it('probeFromRun：退出码 0 即可用，stdout/stderr 合并为 text', () => {
+    expect(probeFromRun({ code: 0, stdout: 'tectonic 0.15.0\n', stderr: '' })).toEqual({
+      ok: true,
+      text: 'tectonic 0.15.0',
+    });
+  });
+
+  it('probeFromRun：非 0 退出码不可用', () => {
+    const r = probeFromRun({ code: 1, stdout: '', stderr: 'not found' });
+    expect(r.ok).toBe(false);
+    expect(r.text).toContain('not found');
+  });
+
+  it('probeFromError：命令无法启动视为不可用，text 为错误消息', () => {
+    expect(probeFromError(new Error('无法启动命令 tectonic'))).toEqual({ ok: false, text: '无法启动命令 tectonic' });
+    expect(probeFromError('boom')).toEqual({ ok: false, text: 'boom' });
+  });
+});
+
+describe('pdfTargetFor（入口 → 产物 PDF 路径）', () => {
+  it('标准入口 main.tex → main.pdf', () => {
+    expect(pdfTargetFor('main.tex')).toBe('main.pdf');
+  });
+
+  it('无扩展名与子目录入口均按去扩展名推算', () => {
+    expect(pdfTargetFor('paper')).toBe('paper.pdf');
+    expect(pdfTargetFor('sections/paper.tex')).toBe('sections/paper.pdf');
+    expect(pdfTargetFor('Main.TEX')).toBe('Main.pdf');
+  });
+});
+
+describe('materializeProjectFiles（编译前物化项目文件）', () => {
+  it('写入全部文本文件并返回数量', async () => {
+    const written: [string, string][] = [];
+    const n = await materializeProjectFiles(
+      { 'main.tex': 'A', 'sections/intro.tex': 'B', 'refs.bib': 'C' },
+      async (p, c) => {
+        written.push([p, c]);
+      },
+    );
+    expect(n).toBe(3);
+    expect(written).toEqual([
+      ['main.tex', 'A'],
+      ['sections/intro.tex', 'B'],
+      ['refs.bib', 'C'],
+    ]);
+  });
+
+  it('跳过二进制条目（Uint8Array 不参与文本物化）', async () => {
+    const written: string[] = [];
+    const n = await materializeProjectFiles(
+      { 'main.tex': 'A', 'logo.png': new Uint8Array([1, 2, 3]) },
+      async (p) => {
+        written.push(p);
+      },
+    );
+    expect(n).toBe(1);
+    expect(written).toEqual(['main.tex']);
+  });
+
+  it('写盘失败时异常上抛（由编排层降级回退）', async () => {
+    await expect(
+      materializeProjectFiles({ 'main.tex': 'A' }, async () => {
+        throw new Error('磁盘已满');
+      }),
+    ).rejects.toThrow('磁盘已满');
+  });
+});
+
+describe('firstErrorJump（编译错误跳转定位）', () => {
+  const d = (over: Partial<Diagnostic> & { severity: Diagnostic['severity']; message: string }): Diagnostic => over as Diagnostic;
+
+  it('选中第一条 error 级且带 file+line 的诊断', () => {
+    const diags: Diagnostic[] = [
+      d({ severity: 'warning', message: 'w', file: 'main.tex', line: 3 }),
+      d({ severity: 'error', message: 'e1', file: 'main.tex', line: 12 }),
+      d({ severity: 'error', message: 'e2', file: 'other.tex', line: 5 }),
+    ];
+    expect(firstErrorJump(diags)).toEqual({ file: 'main.tex', line: 12 });
+  });
+
+  it('仅 warning 或缺少 file/line 的 error 不触发跳转', () => {
+    expect(
+      firstErrorJump([d({ severity: 'warning', message: 'w', file: 'main.tex', line: 3 })]),
+    ).toBeNull();
+    expect(firstErrorJump([d({ severity: 'error', message: 'e', file: 'main.tex' })])).toBeNull();
+    expect(firstErrorJump([d({ severity: 'error', message: 'e', line: 4 })])).toBeNull();
+    expect(firstErrorJump([])).toBeNull();
+  });
+});
+
+describe('base64ToBytes（PDF 产物读回的解码）', () => {
+  it('标准向量：空串 / 1-3 字节 padding 对齐', () => {
+    expect(base64ToBytes('')).toEqual(new Uint8Array(0));
+    expect(base64ToBytes('QQ==')).toEqual(new Uint8Array([0x41]));
+    expect(base64ToBytes('QUI=')).toEqual(new Uint8Array([0x41, 0x42]));
+    expect(base64ToBytes('QUJD')).toEqual(new Uint8Array([0x41, 0x42, 0x43]));
+  });
+
+  it('缺省 padding 与空白字符可容忍', () => {
+    expect(base64ToBytes('QQ')).toEqual(new Uint8Array([0x41]));
+    expect(base64ToBytes('QUJD\n R0Y=')).toEqual(new Uint8Array([0x41, 0x42, 0x43, 0x47, 0x46]));
+  });
+
+  it('全字节域往返（0-255）', () => {
+    const bytes = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) bytes[i] = i;
+    const encoded = Buffer.from(bytes).toString('base64');
+    expect(base64ToBytes(encoded)).toEqual(bytes);
+  });
+
+  it('非法字符抛错', () => {
+    expect(() => base64ToBytes('**')).toThrow('base64 解码失败');
+  });
+});
+
+describe('浏览器形态 runCompile（MockEngine，行为不变）', () => {
+  afterEach(() => {
+    setJumpHandler(null);
+  });
+
+  it('无 Tauri 桥时走 MockEngine 并产出成功结果与模拟日志', async () => {
+    useWorkspaceStore.setState({
+      projectName: 'test',
+      entry: 'main.tex',
+      files: { 'main.tex': '\\documentclass{article}\n\\begin{document}hi\\end{document}\n' },
+      openTabs: ['main.tex'],
+      activeTab: 'main.tex',
+      snapshots: {},
+      compileLog: [],
+      compileStatus: 'idle',
+    });
+    const result = await runCompile();
+    expect(result).toMatchObject({ ok: true, entry: 'main.tex', diagnostics: 0 });
+    expect(result.passes).toBeGreaterThanOrEqual(1);
+    const log = useWorkspaceStore.getState().compileLog.join('\n');
+    expect(log).toContain('模拟引擎');
+    expect(useWorkspaceStore.getState().compileStatus).toBe('ok');
+  });
+
+  it('error 级诊断存在时经 jumpTo 桥跳转到首个出错行', () => {
+    const jumps: { file: string; line: number }[] = [];
+    setJumpHandler((t) => jumps.push(t));
+    // runCompile 的真实/模拟两条路径在拿到诊断后都用 firstErrorJump 定位并调用 jumpTo
+    const target = firstErrorJump([
+      { severity: 'error', message: 'Undefined control sequence', file: 'main.tex', line: 9 },
+    ]);
+    expect(target).toEqual({ file: 'main.tex', line: 9 });
+    jumpTo(target!);
+    expect(jumps).toEqual([{ file: 'main.tex', line: 9 }]);
+  });
+});
+
+describe('tauriReadBase64（Tauri 桥注入）', () => {
+  const g = globalThis as unknown as { window?: unknown };
+
+  afterEach(() => {
+    delete g.window;
+  });
+
+  it('桥存在时读回 base64 并解码为字节', async () => {
+    const fake = Buffer.from([0x25, 0x50, 0x44, 0x46]).toString('base64'); // %PDF
+    g.window = { __TAURI__: { core: { invoke: async (cmd: string) => (cmd === 'fs_read_base64' ? fake : '') } } };
+    const bytes = await tauriReadBase64('main.pdf');
+    expect(Array.from(bytes)).toEqual([0x25, 0x50, 0x44, 0x46]);
+  });
+
+  it('桥不存在时抛中文错误「待 Tauri 桥接」', async () => {
+    await expect(tauriReadBase64('main.pdf')).rejects.toThrow('待 Tauri 桥接');
+  });
+});

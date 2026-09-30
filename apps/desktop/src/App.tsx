@@ -3,7 +3,7 @@
  * 六条工作流已集成：WS-A 编辑器、WS-B 编译、WS-C 文献库与阅读、WS-D Agent 中枢、WS-E 知识底座、WS-F 应用设施。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BookOpen,
   Brain,
@@ -67,6 +67,10 @@ export function App() {
   const setCenterView = useUiStore((s) => s.setCenterView);
   const templateWizardOpen = useUiStore((s) => s.templateWizardOpen);
   const historyOpen = useUiStore((s) => s.historyOpen);
+  const tableEditorOpen = useUiStore((s) => s.tableEditorOpen);
+  const setTableEditorOpen = useUiStore((s) => s.setTableEditorOpen);
+  const projectSwitcherOpen = useUiStore((s) => s.projectSwitcherOpen);
+  const setProjectSwitcherOpen = useUiStore((s) => s.setProjectSwitcherOpen);
   const setHistoryOpen = useUiStore((s) => s.setHistoryOpen);
   const quickOpenOpen = useUiStore((s) => s.quickOpenOpen);
   const setQuickOpenOpen = useUiStore((s) => s.setQuickOpenOpen);
@@ -340,7 +344,13 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">ScholarForge</div>
-        <span className="sf-project-name">{projectName}</span>
+        <button
+          className="sf-project-name"
+          title="切换 / 管理项目"
+          onClick={() => useUiStore.getState().setProjectSwitcherOpen(true)}
+        >
+          {projectName || '未命名项目'}
+        </button>
         <button className="palette-trigger" onClick={() => setPaletteOpen(true)}>
           {t('palette.trigger')} <kbd>⌘K</kbd>
         </button>
@@ -428,7 +438,55 @@ export function App() {
 
       {historyOpen && <SnapshotDialog onClose={() => setHistoryOpen(false)} />}
 
+      {tableEditorOpen && <LazyFeatureDialog file="TableEditor" onClose={() => setTableEditorOpen(false)} />}
+
+      {projectSwitcherOpen && <LazyFeatureDialog file="ProjectSwitcher" onClose={() => setProjectSwitcherOpen(false)} />}
+
       {toast && <div className="sf-toast">{toast}</div>}
     </div>
   );
+}
+
+/**
+ * 并行功能对话框的懒加载挂载点：模块由并行工作流提供（components/TableEditor.tsx、
+ * components/ProjectSwitcher.tsx），约定导出与文件名同名、props 为 { onClose: () => void }。
+ * glob 容忍文件暂缺（构建不报错），加载失败显示占位卡。
+ */
+function LazyFeatureDialog({ file, onClose }: { file: 'TableEditor' | 'ProjectSwitcher'; onClose: () => void }) {
+  const modules = import.meta.glob<Record<string, unknown>>('./components/{TableEditor,ProjectSwitcher}.tsx');
+  const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const loader = modules[`./components/${file}.tsx`];
+    if (!loader) {
+      setFailed(true);
+      return;
+    }
+    loader()
+      .then((mod) => {
+        const exported = mod[file];
+        // 注意：setState 传函数会被 React 当作 updater 调用，必须再包一层函数式更新
+        if (alive && typeof exported === 'function') setComp(() => exported as ComponentType<{ onClose: () => void }>);
+        else if (alive) setFailed(true);
+      })
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
+  if (failed) {
+    return (
+      <div className="sf-dialog-overlay" onMouseDown={onClose}>
+        <div className="sf-dialog" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="sf-dialog-body">
+            <p className="placeholder">组件加载失败（{file}）—— 请确认对应工作流已合入。</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!Comp) return <p className="placeholder" style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 200 }}>加载中…</p>;
+  return <Comp onClose={onClose} />;
 }

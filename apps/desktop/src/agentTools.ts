@@ -196,7 +196,7 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         entry: result.entry,
         passes: result.passes,
         diagnostics: result.diagnostics,
-        note: '结果与日志见编译输出面板（桌面 Tauri 形态为真实 Tectonic 编译）',
+        note: '桌面形态为真实编译（tectonic/latexmk），成功后自动打开 PDF 预览',
       };
     },
     'submission.checklist': async (args) => {

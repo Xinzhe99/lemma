@@ -43,6 +43,10 @@ interface UiState {
   shortcutsOpen: boolean;
   /** 编辑器当前选中文本（选中即问工具条数据源；空串表示无选区） */
   selectionText: string;
+  /** 可视化表格编辑器（命令面板触发，App 懒加载挂载） */
+  tableEditorOpen: boolean;
+  /** 多项目管理器（顶栏项目名 / 命令面板触发） */
+  projectSwitcherOpen: boolean;
 
   setSidebarTab(tab: SidebarTab): void;
   setKnowledgeTab(tab: KnowledgeTab): void;
@@ -61,6 +65,8 @@ interface UiState {
   setQuickOpenOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
   setSelectionText(text: string): void;
+  setTableEditorOpen(open: boolean): void;
+  setProjectSwitcherOpen(open: boolean): void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -80,6 +86,8 @@ export const useUiStore = create<UiState>((set) => ({
   quickOpenOpen: false,
   shortcutsOpen: false,
   selectionText: '',
+  tableEditorOpen: false,
+  projectSwitcherOpen: false,
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setKnowledgeTab: (tab) => set({ knowledgeTab: tab }),
@@ -97,4 +105,6 @@ export const useUiStore = create<UiState>((set) => ({
   setQuickOpenOpen: (open) => set({ quickOpenOpen: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
   setSelectionText: (text) => set({ selectionText: text }),
+  setTableEditorOpen: (open) => set({ tableEditorOpen: open }),
+  setProjectSwitcherOpen: (open) => set({ projectSwitcherOpen: open }),
 }));
