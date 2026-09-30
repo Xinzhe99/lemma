@@ -27,6 +27,10 @@ interface WorkspaceSnapshot {
 export interface WorkspaceState extends WorkspaceSnapshot {
   compileLog: string[];
   compileStatus: CompileStatus;
+  /** 编辑器内容有未落盘的改动（updateFile 置 true，持久化写盘成功后置 false） */
+  dirty: boolean;
+  /** 最近一次持久化写盘成功的时间戳；尚未保存过为 null */
+  lastSavedAt: number | null;
   loadDemoProject(): void;
   /** 载入一个完整项目（模板向导脚手架产出） */
   loadProject(name: string, entry: string, files: Record<string, string>): void;
@@ -179,9 +183,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   snapshots: {},
   compileLog: [],
   compileStatus: 'idle',
+  dirty: false,
+  lastSavedAt: null,
 
   loadDemoProject() {
-    set({ ...demoSnapshot(), compileLog: [], compileStatus: 'idle' });
+    set({ ...demoSnapshot(), compileLog: [], compileStatus: 'idle', dirty: false, lastSavedAt: null });
   },
 
   loadProject(name, entry, files) {
@@ -195,6 +201,8 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
       snapshots: {},
       compileLog: [],
       compileStatus: 'idle',
+      dirty: false,
+      lastSavedAt: null,
     });
   },
 
@@ -221,7 +229,9 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   },
 
   updateFile(path, content) {
-    set((s) => (path in s.files ? { files: { ...s.files, [path]: content } } : s));
+    set((s) =>
+      path in s.files ? { files: { ...s.files, [path]: content }, dirty: true } : s,
+    );
   },
 
   createFile(path, content = '') {
@@ -325,8 +335,15 @@ useWorkspaceStore.subscribe((s) => {
     lastPersisted = json;
     getPlatform()
       .fs.writeFile(WORKSPACE_FILE, json)
+      .then(() => {
+        // 写盘成功：仅当期间没有新改动（当前快照与写盘内容一致）时标记已保存，
+        // 避免写盘进行中的编辑被误标为 "✓ 已保存"。
+        if (JSON.stringify(snapshot(useWorkspaceStore.getState())) === json) {
+          useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
+        }
+      })
       .catch(() => {
-        /* 持久化失败不打断 UI */
+        /* 持久化失败不打断 UI（dirty 保持 true） */
       });
   }, PERSIST_DEBOUNCE_MS);
 });
@@ -353,6 +370,8 @@ export async function initWorkspace(): Promise<void> {
       snapshots,
       compileLog: [],
       compileStatus: 'idle',
+      dirty: false,
+      lastSavedAt: null,
     });
   } catch {
     useWorkspaceStore.getState().loadDemoProject();

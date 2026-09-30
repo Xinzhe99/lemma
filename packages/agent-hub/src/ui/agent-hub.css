@@ -1,11 +1,18 @@
+/*
+ * agent-hub UI：ChatPanel / DiffApproval / WorkflowRunView。
+ * 配色走宿主全局 Codex 主题变量（--bg-* / --fg-* / --border / --btn-* 等，
+ * 由 apps/desktop styles.css 在 :root 与 [data-theme='dark'] 提供），并附
+ * 亮色 fallback，独立于宿主使用时保持 Codex 亮色风格。
+ */
+
 .sf-ah-chat {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--sf-ah-bg, #ffffff);
-  color: var(--sf-ah-fg, #1f2328);
-  font-size: 14px;
+  background: var(--bg-0, #ffffff);
+  color: var(--fg-0, #1a1a1a);
+  font-size: 13px;
 }
 
 .sf-ah-msgs {
@@ -21,7 +28,7 @@
 .sf-ah-msg {
   max-width: 86%;
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -29,27 +36,29 @@
 
 .sf-ah-msg--user {
   align-self: flex-end;
-  background: var(--sf-ah-user-bg, #2563eb);
-  color: #ffffff;
+  /* Codex 标志性黑色气泡 */
+  background: var(--btn-bg, #0d0d0d);
+  color: var(--btn-fg, #ffffff);
 }
 
 .sf-ah-msg--assistant {
   align-self: flex-start;
-  background: var(--sf-ah-assistant-bg, #f1f3f7);
+  background: var(--bg-3, #f0f0f2);
+  color: var(--fg-0, #1a1a1a);
 }
 
 .sf-ah-msg--system {
   align-self: center;
   background: transparent;
-  color: var(--sf-ah-muted, #6a737d);
+  color: var(--fg-2, #a0a0aa);
   font-size: 12px;
-  border: 1px dashed var(--sf-ah-border, #d0d7de);
+  border: 1px dashed var(--border, #e9e9ec);
 }
 
 .sf-ah-msg--tool {
   align-self: stretch;
   background: transparent;
-  color: var(--sf-ah-muted, #6a737d);
+  color: var(--fg-1, #70707a);
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
@@ -60,7 +69,7 @@
   height: 15px;
   margin-left: 2px;
   vertical-align: text-bottom;
-  background: var(--sf-ah-fg, #1f2328);
+  background: var(--fg-0, #1a1a1a);
   animation: sf-ah-blink 0.9s steps(2) infinite;
 }
 
@@ -72,9 +81,9 @@
 
 .sf-ah-toolcard {
   margin-top: 6px;
-  border: 1px solid var(--sf-ah-border, #d0d7de);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-2, #ffffff);
   overflow: hidden;
 }
 
@@ -83,16 +92,17 @@
   gap: 8px;
   align-items: center;
   padding: 6px 10px;
-  background: var(--sf-ah-assistant-bg, #f1f3f7);
+  background: var(--bg-3, #f0f0f2);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
+  color: var(--fg-0, #1a1a1a);
 }
 
 .sf-ah-toolcard-badge {
   padding: 1px 6px;
   border-radius: 999px;
-  background: var(--sf-ah-user-bg, #2563eb);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--accent, #10a37f) 12%, transparent);
+  color: var(--accent-dim, #0b815f);
   font-size: 11px;
 }
 
@@ -100,19 +110,19 @@
   padding: 4px 10px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
-  color: var(--sf-ah-muted, #6a737d);
+  color: var(--fg-2, #a0a0aa);
   word-break: break-all;
 }
 
 .sf-ah-toolcard details {
-  border-top: 1px dashed var(--sf-ah-border, #d0d7de);
+  border-top: 1px dashed var(--border, #e9e9ec);
 }
 
 .sf-ah-toolcard summary {
   cursor: pointer;
   padding: 4px 10px;
   font-size: 12px;
-  color: var(--sf-ah-muted, #6a737d);
+  color: var(--fg-2, #a0a0aa);
 }
 
 .sf-ah-toolcard pre {
@@ -121,14 +131,15 @@
   max-height: 220px;
   overflow: auto;
   font-size: 12px;
-  background: #f6f8fa;
+  background: var(--bg-1, #f7f7f8);
+  color: var(--fg-1, #70707a);
 }
 
 .sf-ah-input {
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  border-top: 1px solid var(--sf-ah-border, #d0d7de);
+  border-top: 1px solid var(--border, #e9e9ec);
 }
 
 .sf-ah-input textarea {
@@ -137,29 +148,55 @@
   min-height: 40px;
   max-height: 140px;
   padding: 8px 10px;
-  border: 1px solid var(--sf-ah-border, #d0d7de);
-  border-radius: 8px;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-2, #ffffff);
+  color: var(--fg-0, #1a1a1a);
   font: inherit;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.sf-ah-input textarea:focus {
+  outline: none;
+  border-color: var(--accent, #10a37f);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(16, 163, 127, 0.25));
 }
 
 .sf-ah-btn {
   padding: 6px 14px;
-  border: 1px solid var(--sf-ah-border, #d0d7de);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-2, #ffffff);
+  color: var(--fg-0, #1a1a1a);
   cursor: pointer;
   font: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.sf-ah-btn:hover {
+  background: var(--bg-3, #f0f0f2);
+  border-color: var(--border-strong, #d9d9de);
 }
 
 .sf-ah-btn--primary {
-  background: var(--sf-ah-user-bg, #2563eb);
-  border-color: var(--sf-ah-user-bg, #2563eb);
-  color: #ffffff;
+  background: var(--btn-bg, #0d0d0d);
+  border-color: var(--btn-bg, #0d0d0d);
+  color: var(--btn-fg, #ffffff);
+}
+
+.sf-ah-btn--primary:hover {
+  background: var(--btn-hover, #2a2a2a);
+  border-color: var(--btn-hover, #2a2a2a);
 }
 
 .sf-ah-btn--danger {
-  color: #cf222e;
-  border-color: #cf222e;
+  color: var(--err, #d9534f);
+  border-color: color-mix(in srgb, var(--err, #d9534f) 45%, var(--border, #e9e9ec));
+}
+
+.sf-ah-btn--danger:hover {
+  background: color-mix(in srgb, var(--err, #d9534f) 8%, transparent);
+  border-color: var(--err, #d9534f);
 }
 
 .sf-ah-btn:disabled {
@@ -169,16 +206,18 @@
 
 /* ---- diff 审批卡 ---- */
 .sf-ah-diffcard {
-  border: 1px solid var(--sf-ah-border, #d0d7de);
-  border-radius: 10px;
-  background: #ffffff;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: 12px;
+  background: var(--bg-2, #ffffff);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(0, 0, 0, 0.05));
   overflow: hidden;
 }
 
 .sf-ah-diffcard-title {
   padding: 8px 12px;
   font-weight: 600;
-  border-bottom: 1px solid var(--sf-ah-border, #d0d7de);
+  border-bottom: 1px solid var(--border, #e9e9ec);
+  color: var(--fg-0, #1a1a1a);
 }
 
 .sf-ah-diffcard pre {
@@ -189,7 +228,8 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
   line-height: 1.55;
-  background: #f6f8fa;
+  background: var(--bg-1, #f7f7f8);
+  color: var(--fg-1, #70707a);
 }
 
 .sf-ah-diff-line {
@@ -199,27 +239,28 @@
 }
 
 .sf-ah-diff-line--add {
-  background: #dafbe1;
-  color: #116329;
+  background: color-mix(in srgb, var(--ok, #10a37f) 12%, transparent);
+  color: var(--cm-diff-add-fg, #157347);
 }
 
 .sf-ah-diff-line--del {
-  background: #ffebe9;
-  color: #82071e;
+  background: color-mix(in srgb, var(--err, #d9534f) 10%, transparent);
+  color: var(--cm-diff-del-fg, #b03a36);
 }
 
 .sf-ah-diffcard-actions {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid var(--sf-ah-border, #d0d7de);
+  border-top: 1px solid var(--border, #e9e9ec);
 }
 
 /* ---- 工作流运行视图 ---- */
 .sf-ah-flow {
-  border: 1px solid var(--sf-ah-border, #d0d7de);
-  border-radius: 10px;
-  background: #ffffff;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: 12px;
+  background: var(--bg-2, #ffffff);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(0, 0, 0, 0.05));
   padding: 8px 12px;
 }
 
@@ -237,15 +278,15 @@
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius, 8px);
 }
 
 .sf-ah-flow-step--running {
-  background: #fff8c5;
+  background: color-mix(in srgb, var(--warn, #b8860b) 10%, transparent);
 }
 
 .sf-ah-flow-step--failed {
-  background: #ffebe9;
+  background: color-mix(in srgb, var(--err, #d9534f) 10%, transparent);
 }
 
 .sf-ah-dot {
@@ -256,24 +297,24 @@
 }
 
 .sf-ah-dot--pending {
-  background: #d0d7de;
+  background: var(--border-strong, #d9d9de);
 }
 
 .sf-ah-dot--running {
-  background: #bf8700;
+  background: var(--warn, #b8860b);
   animation: sf-ah-pulse 1.2s ease-in-out infinite;
 }
 
 .sf-ah-dot--done {
-  background: #1a7f37;
+  background: var(--ok, #10a37f);
 }
 
 .sf-ah-dot--failed {
-  background: #cf222e;
+  background: var(--err, #d9534f);
 }
 
 .sf-ah-dot--checkpoint {
-  background: #8250df;
+  background: var(--violet, #8e6bd8);
 }
 
 @keyframes sf-ah-pulse {
@@ -284,16 +325,17 @@
 
 .sf-ah-flow-name {
   flex: 1;
+  color: var(--fg-0, #1a1a1a);
 }
 
 .sf-ah-flow-status {
   font-size: 12px;
-  color: var(--sf-ah-muted, #6a737d);
+  color: var(--fg-2, #a0a0aa);
 }
 
 .sf-ah-flow-checkpoint {
-  border-color: #8250df;
-  color: #8250df;
+  border-color: var(--violet, #8e6bd8);
+  color: var(--violet, #8e6bd8);
 }
 
 /* ---- 成本徽章 ---- */
@@ -303,8 +345,8 @@
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f1f3f7;
+  background: var(--bg-3, #f0f0f2);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--sf-ah-fg, #1f2328);
+  color: var(--fg-0, #1a1a1a);
 }

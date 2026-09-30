@@ -1,5 +1,33 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspaceStore } from './workspaceStore';
+
+// 持久化写盘改为可控挂起：手动放行以确定性验证 dirty 生命周期（成功回调）。
+const pendingWrites = vi.hoisted(() => [] as (() => void)[]);
+vi.mock('../platform/types', () => ({
+  getPlatform: () => ({
+    kind: 'browser' as const,
+    fs: {
+      async readFile() {
+        throw new Error('测试环境无快照');
+      },
+      writeFile() {
+        return new Promise<void>((resolve) => {
+          pendingWrites.push(resolve);
+        });
+      },
+      async deleteFile() {},
+      async list() {
+        return [];
+      },
+    },
+    secrets: {
+      async get() {
+        return undefined;
+      },
+      async set() {},
+    },
+  }),
+}));
 
 function reset() {
   useWorkspaceStore.setState({
@@ -10,7 +38,16 @@ function reset() {
     activeTab: null,
     compileLog: [],
     compileStatus: 'idle',
+    dirty: false,
+    lastSavedAt: null,
   });
+}
+
+/** 等待防抖（300ms）定时器与微任务链：写盘发起 → 成功回调入队执行 */
+const afterDebounce = () => new Promise((r) => setTimeout(r, 350));
+
+function flushWrites() {
+  pendingWrites.splice(0).forEach((resolve) => resolve());
 }
 
 beforeEach(reset);
@@ -119,5 +156,61 @@ describe('workspaceStore 编译日志', () => {
     expect(useWorkspaceStore.getState().compileLog).toEqual([]);
     s.setCompileStatus('ok');
     expect(useWorkspaceStore.getState().compileStatus).toBe('ok');
+  });
+});
+
+describe('workspaceStore 保存状态（dirty 生命周期）', () => {
+  beforeEach(() => {
+    useWorkspaceStore.getState().loadDemoProject();
+    useWorkspaceStore.setState({ dirty: false, lastSavedAt: null });
+  });
+
+  it('updateFile 置 dirty=true（未知路径不置位）', () => {
+    useWorkspaceStore.getState().updateFile('main.tex', 'dirty 生命周期 v1');
+    expect(useWorkspaceStore.getState().dirty).toBe(true);
+    useWorkspaceStore.getState().updateFile('ghost.tex', 'x');
+    expect(useWorkspaceStore.getState().dirty).toBe(true);
+  });
+
+  it('持久化写盘成功后 dirty=false 并记录 lastSavedAt', async () => {
+    useWorkspaceStore.getState().updateFile('main.tex', 'dirty 生命周期 v1');
+    expect(useWorkspaceStore.getState().dirty).toBe(true);
+
+    await afterDebounce(); // 300ms 防抖结束，写盘发起（挂起）
+    flushWrites(); // 写盘成功回调
+    await afterDebounce(); // 让成功回调的微任务链执行完
+
+    const s = useWorkspaceStore.getState();
+    expect(s.dirty).toBe(false);
+    expect(s.lastSavedAt).not.toBeNull();
+  });
+
+  it('写盘在途时的新编辑不会被误标已保存（快照一致性守卫）', async () => {
+    useWorkspaceStore.getState().updateFile('main.tex', '在途守卫 v1');
+    await afterDebounce(); // W1 发起
+    useWorkspaceStore.getState().updateFile('main.tex', '在途守卫 v2'); // W1 在途时再编辑
+
+    flushWrites(); // W1 成功，但当前内容已是 v2
+    await afterDebounce();
+    expect(useWorkspaceStore.getState().dirty).toBe(true);
+
+    await afterDebounce(); // 新防抖结束，W2 发起
+    flushWrites();
+    await afterDebounce();
+    const s = useWorkspaceStore.getState();
+    expect(s.dirty).toBe(false);
+    expect(s.lastSavedAt).not.toBeNull();
+  });
+
+  it('loadDemoProject / loadProject 重置 dirty 与 lastSavedAt', () => {
+    useWorkspaceStore.setState({ dirty: true, lastSavedAt: 123 });
+    useWorkspaceStore.getState().loadDemoProject();
+    expect(useWorkspaceStore.getState().dirty).toBe(false);
+    expect(useWorkspaceStore.getState().lastSavedAt).toBeNull();
+
+    useWorkspaceStore.setState({ dirty: true, lastSavedAt: 123 });
+    useWorkspaceStore.getState().loadProject('p', 'main.tex', { 'main.tex': 'x' });
+    expect(useWorkspaceStore.getState().dirty).toBe(false);
+    expect(useWorkspaceStore.getState().lastSavedAt).toBeNull();
   });
 });

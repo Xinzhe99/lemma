@@ -1,9 +1,26 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ScholarForge — 科研写作工作站</title>
+    <style>
+      /* 首帧防闪：React 挂载前以亮色（默认主题）打底，持久化的暗色由 main.tsx 早期覆盖 */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #ffffff;
+        color: #1a1a1a;
+        font-family: Inter, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        font-size: 13px;
+      }
+      html[data-theme='dark'],
+      html[data-theme='dark'] body {
+        background: #14161d;
+        color: #e8eaf0;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

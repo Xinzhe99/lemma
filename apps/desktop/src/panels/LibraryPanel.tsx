@@ -9,12 +9,13 @@
  */
 
 import { useRef, useState, type ChangeEvent } from 'react';
-import { BookOpen, Paperclip, Trash2 } from 'lucide-react';
+import { BookOpen, Download, Paperclip, Trash2 } from 'lucide-react';
 import {
   applyFilter,
   CITATION_STYLES,
   formatCitation,
   mergeSearchHits,
+  papersToBibtex,
   parseCitationSegments,
   searchArxiv,
   searchCrossref,
@@ -81,6 +82,9 @@ interface Copy {
   fetchButton: string;
   fetching: string;
   fetchOk: (citekey: string) => string;
+  exportBib: string;
+  exportBibEmpty: string;
+  exportBibDone: (n: number) => string;
 }
 
 const COPY: Record<Language, Copy> = {
@@ -134,6 +138,9 @@ const COPY: Record<Language, Copy> = {
     fetchButton: '抓取',
     fetching: '抓取中…',
     fetchOk: (citekey) => `已入库：${citekey}`,
+    exportBib: '导出全库 .bib',
+    exportBibEmpty: '文献库为空，没有可导出的条目',
+    exportBibDone: (n) => `已导出 ${n} 条文献到 .bib`,
   },
   en: {
     modeList: 'Items',
@@ -185,10 +192,20 @@ const COPY: Record<Language, Copy> = {
     fetchButton: 'Fetch',
     fetching: 'Fetching…',
     fetchOk: (citekey) => `Added: ${citekey}`,
+    exportBib: 'Export library .bib',
+    exportBibEmpty: 'Library is empty — nothing to export',
+    exportBibDone: (n) => `Exported ${n} papers to .bib`,
   },
 };
 
 const MODE_ORDER: LibraryMode[] = ['list', 'search', 'discover'];
+
+/** 导出文件名时间戳（20260930-1416） */
+function stamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
 
 export function LibraryPanel() {
   const language = useSettingsStore((s) => s.language);
@@ -326,6 +343,24 @@ export function LibraryPanel() {
     }
   };
 
+  /** 全库导出 .bib：papersToBibtex 生成 + Blob 下载（反馈走 list 模式的 pdfMsg 状态行） */
+  const exportLibraryBib = (): void => {
+    if (papers.length === 0) {
+      setPdfMsg(c.exportBibEmpty);
+      return;
+    }
+    const blob = new Blob([papersToBibtex(papers)], { type: 'application/x-bibtex;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scholarforge-library-${stamp()}.bib`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setPdfMsg(c.exportBibDone(papers.length));
+  };
+
   return (
     <div className="sf-lib">
       <div className="sf-lib-mode">
@@ -350,6 +385,14 @@ export function LibraryPanel() {
             </button>
             <button className="sf-btn" onClick={() => setDialog('fetch')}>
               DOI/arXiv
+            </button>
+            <button
+              className="sf-btn sf-export-bib"
+              onClick={exportLibraryBib}
+              disabled={papers.length === 0}
+              title={c.exportBib}
+            >
+              <Download size={13} /> {c.exportBib}
             </button>
           </div>
           <p className="sf-lib-count">

@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownToLine,
   Copy,
+  CopyPlus,
+  FileDown,
   Link2,
   Pencil,
   Plus,
@@ -15,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Annotation, Note, Paper } from '@scholarforge/shared';
+import { annotationsToMarkdown } from '@scholarforge/library';
 import { buildBacklinkIndex, type PaperRef } from '@scholarforge/knowledge';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useNotesStore } from '../state/notesStore';
@@ -54,6 +57,10 @@ interface Dict {
   copied: string;
   copyFailed: string;
   noTexFile: string;
+  exportMd: string;
+  exportedMd: (n: number) => string;
+  convertAll: string;
+  convertAllDone: (n: number) => string;
   inserted: (file: string) => string;
   convertedMsg: (title: string) => string;
   createdMsg: (title: string) => string;
@@ -87,6 +94,10 @@ const DICT: Record<Language, Dict> = {
     copied: '已复制到剪贴板',
     copyFailed: '复制失败',
     noTexFile: '项目中没有 .tex 文件，无法插入',
+    exportMd: '导出全部标注 .md',
+    exportedMd: (n) => `已导出 ${n} 条标注为 .md`,
+    convertAll: '全部转卡片',
+    convertAllDone: (n) => `已将 ${n} 条标注转为卡片`,
     inserted: (file) => `已插入 ${file} 末尾（快照 +1）`,
     convertedMsg: (title) => `已生成卡片：${title}`,
     createdMsg: (title) => `已创建卡片：${title}`,
@@ -118,6 +129,10 @@ const DICT: Record<Language, Dict> = {
     copied: 'Copied to clipboard',
     copyFailed: 'Copy failed',
     noTexFile: 'No .tex file in the project',
+    exportMd: 'Export all annotations as .md',
+    exportedMd: (n) => `Exported ${n} annotations as .md`,
+    convertAll: 'Convert all to cards',
+    convertAllDone: (n) => `Converted ${n} annotations to cards`,
     inserted: (file) => `Appended to ${file} (snapshot +1)`,
     convertedMsg: (title) => `Card created: ${title}`,
     createdMsg: (title) => `Card created: ${title}`,
@@ -186,6 +201,39 @@ function fmtTime(ts: number): string {
   const d = new Date(ts);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 导出文件名时间戳（20260930-1416） */
+function stamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/** Blob 下载纯文本（面板内复用：标注 .md 导出） */
+function downloadText(filename: string, text: string, mime: string): void {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** 标注文件键（pdf:foo.pdf / paper:{id}）→ 文献条目标题（仅用于导出标题，找不到返回 undefined） */
+function paperTitleFor(fileKey: string, papers: Paper[]): string | undefined {
+  if (fileKey.startsWith('paper:')) {
+    return papers.find((p) => p.id === fileKey.slice('paper:'.length))?.title;
+  }
+  const name = fileKey.replace(/^pdf:/, '');
+  const hit = papers.find((p) => {
+    const path = p.pdfPath?.replace(/\\/g, '/');
+    return path !== undefined && (path === name || path.endsWith(`/${name}`));
+  });
+  return hit?.title;
 }
 
 // ---------------------------------------------------------------------------
@@ -284,6 +332,11 @@ export function NotesPanel() {
     () => new Set(notes.flatMap((n) => (n.originAnnotationId ? [n.originAnnotationId] : []))),
     [notes],
   );
+  /** 尚未转卡片的标注数（「全部转卡片」按钮态） */
+  const pendingConvertCount = useMemo(
+    () => annotationRows.filter(({ annotation }) => !convertedIds.has(annotation.id)).length,
+    [annotationRows, convertedIds],
+  );
 
   /** 双链/反向链接点击 → 选中同名卡片并滚动定位 */
   const jumpToNote = (target: string) => {
@@ -313,6 +366,37 @@ export function NotesPanel() {
       const el = listRef.current?.querySelector(`[data-note-id="${note.id}"]`);
       el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
+  };
+
+  /** 全部标注 → Markdown 文件下载（按页分组；单一文件来源时带文献标题） */
+  const exportAnnotationsMd = () => {
+    if (annotationRows.length === 0) return;
+    const fileKeys = [...new Set(annotationRows.map((row) => row.fileKey))];
+    const title = fileKeys.length === 1 ? paperTitleFor(fileKeys[0]!, papers) : undefined;
+    const md = annotationsToMarkdown(
+      annotationRows.map((row) => row.annotation),
+      title,
+    );
+    downloadText(`pdf-annotations-${stamp()}.md`, md, 'text/markdown;charset=utf-8');
+    setStatus(t.exportedMd(annotationRows.length));
+  };
+
+  /** 未转卡片的新标注全部走 addNoteFromAnnotation 通路转卡片 */
+  const convertAllAnnotations = () => {
+    const pending = annotationRows.filter(({ annotation }) => !convertedIds.has(annotation.id));
+    if (pending.length === 0) return;
+    let last: Note | undefined;
+    for (const { fileKey, annotation } of pending) {
+      last = addNoteFromAnnotation(annotation, paperRefFor(fileKey, papers));
+    }
+    if (last) {
+      setSelectedId(last.id);
+      requestAnimationFrame(() => {
+        const el = listRef.current?.querySelector(`[data-note-id="${last!.id}"]`);
+        el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+    setStatus(t.convertAllDone(pending.length));
   };
 
   const startEdit = (note: Note) => {
@@ -385,10 +469,30 @@ export function NotesPanel() {
         </p>
       )}
 
-      {/* PDF 标注 → 卡片 */}
+      {/* PDF 标注 → 卡片（含批量导出 / 批量转卡片） */}
       <section className="sf-notes-section">
-        <div className="sf-knowledge-title">
+        <div className="sf-knowledge-title sf-export-annot-head">
           {t.annotations} <span className="sf-knowledge-count">{annotationRows.length}</span>
+          <span className="sf-export-annot-actions">
+            <button
+              type="button"
+              className="sf-btn sf-export-annot-md"
+              disabled={annotationRows.length === 0}
+              title={t.exportMd}
+              onClick={exportAnnotationsMd}
+            >
+              <FileDown size={12} /> {t.exportMd}
+            </button>
+            <button
+              type="button"
+              className="sf-btn sf-export-annot-cards"
+              disabled={pendingConvertCount === 0}
+              title={t.convertAll}
+              onClick={convertAllAnnotations}
+            >
+              <CopyPlus size={12} /> {t.convertAll}
+            </button>
+          </span>
         </div>
         {annotationRows.length === 0 ? (
           <p className="placeholder">{t.noAnnotations}</p>

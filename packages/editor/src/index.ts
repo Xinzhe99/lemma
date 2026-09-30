@@ -33,6 +33,10 @@ export {
   type LatexCompletionOptions,
 } from './latex/completion';
 
+// 静态检查（lint）
+export { lintLatex } from './lint';
+export type { LintIssue, LintSeverity, LintOptions } from './lint';
+
 // 主题
 export { scholarforgeTheme, EDITOR_COLORS } from './latex/theme';
 

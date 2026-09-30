@@ -37,6 +37,10 @@ interface UiState {
   /** 命令面板请求的 AI 改稿动作（AgentPanel 消费后清空） */
   agentAction: AgentAction;
   historyOpen: boolean;
+  /** 快速打开文件浮层（Ctrl+P）：命令面板命令与全局快捷键经此解耦 */
+  quickOpenOpen: boolean;
+  /** 快捷键速查模态（Ctrl+/ 或 ?）：同上 */
+  shortcutsOpen: boolean;
   /** 编辑器当前选中文本（选中即问工具条数据源；空串表示无选区） */
   selectionText: string;
 
@@ -54,6 +58,8 @@ interface UiState {
   launchWorkflow(id: string, vars?: Record<string, string>): void;
   requestAgentAction(action: Exclude<AgentAction, null>): void;
   setHistoryOpen(open: boolean): void;
+  setQuickOpenOpen(open: boolean): void;
+  setShortcutsOpen(open: boolean): void;
   setSelectionText(text: string): void;
 }
 
@@ -71,6 +77,8 @@ export const useUiStore = create<UiState>((set) => ({
   workflowLaunchVars: null,
   agentAction: null,
   historyOpen: false,
+  quickOpenOpen: false,
+  shortcutsOpen: false,
   selectionText: '',
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -86,5 +94,7 @@ export const useUiStore = create<UiState>((set) => ({
   launchWorkflow: (id, vars) => set({ workflowLaunch: id, workflowLaunchVars: vars ?? null }),
   requestAgentAction: (action) => set({ agentAction: action }),
   setHistoryOpen: (open) => set({ historyOpen: open }),
+  setQuickOpenOpen: (open) => set({ quickOpenOpen: open }),
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
   setSelectionText: (text) => set({ selectionText: text }),
 }));

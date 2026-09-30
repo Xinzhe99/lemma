@@ -212,8 +212,8 @@
 }
 
 .sf-sem-dot--citation {
-  color: #b18cff; /* 与侧栏渐变紫一致，无对应全局变量 */
-  background: #b18cff;
+  color: var(--violet, #8e6bd8); /* citation 语义紫（styles.css 提供，随明暗主题） */
+  background: var(--violet, #8e6bd8);
 }
 
 /* ---------- N1 卡片列表 / 双链 / 反向链接 ---------- */

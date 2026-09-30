@@ -61,7 +61,8 @@ function readPersisted(): PersistedSettings | null {
       providers: v.providers,
       activeProviderId: typeof v.activeProviderId === 'string' ? v.activeProviderId : null,
       embeddingModel: typeof v.embeddingModel === 'string' ? v.embeddingModel : '',
-      theme: v.theme === 'light' ? 'light' : 'dark',
+      // 亮色为默认主题；仅显式持久化过 'dark' 才回落暗色
+      theme: v.theme === 'dark' ? 'dark' : 'light',
       language: v.language === 'en' ? 'en' : 'zh',
     };
   } catch {
@@ -75,7 +76,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   providers: initial?.providers ?? [],
   activeProviderId: initial?.activeProviderId ?? null,
   embeddingModel: initial?.embeddingModel ?? '',
-  theme: initial?.theme ?? 'dark',
+  theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
 
   addProvider(input) {

@@ -24,6 +24,9 @@ export { generateCitekey, disambiguateCitekey } from './citekey';
 export type { CitationStyle, CitationSegment } from './cite';
 export { formatCitation, parseCitationSegments, CITATION_STYLES } from './cite';
 
+// 知识导出（全库 BibTeX / PDF 标注 Markdown）
+export { escapeBibtex, paperToBibtex, papersToBibtex, annotationsToMarkdown } from './export';
+
 export type { PdfPageText } from './pdf/extract';
 export { extractSections } from './pdf/extract';
 export type { PdfTextResult, PdfTextPage } from './pdf/pdfjs';

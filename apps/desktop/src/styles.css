@@ -1,35 +1,149 @@
+/* ==========================================================================
+   ScholarForge — OpenAI Codex 风格主题
+   亮色为默认（:root）；暗色整体迁入 [data-theme='dark'] 覆盖。
+   设计要点：白底 / 极细 hairline 边框 / 黑色药丸主按钮 / 克制蓝绿强调 / 柔和阴影。
+   ========================================================================== */
+
 :root {
+  /* 表面：画布 → 次级面板 → 第三层（卡/弹窗均为白 + 阴影）→ 交互 hover */
+  --bg-0: #ffffff;
+  --bg-1: #f7f7f8;
+  --bg-2: #ffffff;
+  --bg-3: #f0f0f2;
+
+  /* 文字 */
+  --fg-0: #1a1a1a;
+  --fg-1: #70707a;
+  --fg-2: #a0a0aa;
+
+  /* 强调：克制的蓝绿；warn/err 为 Codex 亮色系 */
+  --accent: #10a37f;
+  --accent-dim: #0b815f;
+  --ok: #10a37f;
+  --warn: #b8860b;
+  --err: #d9534f;
+  --violet: #8e6bd8;
+
+  /* 边框：hairline + hover 加深 */
+  --border: #e9e9ec;
+  --border-strong: #d9d9de;
+
+  /* 主按钮：黑色药丸（Codex 标志性）；暗色下反转为浅底深字 */
+  --btn-bg: #0d0d0d;
+  --btn-fg: #ffffff;
+  --btn-hover: #2a2a2a;
+
+  /* 交互 */
+  --focus-ring: rgba(16, 163, 127, 0.25);
+  --overlay: rgba(26, 26, 26, 0.3);
+
+  /* 阴影：卡片极柔和；弹窗大而柔 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-pop: 0 10px 40px rgba(0, 0, 0, 0.12);
+
+  /* 圆角：控件 8 / 卡片与弹窗 12 */
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  /* 字体 */
+  --font-ui: Inter, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /* CodeMirror 编辑器取色（亮底；语法色板见 latex/theme.ts） */
+  --cm-bg: #ffffff;
+  --cm-fg: #1a1a1a;
+  --cm-muted: #a0a0aa;
+  --cm-border: #e9e9ec;
+  --cm-caret: #0d0d0d;
+  --cm-sel: rgba(16, 163, 127, 0.13);
+  --cm-active-line: rgba(0, 0, 0, 0.028);
+  --cm-active-gutter: #70707a;
+  --cm-panel: #ffffff;
+  --cm-sel-match: rgba(16, 163, 127, 0.16);
+  --cm-search: rgba(16, 163, 127, 0.22);
+  --cm-search-selected: rgba(16, 163, 127, 0.42);
+  --cm-scrollbar: #d9d9de;
+  --cm-scrollbar-hover: #c2c2c9;
+  /* 语法高亮（亮底重调：命令深蓝紫/环境绿/注释浅灰/数学橙棕） */
+  --cm-tok-command: #5e35b1;
+  --cm-tok-env: #1a7f37;
+  --cm-tok-comment: #a0a0aa;
+  --cm-tok-math: #b45309;
+  --cm-tok-number: #a16207;
+  --cm-tok-string: #0e7490;
+  --cm-tok-bracket: #83838f;
+  --cm-tok-var: #3d3d47;
+  --cm-tok-invalid: #d9534f;
+  /* DiffView 反制取色 */
+  --cm-diff-add-fg: #157347;
+  --cm-diff-add-bg: rgba(16, 163, 127, 0.1);
+  --cm-diff-del-fg: #b03a36;
+  --cm-diff-del-bg: rgba(217, 83, 79, 0.09);
+
+  color-scheme: light;
+}
+
+/* 暗色主题：整体覆盖（默认已不再是暗色，此处仅随用户选择切换） */
+[data-theme='dark'] {
   --bg-0: #14161d;
   --bg-1: #1a1d26;
   --bg-2: #21252f;
   --bg-3: #2a2f3c;
+
   --fg-0: #e8eaf0;
   --fg-1: #a9b0c0;
   --fg-2: #6b7385;
-  --accent: #6c8cff;
-  --accent-dim: #3d5acc;
+
+  --accent: #3ecfa4;
+  --accent-dim: #1f9d74;
   --ok: #4cc38a;
   --warn: #e5a13c;
   --err: #e05c5c;
-  --border: #333947;
-  --radius: 8px;
-}
+  --violet: #b18cff;
 
-/* 亮色主题：覆盖变量，暗色为默认 */
-[data-theme='light'] {
-  --bg-0: #f6f7fa;
-  --bg-1: #ffffff;
-  --bg-2: #eef0f5;
-  --bg-3: #e2e6ee;
-  --fg-0: #1c2130;
-  --fg-1: #4a5266;
-  --fg-2: #8a92a6;
-  --accent: #3d5acc;
-  --accent-dim: #2f47a8;
-  --ok: #1f9d66;
-  --warn: #b97b1e;
-  --err: #cc4444;
-  --border: #d3d8e3;
+  --border: #333947;
+  --border-strong: #454c5e;
+
+  --btn-bg: #f0f0f2;
+  --btn-fg: #111318;
+  --btn-hover: #dcdce2;
+
+  --focus-ring: rgba(62, 207, 164, 0.3);
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+  --cm-bg: #14161d;
+  --cm-fg: #e8eaf0;
+  --cm-muted: #6b7385;
+  --cm-border: #333947;
+  --cm-caret: #e8eaf0;
+  --cm-sel: rgba(122, 162, 247, 0.28);
+  --cm-active-line: rgba(255, 255, 255, 0.035);
+  --cm-active-gutter: #9aa3b8;
+  --cm-panel: #1b1e28;
+  --cm-sel-match: rgba(126, 226, 168, 0.18);
+  --cm-search: rgba(126, 226, 168, 0.22);
+  --cm-search-selected: rgba(122, 162, 247, 0.45);
+  --cm-scrollbar: #2a2f3d;
+  --cm-scrollbar-hover: #3a4150;
+  /* 语法高亮（暗底沿用原配色） */
+  --cm-tok-command: #a5b0ff;
+  --cm-tok-env: #7ee2a8;
+  --cm-tok-comment: #6b7385;
+  --cm-tok-math: #ffab70;
+  --cm-tok-number: #e8b96a;
+  --cm-tok-string: #9ecbff;
+  --cm-tok-bracket: #8b93a7;
+  --cm-tok-var: #d7dce8;
+  --cm-tok-invalid: #ff7a85;
+  --cm-diff-add-fg: #7ee2a8;
+  --cm-diff-add-bg: rgba(126, 226, 168, 0.12);
+  --cm-diff-del-fg: #ff7a85;
+  --cm-diff-del-bg: rgba(255, 122, 133, 0.1);
+
+  color-scheme: dark;
 }
 
 * {
@@ -44,11 +158,18 @@ body,
 }
 
 body {
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-family: var(--font-ui);
   background: var(--bg-0);
   color: var(--fg-0);
   font-size: 13px;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 键盘可达性：统一克制 focus 环 */
+:where(button, [role='button'], a, summary):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .app {
@@ -70,12 +191,9 @@ body {
 }
 
 .brand {
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  background: linear-gradient(90deg, var(--accent), #b18cff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  color: var(--fg-0);
 }
 
 .sf-project-name {
@@ -91,17 +209,19 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg-2);
+  background: var(--bg-0);
   border: 1px solid var(--border);
   color: var(--fg-1);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 4px 10px;
   cursor: pointer;
   font-size: 12px;
+  transition: border-color 0.12s, background 0.12s;
 }
 
 .palette-trigger:hover {
-  border-color: var(--accent-dim);
+  border-color: var(--border-strong);
+  background: var(--bg-3);
 }
 
 .topbar-right {
@@ -112,7 +232,7 @@ body {
 }
 
 .status-chip {
-  background: var(--bg-2);
+  background: var(--bg-0);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 2px 10px;
@@ -141,8 +261,9 @@ body {
   color: var(--fg-1);
   cursor: pointer;
   padding: 4px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   display: flex;
+  transition: background 0.12s, color 0.12s;
 }
 
 .icon-btn:hover {
@@ -183,7 +304,7 @@ body {
 
 .sf-resizer:hover,
 .sf-resizer[data-resize-handle-state='drag'] {
-  background: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .sf-resizer-h {
@@ -218,9 +339,10 @@ body {
   justify-content: center;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--fg-2);
   cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
 
 .nav-btn:hover {
@@ -230,7 +352,7 @@ body {
 
 .nav-btn.active {
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .nav-spacer {
@@ -281,16 +403,17 @@ body {
   gap: 4px;
   background: none;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--fg-2);
   font-size: 11px;
   padding: 2px 8px;
   cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
 }
 
 .sf-tree-new:hover {
   color: var(--accent);
-  border-color: var(--accent-dim);
+  border-color: var(--border-strong);
 }
 
 .sf-tree-row {
@@ -298,7 +421,7 @@ body {
   align-items: center;
   gap: 5px;
   padding: 3px 4px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--fg-1);
   cursor: pointer;
   position: relative;
@@ -312,7 +435,7 @@ body {
 
 .sf-tree-row.active {
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .sf-tree-chevron {
@@ -363,8 +486,8 @@ body {
   min-width: 118px;
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
   padding: 4px;
   z-index: 50;
   display: flex;
@@ -381,7 +504,7 @@ body {
   color: var(--fg-1);
   font-size: 12px;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   text-align: left;
 }
@@ -425,6 +548,7 @@ body {
   font-size: 12px;
   cursor: pointer;
   flex: none;
+  transition: color 0.12s;
 }
 
 .tab:hover {
@@ -476,12 +600,12 @@ body {
 }
 
 .sf-editor-file {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   color: var(--fg-1);
-  background: var(--bg-2);
+  background: var(--bg-1);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 4px 12px;
 }
 
@@ -523,7 +647,7 @@ body {
   flex: 1;
   overflow: auto;
   padding: 8px 12px;
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -569,7 +693,7 @@ body {
   align-self: flex-start;
   font-size: 11px;
   color: var(--fg-1);
-  background: var(--bg-2);
+  background: var(--bg-0);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 3px 10px;
@@ -585,7 +709,7 @@ body {
 .palette-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -593,17 +717,13 @@ body {
   z-index: 100;
 }
 
-[data-theme='light'] .palette-overlay {
-  background: rgba(30, 38, 60, 0.3);
-}
-
 .palette {
   width: 520px;
   max-width: 90vw;
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
 
@@ -611,7 +731,7 @@ body {
   width: 100%;
   border: none;
   outline: none;
-  background: var(--bg-3);
+  background: var(--bg-2);
   color: var(--fg-0);
   padding: 12px 14px;
   font-size: 14px;
@@ -631,13 +751,18 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: pointer;
   color: var(--fg-1);
 }
 
+.palette-item:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+
 .palette-item.active {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--bg-3);
   color: var(--fg-0);
 }
 
@@ -673,15 +798,11 @@ kbd {
 .sf-dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
-}
-
-[data-theme='light'] .sf-dialog-overlay {
-  background: rgba(30, 38, 60, 0.35);
 }
 
 .sf-dialog {
@@ -692,8 +813,8 @@ kbd {
   flex-direction: column;
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
 
@@ -723,7 +844,7 @@ kbd {
   font-size: 12px;
   padding: 6px 12px 8px;
   cursor: pointer;
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   border-bottom: 2px solid transparent;
 }
 
@@ -732,7 +853,7 @@ kbd {
 }
 
 .sf-dialog-tabs button.active {
-  color: var(--accent);
+  color: var(--fg-0);
   border-bottom-color: var(--accent);
 }
 
@@ -756,12 +877,14 @@ kbd {
   justify-content: space-between;
   gap: 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 8px 10px;
+  background: var(--bg-0);
 }
 
 .sf-provider-row.active {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .sf-provider-main {
@@ -807,33 +930,35 @@ kbd {
   border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
 }
 
+/* ---------- 按钮：Codex 黑色主按钮 + 白底次级按钮 ---------- */
 .sf-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   border: 1px solid var(--border);
-  background: var(--bg-3);
-  color: var(--fg-1);
-  border-radius: 6px;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  border-radius: var(--radius);
   font-size: 12px;
   padding: 4px 10px;
   cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .sf-btn:hover {
-  color: var(--fg-0);
-  border-color: var(--accent-dim);
+  background: var(--bg-3);
+  border-color: var(--border-strong);
 }
 
 .sf-btn.primary {
-  background: var(--accent-dim);
-  border-color: var(--accent-dim);
-  color: #fff;
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+  color: var(--btn-fg);
 }
 
 .sf-btn.primary:hover {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--btn-hover);
+  border-color: var(--btn-hover);
 }
 
 .sf-btn.danger:hover {
@@ -846,7 +971,7 @@ kbd {
   grid-template-columns: 1fr 1fr;
   gap: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 12px;
 }
 
@@ -871,17 +996,23 @@ kbd {
 
 .sf-input {
   border: 1px solid var(--border);
-  background: var(--bg-1);
+  background: var(--bg-0);
   color: var(--fg-0);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 6px 8px;
   font-size: 12px;
   outline: none;
   min-width: 0;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.sf-input:hover {
+  border-color: var(--border-strong);
 }
 
 .sf-input:focus {
-  border-color: var(--accent-dim);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* 外观 */
@@ -900,7 +1031,7 @@ kbd {
 .sf-segment {
   display: flex;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -909,20 +1040,26 @@ kbd {
   align-items: center;
   gap: 5px;
   border: none;
-  background: var(--bg-1);
+  background: var(--bg-0);
   color: var(--fg-2);
   font-size: 12px;
   padding: 5px 14px;
   cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
 
 .sf-segment button + button {
   border-left: 1px solid var(--border);
 }
 
+.sf-segment button:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
+}
+
 .sf-segment button.active {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-dim);
 }
 
 /* 关于 */
@@ -937,10 +1074,7 @@ kbd {
 .sf-about-brand {
   font-size: 20px;
   font-weight: 700;
-  background: linear-gradient(90deg, var(--accent), #b18cff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--fg-0);
 }
 
 .sf-about-version {
@@ -956,7 +1090,7 @@ kbd {
 
 .sf-about-doc {
   margin: 0;
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg-2);
 }
@@ -967,13 +1101,13 @@ kbd {
   bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  color: var(--fg-0);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-bg);
+  color: var(--btn-fg);
   border-radius: 999px;
   padding: 7px 18px;
   font-size: 12px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-pop);
   z-index: 300;
   animation: sf-toast-in 0.16s ease-out;
 }
@@ -1022,7 +1156,7 @@ kbd {
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: pointer;
   color: var(--fg-1);
   font-size: 12px;
@@ -1040,7 +1174,8 @@ kbd {
 .sf-outline-file {
   font-size: 10px;
   color: var(--fg-2);
-  background: var(--bg-2);
+  background: var(--bg-0);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1px 5px;
   flex: none;
@@ -1081,12 +1216,13 @@ kbd {
   justify-content: space-between;
   gap: 6px;
   padding: 4px 6px;
-  border-radius: 6px;
-  background: var(--bg-2);
+  border-radius: var(--radius);
+  background: var(--bg-0);
+  border: 1px solid var(--border);
 }
 .sf-cites-key {
   font-size: 11px;
-  color: var(--accent);
+  color: var(--accent-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1112,16 +1248,21 @@ kbd {
   flex: 1;
   padding: 4px 0;
   font-size: 11px;
-  background: var(--bg-2);
+  background: var(--bg-0);
   color: var(--fg-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.sf-lib-mode button:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
 }
 .sf-lib-mode button.active {
-  color: var(--fg-0);
-  border-color: var(--accent-dim);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .sf-lib-toolbar {
   display: flex;
@@ -1148,12 +1289,13 @@ kbd {
 }
 .sf-lib-row {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: var(--bg-2);
+  background: var(--bg-0);
+  box-shadow: var(--shadow-card);
 }
 .sf-lib-main {
   display: flex;
@@ -1162,7 +1304,7 @@ kbd {
 }
 .sf-lib-key {
   font-size: 10px;
-  color: var(--accent);
+  color: var(--accent-dim);
 }
 .sf-lib-title {
   font-size: 12px;
@@ -1188,9 +1330,9 @@ kbd {
 }
 .sf-lib-chunk {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 6px 8px;
-  background: var(--bg-2);
+  background: var(--bg-0);
 }
 .sf-lib-chunk-head {
   display: flex;
@@ -1199,7 +1341,7 @@ kbd {
   font-size: 10px;
 }
 .sf-lib-chunk-head code {
-  color: var(--accent);
+  color: var(--accent-dim);
 }
 .sf-lib-chunk-head span {
   color: var(--fg-2);
@@ -1220,7 +1362,7 @@ kbd {
 .sf-lib-textarea {
   width: 100%;
   min-height: 180px;
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   resize: vertical;
 }
@@ -1317,16 +1459,22 @@ kbd {
 }
 .sf-wiz-item {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 8px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: var(--bg-0);
+  transition: border-color 0.12s, background 0.12s;
+}
+.sf-wiz-item:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-3);
 }
 .sf-wiz-item.active {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .sf-wiz-item strong {
   font-size: 12px;
@@ -1352,14 +1500,15 @@ kbd {
    第二轮集成：AI 改稿审批 / 快照历史 / 发现 tab / 标签栏动作位
    ========================================================================== */
 
-/* 主按钮别名（历史命名统一） */
+/* 主按钮别名（历史命名统一到 Codex 黑色药丸） */
 .sf-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+  color: var(--btn-fg);
 }
 .sf-btn--primary:hover {
-  background: var(--accent-dim);
+  background: var(--btn-hover);
+  border-color: var(--btn-hover);
 }
 .sf-btn:disabled {
   opacity: 0.45;
@@ -1380,15 +1529,16 @@ kbd {
   gap: 4px;
   background: none;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--fg-1);
   font-size: 11px;
   padding: 3px 8px;
   cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .tab-action:hover {
   color: var(--fg-0);
-  border-color: var(--accent-dim);
+  border-color: var(--border-strong);
   background: var(--bg-3);
 }
 
@@ -1409,8 +1559,8 @@ kbd {
 }
 .sf-agent-approval {
   margin-top: 8px;
-  border: 1px solid var(--warn);
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--border));
+  border-radius: var(--radius);
   padding: 8px;
   background: color-mix(in srgb, var(--warn) 6%, transparent);
   max-height: 45vh;
@@ -1436,9 +1586,9 @@ kbd {
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 8px 10px;
-  background: var(--bg-2);
+  background: var(--bg-0);
 }
 .sf-snap-main {
   flex: 1;
@@ -1529,10 +1679,10 @@ kbd {
   align-items: center;
   gap: 6px;
   background: var(--bg-2);
-  border: 1px solid var(--accent-dim);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 5px 8px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-pop);
 }
 .sf-selbar-label {
   font-size: 10px;
@@ -1563,8 +1713,8 @@ kbd {
 }
 .sf-review-card {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-2);
+  border-radius: var(--radius);
+  background: var(--bg-0);
   padding: 8px;
   font-size: 11px;
 }
@@ -1621,8 +1771,8 @@ kbd {
 }
 .sf-review-card--meta {
   margin-top: 8px;
-  border-color: var(--accent-dim);
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-0));
 }
 .sf-review-card--meta pre {
   margin: 0;
@@ -1640,27 +1790,33 @@ kbd {
   gap: 2px;
   margin: 2px 0 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
 .sf-subtabs button {
   flex: 1;
   border: none;
-  background: var(--bg-1);
+  background: var(--bg-0);
   color: var(--fg-2);
   font-size: 12px;
   padding: 5px 0;
   cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
 
 .sf-subtabs button + button {
   border-left: 1px solid var(--border);
 }
 
+.sf-subtabs button:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
+}
+
 .sf-subtabs button.active {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-dim);
   font-weight: 600;
 }
 
@@ -1672,9 +1828,9 @@ kbd {
 .sf-panel-fallback {
   margin: 8px 0;
   padding: 14px;
-  border: 1px dashed var(--border);
+  border: 1px dashed color-mix(in srgb, var(--warn) 45%, var(--border));
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warn) 7%, var(--bg-1));
+  background: color-mix(in srgb, var(--warn) 7%, var(--bg-0));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1701,7 +1857,7 @@ kbd {
 }
 
 .sf-snap-group.current {
-  border-color: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 
 .sf-snap-group-header {
@@ -1728,9 +1884,9 @@ kbd {
 .sf-onboarding {
   margin: 8px;
   padding: 10px 12px;
-  border: 1px solid var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--accent) 7%, var(--bg-1));
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-0));
   flex: none;
 }
 
@@ -1776,8 +1932,8 @@ kbd {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-dim);
 }
 
 .sf-onboarding-step-main {
@@ -1802,4 +1958,319 @@ kbd {
   align-items: center;
   gap: 6px;
   flex: none;
+}
+
+/* ==========================================================================
+   DiffView 反制（packages/editor 组件内联深色样式，此处仅按主题调色，不改布局）
+   ========================================================================== */
+.sf-diff {
+  background: var(--cm-bg) !important;
+  color: var(--cm-fg) !important;
+}
+.sf-diff-header {
+  background: var(--cm-bg) !important;
+  border-bottom: 1px solid var(--cm-border) !important;
+}
+.sf-diff-body > div[data-kind='context'] {
+  color: var(--fg-1) !important;
+  background: transparent !important;
+}
+.sf-diff-body > div[data-kind='add'] {
+  color: var(--cm-diff-add-fg) !important;
+  background: var(--cm-diff-add-bg) !important;
+}
+.sf-diff-body > div[data-kind='del'] {
+  color: var(--cm-diff-del-fg) !important;
+  background: var(--cm-diff-del-bg) !important;
+}
+.sf-diff-body > div > span:nth-child(1),
+.sf-diff-body > div > span:nth-child(2) {
+  color: var(--cm-muted) !important;
+}
+.sf-diff-adds {
+  color: var(--ok) !important;
+}
+.sf-diff-dels {
+  color: var(--err) !important;
+}
+.sf-diff-stats > span:nth-child(2) {
+  color: var(--fg-2) !important;
+}
+
+/* ==========================================================================
+   预留：并行开发中新增组件的基础样式（sf-statusbar / sf-quickopen /
+   sf-shortcuts / sf-issues）。类名由功能组件携带，此处只提供合理默认布局。
+   ========================================================================== */
+
+/* ---------- 状态栏（编辑器底部一行，28px 小字） ---------- */
+.sf-statusbar {
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-2);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sf-statusbar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sf-statusbar-item.ok {
+  color: var(--ok);
+}
+
+.sf-statusbar-item.warn {
+  color: var(--warn);
+}
+
+.sf-statusbar-item.err {
+  color: var(--err);
+}
+
+.sf-statusbar-spacer {
+  flex: 1;
+}
+
+.sf-statusbar button {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sf-statusbar button:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
+}
+
+/* ---------- QuickOpen（居中浮层，同命令面板骨架） ---------- */
+.sf-quickopen-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  z-index: 150;
+}
+
+.sf-quickopen {
+  width: 560px;
+  max-width: 90vw;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+.sf-quickopen-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: var(--bg-2);
+  color: var(--fg-0);
+  padding: 12px 14px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sf-quickopen-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.sf-quickopen-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--fg-1);
+  font-size: 12px;
+}
+
+.sf-quickopen-item:hover,
+.sf-quickopen-item.active {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+
+.sf-quickopen-meta,
+.sf-quickopen-path {
+  font-size: 11px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-quickopen-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--fg-2);
+  font-size: 12px;
+}
+
+/* ---------- 快捷键面板（模态） ---------- */
+.sf-shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 210;
+}
+
+.sf-shortcuts {
+  width: 480px;
+  max-width: 90vw;
+  max-height: 76vh;
+  overflow: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: 18px 20px;
+}
+
+.sf-shortcuts-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+
+.sf-shortcuts-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.sf-shortcuts-desc {
+  font-size: 12px;
+  color: var(--fg-1);
+}
+
+.sf-shortcuts-grid kbd {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.sf-shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sf-shortcuts-row:last-child {
+  border-bottom: none;
+}
+
+.sf-shortcuts-close {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ---------- 问题列表（侧栏列表行） ---------- */
+.sf-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sf-issues-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  color: var(--fg-1);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  font-family: inherit;
+}
+
+.sf-issues-row:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+
+.sf-issues-severity {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: var(--fg-2);
+}
+
+.sf-issues-row--error .sf-issues-severity {
+  background: var(--err);
+}
+
+.sf-issues-row--warning .sf-issues-severity {
+  background: var(--warn);
+}
+
+.sf-issues-row--info .sf-issues-severity {
+  background: var(--accent);
+}
+
+.sf-issues-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sf-issues-msg {
+  color: var(--fg-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-issues-loc {
+  font-size: 10px;
+  color: var(--fg-2);
+  font-family: var(--font-mono);
+}
+
+.sf-issues-empty {
+  padding: 12px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-2);
 }

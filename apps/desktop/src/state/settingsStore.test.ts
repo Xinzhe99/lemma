@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SETTINGS_STORAGE_KEY, readPersistedSettings, useSettingsStore } from './settingsStore';
 
 beforeEach(() => {
@@ -7,7 +7,7 @@ beforeEach(() => {
   useSettingsStore.setState({
     providers: [],
     activeProviderId: null,
-    theme: 'dark',
+    theme: 'light',
     language: 'zh',
   });
 });
@@ -57,6 +57,29 @@ describe('settingsStore Provider CRUD', () => {
 });
 
 describe('settingsStore localStorage 持久化', () => {
+  it('未持久化时默认主题为 light（Codex 风格亮色默认）', async () => {
+    localStorage.clear();
+    vi.resetModules();
+    const mod = await import('./settingsStore');
+    expect(mod.useSettingsStore.getState().theme).toBe('light');
+    // persisted 缺失回落 null，由 store 初始值兜底
+    expect(readPersistedSettings()).toBeNull();
+  });
+
+  it('持久化 theme 解析：显式 dark 保留，其余回落 light', () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ providers: [], theme: 'dark', language: 'zh', embeddingModel: '' }),
+    );
+    expect(readPersistedSettings()!.theme).toBe('dark');
+
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ providers: [], theme: 'bogus', language: 'zh', embeddingModel: '' }),
+    );
+    expect(readPersistedSettings()!.theme).toBe('light');
+  });
+
   it('CRUD 后 round-trip 恢复一致', () => {
     useSettingsStore.getState().addProvider({ label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', apiKey: 'sk-x', model: 'deepseek-chat', tier: 'cheap' });
     useSettingsStore.getState().setTheme('light');

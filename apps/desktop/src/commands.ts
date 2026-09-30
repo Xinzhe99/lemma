@@ -22,6 +22,17 @@ export interface CommandContext {
   toast: (message: string) => void;
 }
 
+/** 新增命令的本地字典（跟随设置语言；新字符串不进 i18n.ts） */
+const COMMAND_STRINGS = {
+  quickOpen: { zh: '快速打开文件', en: 'Quick open file' },
+  shortcuts: { zh: '快捷键帮助', en: 'Keyboard shortcuts' },
+} as const;
+
+function localTitle(key: keyof typeof COMMAND_STRINGS): string {
+  const lang = useSettingsStore.getState().language;
+  return COMMAND_STRINGS[key][lang];
+}
+
 export function buildCommands(ctx: CommandContext): Command[] {
   const raw: Command[] = [
     {
@@ -58,11 +69,25 @@ export function buildCommands(ctx: CommandContext): Command[] {
       },
     },
     {
+      id: 'file.quickOpen',
+      title: localTitle('quickOpen'),
+      hint: ctx.t('hint.file'),
+      kbd: 'Ctrl+P',
+      run: () => useUiStore.getState().setQuickOpenOpen(true),
+    },
+    {
       id: 'file.save',
       title: ctx.t('cmd.save'),
       hint: ctx.t('hint.file'),
       kbd: 'Ctrl+S',
       run: () => ctx.toast(ctx.t('toast.saved')),
+    },
+    {
+      id: 'app.shortcuts',
+      title: localTitle('shortcuts'),
+      hint: ctx.t('hint.app'),
+      kbd: 'Ctrl+/',
+      run: () => useUiStore.getState().setShortcutsOpen(true),
     },
     {
       id: 'theme.toggle',

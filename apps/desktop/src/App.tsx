@@ -35,6 +35,8 @@ import { ResizableLayout } from './components/ResizableLayout';
 import { SettingsDialog } from './components/SettingsDialog';
 import { SnapshotDialog } from './components/SnapshotDialog';
 import { EditorArea } from './components/EditorArea';
+import { QuickOpen, isQuickOpenTrigger } from './components/QuickOpen';
+import { ShortcutsDialog, isShortcutsTrigger } from './components/ShortcutsDialog';
 import { TemplateWizard } from './components/TemplateWizard';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { CitationsPanel } from './panels/CitationsPanel';
@@ -66,6 +68,10 @@ export function App() {
   const templateWizardOpen = useUiStore((s) => s.templateWizardOpen);
   const historyOpen = useUiStore((s) => s.historyOpen);
   const setHistoryOpen = useUiStore((s) => s.setHistoryOpen);
+  const quickOpenOpen = useUiStore((s) => s.quickOpenOpen);
+  const setQuickOpenOpen = useUiStore((s) => s.setQuickOpenOpen);
+  const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
+  const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
   const requestAgentAction = useUiStore((s) => s.requestAgentAction);
 
   const projectName = useWorkspaceStore((s) => s.projectName);
@@ -104,11 +110,21 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen((v) => !v);
+        return;
+      }
+      if (isQuickOpenTrigger(e)) {
+        e.preventDefault();
+        setQuickOpenOpen(true);
+        return;
+      }
+      if (isShortcutsTrigger(e, e.target)) {
+        e.preventDefault();
+        setShortcutsOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [setQuickOpenOpen, setShortcutsOpen]);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -138,7 +154,8 @@ export function App() {
         focusFileTree,
         toast: showToast,
       }),
-    [t, focusFileTree, showToast],
+    // language 变化时重建：buildCommands 的新命令标题来自组件内本地字典（跟随设置语言）
+    [t, language, focusFileTree, showToast],
   );
 
   const compileLabelKey =
@@ -402,6 +419,10 @@ export function App() {
       )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+
+      {quickOpenOpen && <QuickOpen onClose={() => setQuickOpenOpen(false)} />}
+
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
 
       {templateWizardOpen && <TemplateWizard onDone={showToast} />}
 

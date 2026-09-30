@@ -87,4 +87,22 @@ describe('buildCommands', () => {
 
     useUiStore.getState().setSidebarTab('files');
   });
+
+  it('快速打开/快捷键帮助命令经 uiStore 开关解耦（新字符串来自本地字典而非 i18n 键）', () => {
+    const cmds = buildCommands(ctx);
+    const quickOpen = cmds.find((c) => c.id === 'file.quickOpen');
+    const shortcuts = cmds.find((c) => c.id === 'app.shortcuts');
+    expect(quickOpen).toBeTruthy();
+    expect(shortcuts).toBeTruthy();
+    expect(quickOpen!.kbd).toBe('Ctrl+P');
+    expect(shortcuts!.kbd).toBe('Ctrl+/');
+
+    quickOpen!.run?.();
+    expect(useUiStore.getState().quickOpenOpen).toBe(true);
+    useUiStore.getState().setQuickOpenOpen(false);
+
+    shortcuts!.run?.();
+    expect(useUiStore.getState().shortcutsOpen).toBe(true);
+    useUiStore.getState().setShortcutsOpen(false);
+  });
 });
