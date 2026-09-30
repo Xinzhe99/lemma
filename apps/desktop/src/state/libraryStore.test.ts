@@ -1,9 +1,27 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createId, type Annotation, type Paper } from '@scholarforge/shared';
-import { useLibraryStore } from './libraryStore';
+import { hydrateAttachments, initLibrary, useLibraryStore } from './libraryStore';
 import { paperAnnotationKey, useAnnotationStore } from './annotationStore';
 import { useUiStore } from './uiStore';
+import * as db from '../storage/db';
+import { __resetKvStoreForTests, getBigData, setBigData } from '../storage/kvStore';
+
+// 包装真实 storage/db 实现（jsdom 无 indexedDB → 内存降级后端）并 spy：
+// 行为不变，同时可断言 attach/remove/openPdf 对持久层的调用。
+vi.mock('../storage/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../storage/db')>();
+  return {
+    ...actual,
+    kvGet: vi.fn(actual.kvGet),
+    kvSet: vi.fn(actual.kvSet),
+    attachmentPut: vi.fn(actual.attachmentPut),
+    attachmentGet: vi.fn(actual.attachmentGet),
+    attachmentDelete: vi.fn(actual.attachmentDelete),
+    attachmentBulkDelete: vi.fn(actual.attachmentBulkDelete),
+    attachmentGetAll: vi.fn(actual.attachmentGetAll),
+  };
+});
 
 function makePaper(overrides: Partial<Paper> = {}): Paper {
   return {
@@ -25,9 +43,17 @@ function resetStores(papers: Paper[]): void {
   useUiStore.setState({ pdfView: null, centerView: 'editor' });
 }
 
+/** 冲刷微任务队列（订阅的 setBigData 异步落盘为纯 promise 链，一个宏任务足够）。 */
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 beforeEach(() => {
+  vi.clearAllMocks();
   localStorage.clear();
   resetStores([makePaper()]);
+  db.__resetStorageForTests();
+  __resetKvStoreForTests();
 });
 
 describe('attachPdf / openPdf（L2 库内 PDF 关联）', () => {
@@ -135,5 +161,135 @@ describe('批量与级联（L5）', () => {
     expect(statuses).toEqual(['done', 'done']);
     useLibraryStore.getState().setReadStatusBulk(['p1'], 'reading');
     expect(useLibraryStore.getState().papers.map((p) => p.readStatus)).toEqual(['reading', 'done']);
+  });
+});
+
+describe('附件持久化（IndexedDB attachments 表）', () => {
+  it('attachPdf 同步落持久层：paperId / Blob 字节 / ${citekey}.pdf 文件名', async () => {
+    useLibraryStore.getState().attachPdf('p1', new Uint8Array([1, 2, 3, 4]).buffer);
+
+    expect(vi.mocked(db.attachmentPut)).toHaveBeenCalledTimes(1);
+    const rec = vi.mocked(db.attachmentPut).mock.calls[0][0];
+    expect(rec.paperId).toBe('p1');
+    expect(rec.name).toBe('vaswani2017attention.pdf');
+    expect(rec.savedAt).toBeGreaterThan(0);
+    expect(new Uint8Array(await db.blobToArrayBuffer(rec.data))).toEqual(
+      new Uint8Array([1, 2, 3, 4]),
+    );
+
+    // 不存在的条目不落盘
+    useLibraryStore.getState().attachPdf('missing', new Uint8Array([1]).buffer);
+    expect(vi.mocked(db.attachmentPut)).toHaveBeenCalledTimes(1);
+  });
+
+  it('removePapers 级联删除持久层附件（含未 hydrate 回内存的）', async () => {
+    useLibraryStore.getState().attachPdf('p1', new Uint8Array([1]).buffer);
+    useLibraryStore.getState().removePapers(['p1']);
+
+    expect(vi.mocked(db.attachmentBulkDelete)).toHaveBeenCalledWith(['p1']);
+    await flush();
+    expect(await db.attachmentGetAll()).toEqual([]);
+  });
+
+  it('openPdf 从持久层回填：内存 miss → 异步读回填内存 → 再次打开成功', async () => {
+    useLibraryStore.getState().attachPdf('p1', new Uint8Array([7, 8, 9]).buffer);
+    await flush();
+
+    // 模拟重启：清空内存附件（持久层留存）
+    useLibraryStore.setState({ pdfAttachments: {} });
+    expect(useLibraryStore.getState().openPdf('p1')).toEqual({ ok: false, error: 'no-attachment' });
+    expect(vi.mocked(db.attachmentGet)).toHaveBeenCalledWith('p1');
+
+    await flush();
+    expect(
+      new Uint8Array(useLibraryStore.getState().pdfAttachments['p1']!),
+    ).toEqual(new Uint8Array([7, 8, 9]));
+    const r = useLibraryStore.getState().openPdf('p1');
+    expect(r).toEqual({ ok: true, name: 'vaswani2017attention.pdf' });
+    expect(new Uint8Array(useUiStore.getState().pdfView!.data)).toEqual(
+      new Uint8Array([7, 8, 9]),
+    );
+  });
+
+  it('hydrateAttachments 预载全部附件且幂等（内存已有不覆盖、不计入）', async () => {
+    const p2 = makePaper({ id: 'p2', citekey: 'brown2020language' });
+    useLibraryStore.setState({ papers: [useLibraryStore.getState().papers[0]!, p2] });
+    useLibraryStore.getState().attachPdf('p1', new Uint8Array([1]).buffer);
+    useLibraryStore.getState().attachPdf('p2', new Uint8Array([2, 2]).buffer);
+    await flush();
+
+    // 模拟重启：内存清空，仅持久层有
+    useLibraryStore.setState({ pdfAttachments: {} });
+    expect(await hydrateAttachments()).toBe(2);
+    const s = useLibraryStore.getState();
+    expect(new Uint8Array(s.pdfAttachments['p1']!)).toEqual(new Uint8Array([1]));
+    expect(new Uint8Array(s.pdfAttachments['p2']!)).toEqual(new Uint8Array([2, 2]));
+
+    // 幂等：内存已有的键不覆盖；仅补齐缺失键
+    useLibraryStore.setState({ pdfAttachments: { p1: new Uint8Array([9]).buffer } });
+    expect(await hydrateAttachments()).toBe(1);
+    expect(new Uint8Array(useLibraryStore.getState().pdfAttachments['p1']!)).toEqual(
+      new Uint8Array([9]),
+    );
+    expect(new Uint8Array(useLibraryStore.getState().pdfAttachments['p2']!)).toEqual(
+      new Uint8Array([2, 2]),
+    );
+  });
+});
+
+describe('papers 持久化（IndexedDB kv 表，localStorage 配额解耦）', () => {
+  it('状态变更写 IndexedDB 而非 localStorage', async () => {
+    useLibraryStore.setState({ papers: [makePaper({ id: 'x1' })] });
+    await flush();
+
+    const stored = await getBigData<{ papers: Paper[]; seeded: boolean }>('sf-library');
+    expect(stored?.papers.map((p) => p.id)).toEqual(['x1']);
+    expect(stored?.seeded).toBe(true);
+    expect(localStorage.getItem('sf-library')).toBeNull();
+  });
+
+  it('initLibrary 从 IndexedDB 恢复且不重复播种', async () => {
+    await setBigData('sf-library', {
+      papers: [makePaper({ id: 'restored' })],
+      seeded: true,
+    });
+    await initLibrary();
+    expect(useLibraryStore.getState().papers.map((p) => p.id)).toEqual(['restored']);
+  });
+
+  it('initLibrary：清空过的库不重新播种（seeded 标记持久）', async () => {
+    await setBigData('sf-library', { papers: [], seeded: true });
+    await initLibrary();
+    expect(useLibraryStore.getState().papers).toEqual([]);
+  });
+
+  it('initLibrary：全新环境注入种子文献（首次运行语义保留）', async () => {
+    useLibraryStore.setState({ papers: [] });
+    await flush();
+    // 模拟全新环境：持久层与缓存均为空
+    db.__resetStorageForTests();
+    __resetKvStoreForTests();
+
+    await initLibrary();
+
+    const papers = useLibraryStore.getState().papers;
+    expect(papers).toHaveLength(3);
+    expect(papers[0]!.citekey).toBe('vaswani2017attention');
+  });
+
+  it('initLibrary：旧 localStorage 存量（未迁移）兜底恢复', async () => {
+    useLibraryStore.setState({ papers: [makePaper({ id: 'legacy' })] });
+    await flush();
+    // 清掉订阅已写入的 IndexedDB 副本，模拟"仅 localStorage 有存量"的升级首启
+    db.__resetStorageForTests();
+    __resetKvStoreForTests();
+    localStorage.setItem(
+      'sf-library',
+      JSON.stringify({ papers: [makePaper({ id: 'legacy' })], seeded: true }),
+    );
+
+    await initLibrary();
+
+    expect(useLibraryStore.getState().papers.map((p) => p.id)).toEqual(['legacy']);
   });
 });

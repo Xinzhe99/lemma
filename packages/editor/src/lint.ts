@@ -39,13 +39,17 @@ interface EnvFrame {
   depth: number;
 }
 
-/** 与 outline.ts 的 CITE_ARGS_RE 同构（每个 lintLatex 调用重建，避免 lastIndex 串扰） */
-function makeCiteRe(): RegExp {
-  return new RegExp(
-    `\\\\(?:${CITE_COMMANDS.join('|')})\\*?\\s*(?:\\[[^\\]]*\\]\\s*)*\\{([^}]*)\\}`,
-    'g',
-  );
-}
+/** 与 outline.ts 的 CITE_ARGS_RE 同构（模块级预编译一次；行循环内重置 lastIndex） */
+const CITE_RE = new RegExp(
+  `\\\\(?:${CITE_COMMANDS.join('|')})\\*?\\s*(?:\\[[^\\]]*\\]\\s*)*\\{([^}]*)\\}`,
+  'g',
+);
+/** 环境起止 / 悬空引用 / TODO 标记 / 空行判定 —— 均预编译到模块级，避免每次调用重建 */
+const BEGIN_END_RE = /\\(begin|end)\s*\{([^}]*)\}/g;
+const REF_RE = /\\(ref|eqref)\s*\{([^}]*)\}/g;
+const TODO_RE = /\b(TODO|FIXME)\b/;
+/** 与 raw.trim() === '' 等价（\s 与 trim 的空白集相同），但不为每行分配裁剪副本 */
+const BLANK_RE = /^\s*$/;
 
 /** 花括号扫描结果：missing = 缺少的 "}" 数；extra = 多余的 "}" 数 */
 function scanBraces(code: string): { missing: number; extra: number } {
@@ -86,11 +90,8 @@ export function lintLatex(text: string, opts?: LintOptions): LintIssue[] {
   const labels = opts?.labels ?? new Set(collectLabels(text).map((l) => l.name));
   const citekeys = opts?.citekeys ?? new Set(collectCitekeys(text));
 
-  // 全局正则在每次调用时重建（g 标志的 lastIndex 与并发/重入无关，纯函数更安全）
-  const beginEndRe = /\\(begin|end)\s*\{([^}]*)\}/g;
-  const refRe = /\\(ref|eqref)\s*\{([^}]*)\}/g;
-  const citeRe = makeCiteRe();
-
+  // 全局正则均已模块级预编译；g 标志的 lastIndex 在每行使用前显式归零，
+  // 行内 while 循环跑到 null 后 lastIndex 也会自动复位，纯函数语义不变。
   const lines = text.split('\n');
   const stack: EnvFrame[] = [];
   let blankRun = 0;
@@ -99,31 +100,35 @@ export function lintLatex(text: string, opts?: LintOptions): LintIssue[] {
     const raw = lines[i]!;
     const code = stripLineComment(raw);
     const lineNo = i + 1;
+    let m: RegExpExecArray | null;
+    // 三个命令类规则都以 '\\' 开头：无反斜杠的行一次 indexOf 跳过三组正则扫描
+    const hasBackslash = code.indexOf('\\') !== -1;
 
     // 规则 1：\begin/\end 环境配对（栈匹配）
-    beginEndRe.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = beginEndRe.exec(code))) {
-      const kind = m[1]!;
-      const env = m[2]!.trim();
-      if (!env) continue;
-      if (kind === 'begin') {
-        stack.push({ env, line: lineNo, depth: stack.length + 1 });
-      } else {
-        const idx = findEnvIndex(stack, env);
-        if (idx === -1) {
-          add(lineNo, 'error', `多余的 \\end{${env}}：没有对应的 \\begin{${env}}`);
+    if (hasBackslash) {
+      BEGIN_END_RE.lastIndex = 0;
+      while ((m = BEGIN_END_RE.exec(code))) {
+        const kind = m[1]!;
+        const env = m[2]!.trim();
+        if (!env) continue;
+        if (kind === 'begin') {
+          stack.push({ env, line: lineNo, depth: stack.length + 1 });
         } else {
-          // 被当前 \end 提前跳过的更内层环境视为未闭合
-          for (let j = stack.length - 1; j > idx; j--) {
-            const f = stack[j]!;
-            add(
-              f.line,
-              'error',
-              `\\begin{${f.env}} 未闭合（第 ${f.depth} 层，被 \\end{${env}} 提前结束）`,
-            );
+          const idx = findEnvIndex(stack, env);
+          if (idx === -1) {
+            add(lineNo, 'error', `多余的 \\end{${env}}：没有对应的 \\begin{${env}}`);
+          } else {
+            // 被当前 \end 提前跳过的更内层环境视为未闭合
+            for (let j = stack.length - 1; j > idx; j--) {
+              const f = stack[j]!;
+              add(
+                f.line,
+                'error',
+                `\\begin{${f.env}} 未闭合（第 ${f.depth} 层，被 \\end{${env}} 提前结束）`,
+              );
+            }
+            stack.length = idx; // 弹出 idx 帧及其上方全部帧
           }
-          stack.length = idx; // 弹出 idx 帧及其上方全部帧
         }
       }
     }
@@ -139,40 +144,44 @@ export function lintLatex(text: string, opts?: LintOptions): LintIssue[] {
     }
 
     // 规则 3：\ref/\eqref 悬空引用
-    refRe.lastIndex = 0;
     const seenRefs = new Set<string>();
-    while ((m = refRe.exec(code))) {
-      const cmd = m[1]!;
-      const name = m[2]!.trim();
-      if (!name || seenRefs.has(name)) continue;
-      seenRefs.add(name);
-      if (!labels.has(name)) {
-        add(lineNo, 'warning', `\\${cmd}{${name}} 没有对应的 \\label`);
+    if (hasBackslash) {
+      REF_RE.lastIndex = 0;
+      while ((m = REF_RE.exec(code))) {
+        const cmd = m[1]!;
+        const name = m[2]!.trim();
+        if (!name || seenRefs.has(name)) continue;
+        seenRefs.add(name);
+        if (!labels.has(name)) {
+          add(lineNo, 'warning', `\\${cmd}{${name}} 没有对应的 \\label`);
+        }
       }
     }
 
     // 规则 4：\cite 未知引用键
-    citeRe.lastIndex = 0;
-    const seenCite = new Set<string>();
-    while ((m = citeRe.exec(code))) {
-      for (const part of m[1]!.split(',')) {
-        const key = part.trim();
-        if (!key || seenCite.has(key)) continue;
-        seenCite.add(key);
-        if (!citekeys.has(key)) {
-          add(lineNo, 'warning', `\\cite{${key}}：未知引用键（不在 .bib / 文献库中）`);
+    if (hasBackslash) {
+      CITE_RE.lastIndex = 0;
+      const seenCite = new Set<string>();
+      while ((m = CITE_RE.exec(code))) {
+        for (const part of m[1]!.split(',')) {
+          const key = part.trim();
+          if (!key || seenCite.has(key)) continue;
+          seenCite.add(key);
+          if (!citekeys.has(key)) {
+            add(lineNo, 'warning', `\\cite{${key}}：未知引用键（不在 .bib / 文献库中）`);
+          }
         }
       }
     }
 
     // 规则 5：TODO/FIXME 标记 —— 在原始行上检查（TODO 恰恰多写在注释里，不先剥离注释）
-    const todo = /\b(TODO|FIXME)\b/.exec(raw);
+    const todo = TODO_RE.exec(raw);
     if (todo) {
       add(lineNo, 'hint', `发现 ${todo[1]} 标记`);
     }
 
     // 规则 6：连续 3 个及以上空行（首个空行处报一次）
-    if (raw.trim() === '') {
+    if (BLANK_RE.test(raw)) {
       blankRun++;
       if (blankRun === 3) {
         add(lineNo - 2, 'hint', '连续 3 个以上空行（建议最多保留 1 个）');

@@ -41,15 +41,18 @@ const ENV_KIND: Readonly<Record<string, FloatKind>> = {
 const TOKEN_RE =
   /\\(begin|end)\s*\{([a-zA-Z0-9*]+)\}|\\label\s*\{([^{}]*)\}|\\caption\*?\s*(?:\[[^\]\n]*\]\s*)?\{/g;
 
-/** 行内注释剥离（editor 包 stripLineComment 的简化版：按前导反斜杠个数的奇偶判断 % 是否转义） */
+/** 行内注释剥离（editor 包 stripLineComment 的简化版：按前导反斜杠个数的奇偶判断 % 是否转义）。
+ *  性能：indexOf 定位 '%'，无注释行原样返回（零分配），语义与逐字符扫描版一致。 */
 export function stripComment(line: string): string {
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] !== '%') continue;
+  let from = 0;
+  for (;;) {
+    const i = line.indexOf('%', from);
+    if (i === -1) return line;
     let backslashes = 0;
     for (let j = i - 1; j >= 0 && line[j] === '\\'; j--) backslashes++;
     if (backslashes % 2 === 0) return line.slice(0, i);
+    from = i + 1; // \% 是转义百分号，继续找下一个 %
   }
-  return line;
 }
 
 /** caption 等原始片段 → 纯文本：去 TeX 命令与花括号、还原转义字符、压缩空白 */

@@ -26,6 +26,14 @@ npm run typecheck   # 全部包类型检查
 npm run build       # 构建应用
 ```
 
+## v0.8.0 —— 从 demo 到成熟产品（真实数据/真实编译/分发）
+
+- **数据持久化升级**：PDF 附件存 IndexedDB（Dexie，重启不丢，启动自动回载）；大数据自动迁移（≥32KB localStorage 键搬运，先落盘后删键的安全语义）；配额永不炸
+- **模型服务激活器**：7 家预设（DeepSeek/GLM/Kimi/硅基流动/Qwen/OpenAI/自建）一键填充 + 「去获取 Key」直达 + 连接测试（延迟/模型可用性/中文错误诊断）；Agent 面板 30 秒快速激活卡（未配置时内嵌迷你表单）
+- **SyncTeX 真实格式适配**：用本机 TeX Live 2024 真实编译产物校准（换算常数 65781.76=65536×72.27/72，pdfjs 交叉验证误差 <0.05pt），完整解析真实记录流（Input/Magnification/Unit/嵌套 hbox-vbox/kern-glue），真实文件双向命中回归测试
+- **大项目性能**：120 文件合成项目基线（8 项全过，余量 30–600 倍）；修复深嵌套 \input 链的 O(n²) 拷贝与栈溢出（depth=2000 曾崩溃，现 7.7ms）；bib 解析 LRU 缓存；outline/lint/floats 单趟化
+- **真实安装包**：NSIS 安装器构建成功（ScholarForge_0.8.0_x64-setup.exe，2.95MB）+ 独立 release exe（4.98MB）
+
 ## v0.7.1 —— 缺陷修复轮（PM 审计驱动）
 
 修复 15 项审计缺陷（3 P0/5 P1/7 P2）：批注按钮接线复活（光标桥响应式订阅）；Tauri 下 4 处原生对话框静默失效全部迁移应用内对话框；PDF 视图下跳转源码兜底接通；Ctrl+Shift+Z 不再劫持编辑器 Redo；专注模式 Esc 退出+布局真正收拢；Ctrl+Enter/H/, 快捷键实接线；W12/W2 工作流入命令面板；拼写易混词加语境守卫（their/then/its…不再误报）；PDF 连续模式补文本层（选中标注/即问/点击同步全通）；⇄PDF 用光标行；重开上次编译 PDF；Ctrl+S 文案纠偏；编译日志/润色提示双语化。

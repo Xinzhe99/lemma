@@ -36,15 +36,20 @@ const SECTION_RE = new RegExp(`^\\s*\\\\(${SECTION_NAMES})\\*?\\s*(?:\\[[^\\]]*\
 /**
  * 去掉一行中未被转义的行内注释（含其后内容）。
  * `\\%` 中反斜杠为转义输出；`\\\\%` 则 % 开启注释 —— 按前导反斜杠个数的奇偶判断。
+ *
+ * 性能：用 indexOf 定位 '%'（无注释行直接原样返回，零分配），
+ * 语义与逐字符扫描版完全一致。
  */
 export function stripLineComment(line: string): string {
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] !== '%') continue;
+  let from = 0;
+  for (;;) {
+    const i = line.indexOf('%', from);
+    if (i === -1) return line;
     let backslashes = 0;
     for (let j = i - 1; j >= 0 && line[j] === '\\'; j--) backslashes++;
     if (backslashes % 2 === 0) return line.slice(0, i);
+    from = i + 1; // \% 是转义百分号，继续找下一个 %
   }
-  return line;
 }
 
 /** 从 start（指向 '{'）出发找匹配的 '}'，返回其索引；找不到返回 -1 */
@@ -70,7 +75,12 @@ export function parseOutline(doc: string): OutlineNode[] {
   const nodes: OutlineNode[] = [];
   const lines = doc.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const stripped = stripLineComment(lines[i]!);
+    const line = lines[i]!;
+    // 快速跳过：首字符为 ASCII 可见字符且非反斜杠时，既非 \s 也非 '\\',
+    // ^\s*\\(...) 必不匹配（注释剥离只会删字符、不会引入反斜杠），省掉剥离+正则
+    const c0 = line.charCodeAt(0);
+    if (c0 >= 33 && c0 <= 126 && c0 !== 92 /* \ */) continue;
+    const stripped = stripLineComment(line);
     const m = SECTION_RE.exec(stripped);
     if (!m) continue;
     const command = m[1]!;
@@ -84,16 +94,18 @@ export function parseOutline(doc: string): OutlineNode[] {
   return nodes;
 }
 
+const LABEL_RE = /\\label\{([^}]*)\}/g;
+
 /** 收集全部 \label{...}（忽略注释） */
 export function collectLabels(doc: string): LabelEntry[] {
   const labels: LabelEntry[] = [];
   const lines = doc.split('\n');
-  const re = /\\label\{([^}]*)\}/g;
   for (let i = 0; i < lines.length; i++) {
     const code = stripLineComment(lines[i]!);
-    re.lastIndex = 0;
+    if (code.indexOf('\\') === -1) continue; // 无反斜杠的行不可能含 \label
+    LABEL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = LABEL_RE.exec(code))) {
       const name = m[1]!.trim();
       if (name) labels.push({ name, line: i + 1 });
     }
@@ -131,6 +143,7 @@ export function collectCitekeys(doc: string): string[] {
   const keys: string[] = [];
   for (const line of doc.split('\n')) {
     const code = stripLineComment(line);
+    if (code.indexOf('\\') === -1) continue; // 无反斜杠的行不可能含 \cite 家族命令
     CITE_ARGS_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = CITE_ARGS_RE.exec(code))) {

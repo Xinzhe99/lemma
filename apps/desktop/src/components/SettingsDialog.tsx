@@ -1,6 +1,8 @@
 /**
  * 设置对话框：模型服务（Provider CRUD + 激活）、外观（主题/语言）、关于。
  * Esc / 遮罩点击关闭。
+ * 激活器 WS-Act：表单顶部「快速预设」下拉（一键填充 + 去获取 Key 链接）、
+ * 底部「测试连接」按钮（保存前即可验证 BaseURL/Key/模型）。
  */
 
 import { useEffect, useState } from 'react';
@@ -12,12 +14,16 @@ import {
   type ProviderConfig,
   type ProviderTier,
 } from '../state/settingsStore';
+import { PROVIDER_PRESETS, findPreset, matchPresetByBaseUrl } from '../providers/presets';
+import { testProvider, type TestResult } from '../providers/connectionTest';
 
 type DialogTab = 'providers' | 'appearance' | 'about';
 
 interface ProviderForm {
   /** 编辑既有服务时携带 id；新建为 null */
   id: string | null;
+  /** 当前选中的预设 id（'' 未选；'custom' 显式自定义；不持久化） */
+  presetId: string;
   label: string;
   baseUrl: string;
   apiKey: string;
@@ -27,11 +33,53 @@ interface ProviderForm {
 
 const EMPTY_FORM: ProviderForm = {
   id: null,
+  presetId: '',
   label: '',
-  baseUrl: 'https://api.example.com/v1',
+  baseUrl: '',
   apiKey: '',
   model: '',
   tier: 'cheap',
+};
+
+// ---------------------------------------------------------------------------
+// 激活器新增 UI 文案（zh/en 组件内字典；其余沿用全局 i18n）
+// ---------------------------------------------------------------------------
+
+interface ActivationDict {
+  quickPreset: string;
+  presetPlaceholder: string;
+  custom: string;
+  getKey: string;
+  testConnection: string;
+  testing: string;
+  testOkNoModel: (ms: number) => string;
+  testOkModel: (ms: number, model: string) => string;
+  testFail: (err: string) => string;
+}
+
+const ACTIVATION: Record<'zh' | 'en', ActivationDict> = {
+  zh: {
+    quickPreset: '快速预设',
+    presetPlaceholder: '选择服务商，一键填充…',
+    custom: '自定义…',
+    getKey: '去获取 Key ↗',
+    testConnection: '测试连接',
+    testing: '测试中…',
+    testOkNoModel: (ms) => `✓ 连接正常 · ${ms}ms`,
+    testOkModel: (ms, model) => `✓ 连接正常 · ${ms}ms · 模型 ${model} 可用`,
+    testFail: (err) => `✗ ${err}`,
+  },
+  en: {
+    quickPreset: 'Quick preset',
+    presetPlaceholder: 'Pick a provider to autofill…',
+    custom: 'Custom…',
+    getKey: 'Get key ↗',
+    testConnection: 'Test connection',
+    testing: 'Testing…',
+    testOkNoModel: (ms) => `✓ Connected · ${ms}ms`,
+    testOkModel: (ms, model) => `✓ Connected · ${ms}ms · model ${model} available`,
+    testFail: (err) => `✗ ${err}`,
+  },
 };
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
@@ -51,6 +99,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   const [tab, setTab] = useState<DialogTab>('providers');
   const [form, setForm] = useState<ProviderForm | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  // 激活器 UI 文案（按当前语言）
+  const L = ACTIVATION[language];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,10 +125,59 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     if (form.id) updateProvider(form.id, input);
     else addProvider(input);
     setForm(null);
+    setTestResult(null);
   };
 
-  const startEdit = (p: ProviderConfig) =>
-    setForm({ id: p.id, label: p.label, baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, tier: p.tier });
+  const startEdit = (p: ProviderConfig) => {
+    setTestResult(null);
+    setForm({
+      id: p.id,
+      // 按 baseUrl 反查预设：命中则回显（含「去获取 Key」链接），否则视为自定义
+      presetId: matchPresetByBaseUrl(p.baseUrl)?.id ?? 'custom',
+      label: p.label,
+      baseUrl: p.baseUrl,
+      apiKey: p.apiKey,
+      model: p.model,
+      tier: p.tier,
+    });
+  };
+
+  /** 选预设：一键填 baseUrl + 默认模型 + 名称；'custom' 只切状态不覆盖已填内容 */
+  const applyPreset = (id: string) => {
+    setTestResult(null);
+    setForm((f) => {
+      if (!f) return f;
+      if (id === 'custom') return { ...f, presetId: 'custom' };
+      const p = findPreset(id);
+      if (!p) return { ...f, presetId: '' };
+      return { ...f, presetId: id, label: p.label, baseUrl: p.baseUrl, model: p.models[0] ?? f.model };
+    });
+  };
+
+  /** 测试连接：用表单当前值（不必先保存）；loading 态防重复点击 */
+  const runTest = async () => {
+    if (!form || testing) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testProvider({
+        baseUrl: form.baseUrl,
+        apiKey: form.apiKey,
+        model: form.model.trim() || undefined,
+      });
+      setTestResult(result);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const testLine = testResult
+    ? testResult.ok
+      ? testResult.model
+        ? L.testOkModel(testResult.latencyMs ?? 0, testResult.model)
+        : L.testOkNoModel(testResult.latencyMs ?? 0)
+      : L.testFail(testResult.error ?? '')
+    : null;
 
   /** 删除确认走应用内对话框（Tauri WKWebView 下原生 confirm 静默失效） */
   const remove = async (p: ProviderConfig): Promise<void> => {
@@ -84,13 +186,24 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const field = (key: keyof Omit<ProviderForm, 'id'>, label: string, value: string, type = 'text') => (
+  /** 当前表单选中的预设（未选/自定义为 null） */
+  const formPreset = form && form.presetId !== '' && form.presetId !== 'custom' ? findPreset(form.presetId) ?? null : null;
+
+  const field = (
+    key: keyof Omit<ProviderForm, 'id' | 'presetId'>,
+    label: string,
+    value: string,
+    type = 'text',
+    placeholder?: string,
+  ) => (
     <label className="sf-form-field">
       <span>{label}</span>
       <input
         className="sf-input"
         type={type}
         value={value}
+        placeholder={placeholder}
+        list={key === 'model' && formPreset ? 'sf-preset-models' : undefined}
         onChange={(e) => setForm((f) => (f ? { ...f, [key]: e.target.value } : f))}
       />
     </label>
@@ -150,8 +263,46 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
               {form ? (
                 <div className="sf-form">
+                  {/* 快速预设：一键填充 + 去获取 Key 链接（激活器） */}
+                  <label className="sf-form-field" style={{ gridColumn: '1 / -1' }}>
+                    <span>
+                      {L.quickPreset}
+                      {formPreset?.keyUrl && (
+                        <a
+                          className="sf-link-btn"
+                          href={formPreset.keyUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={formPreset.keyUrl}
+                        >
+                          {L.getKey}
+                        </a>
+                      )}
+                    </span>
+                    <select className="sf-input" value={form.presetId} onChange={(e) => applyPreset(e.target.value)}>
+                      <option value="">{L.presetPlaceholder}</option>
+                      {PROVIDER_PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                      <option value="custom">{L.custom}</option>
+                    </select>
+                    {formPreset && (
+                      <small className="sf-agent-note" style={{ margin: 0 }}>
+                        {language === 'en' && formPreset.noteEn ? formPreset.noteEn : formPreset.note}
+                      </small>
+                    )}
+                  </label>
+                  {formPreset && (
+                    <datalist id="sf-preset-models">
+                      {formPreset.models.map((m) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                  )}
                   {field('label', t('settings.field.label'), form.label)}
-                  {field('baseUrl', t('settings.field.baseUrl'), form.baseUrl)}
+                  {field('baseUrl', t('settings.field.baseUrl'), form.baseUrl, 'text', 'https://api.deepseek.com/v1')}
                   {field('apiKey', t('settings.field.apiKey'), form.apiKey, 'password')}
                   {field('model', t('settings.field.model'), form.model)}
                   <label className="sf-form-field">
@@ -166,13 +317,32 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                     </select>
                   </label>
                   <div className="sf-form-actions">
+                    <button
+                      className="sf-btn"
+                      onClick={() => void runTest()}
+                      disabled={testing || !form.baseUrl.trim() || !form.apiKey.trim()}
+                      title={t('settings.field.baseUrl') + ' + ' + t('settings.field.apiKey')}
+                    >
+                      {testing ? L.testing : L.testConnection}
+                    </button>
                     <button className="sf-btn primary" onClick={saveForm}>
                       {t('settings.save')}
                     </button>
-                    <button className="sf-btn" onClick={() => setForm(null)}>
+                    <button
+                      className="sf-btn"
+                      onClick={() => {
+                        setForm(null);
+                        setTestResult(null);
+                      }}
+                    >
                       {t('settings.cancel')}
                     </button>
                   </div>
+                  {testLine && (
+                    <p className="sf-agent-note" role="status" style={{ gridColumn: '1 / -1', margin: 0 }}>
+                      {testLine}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <button className="sf-btn primary" onClick={() => setForm({ ...EMPTY_FORM })}>

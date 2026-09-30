@@ -59,4 +59,4 @@ export type { WorkflowRunViewProps, WorkflowStepUiStatus } from './ui/WorkflowRu
 export { CostBadge, formatCost } from './ui/CostBadge';
 export type { CostBadgeProps } from './ui/CostBadge';
 
-export const AGENT_HUB_PACKAGE_VERSION = '0.7.0';
+export const AGENT_HUB_PACKAGE_VERSION = '0.8.0';

@@ -2,7 +2,10 @@
  * 文献库应用层状态：条目 CRUD、BibTeX/DOI/arXiv 导入、citekey 生成消歧，
  * 以及知识索引（分块 + 本地哈希嵌入 + 混合检索），供 RAG 与 Context Pack 使用。
  *
- * 持久化：papers 以 JSON 存 localStorage（sf-library）；知识索引每次启动重建。
+ * 持久化（IndexedDB 升级）：papers 经 kvStore.setBigData 写 IndexedDB kv 表
+ * （localStorage 5MB 配额不再承压；旧 sf-library 键由启动迁移搬走、读路径兜底）；
+ * PDF 附件字节经 db.attachmentPut 以 Blob 落 IndexedDB attachments 表，启动自动
+ * hydrate 回内存（此前纯内存态、重启全丢）；知识索引每次启动重建。
  */
 
 import { create } from 'zustand';
@@ -30,6 +33,14 @@ import {
 import { useSettingsStore } from './settingsStore';
 import { useUiStore } from './uiStore';
 import { paperAnnotationKey, useAnnotationStore } from './annotationStore';
+import {
+  attachmentBulkDelete,
+  attachmentGet,
+  attachmentGetAll,
+  attachmentPut,
+  blobToArrayBuffer,
+} from '../storage/db';
+import { getBigData, migrateLocalStorageToIdb, setBigData } from '../storage/kvStore';
 
 const STORAGE_KEY = 'sf-library';
 
@@ -42,7 +53,7 @@ export type OpenPdfError = 'no-paper' | 'no-attachment';
 
 interface LibraryState {
   papers: Paper[];
-  /** 库内 PDF 附件（内存态：paperId → bytes；重启后 pdfPath 标记仍在但需重新关联）。 */
+  /** 库内 PDF 附件（paperId → bytes；IndexedDB 持久化，模块加载时自动 hydrate 回内存）。 */
   pdfAttachments: Record<string, ArrayBuffer>;
   /** 知识索引是否已构建完成（后台异步） */
   indexReady: boolean;
@@ -58,7 +69,7 @@ interface LibraryState {
   setReadStatus(id: string, status: ReadStatus): void;
   /** 批量标记阅读状态（L5）。 */
   setReadStatusBulk(ids: string[], status: ReadStatus): void;
-  /** 关联本地 PDF：bytes 存内存 map，paper.pdfPath 标记为 `${citekey}.pdf`。 */
+  /** 关联本地 PDF：bytes 存内存 map 并持久化到 IndexedDB，paper.pdfPath 标记为 `${citekey}.pdf`。 */
   attachPdf(paperId: string, data: ArrayBuffer): boolean;
   /** 经 uiStore.setPdfView 打开库内附件；文件名固定 `${citekey}.pdf`，标注键绑定到 paperId。 */
   openPdf(paperId: string): { ok: true; name: string } | { ok: false; error: OpenPdfError };
@@ -74,6 +85,7 @@ interface PersistedLibrary {
   seeded: boolean;
 }
 
+/** 旧 localStorage 快照（升级到 IndexedDB 前的存量数据；迁移后此值为 null）。 */
 function readPersisted(): PersistedLibrary | null {
   try {
     const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(STORAGE_KEY);
@@ -318,6 +330,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       papers: get().papers.filter((p) => !removing.has(p.id)),
       pdfAttachments: attachments,
     });
+    // 级联清理持久层附件（含尚未 hydrate 回内存的）
+    persistQuietly(attachmentBulkDelete(removed.map((p) => p.id)));
     void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
   },
 
@@ -336,12 +350,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const paper = get().papers.find((p) => p.id === paperId);
     if (!paper) return false;
     // 存副本：pdfjs 可能转移（detach）调用方传入的 buffer
+    const copy = data.slice(0);
+    const name = `${paper.citekey || paper.id}.pdf`;
     set((s) => ({
-      pdfAttachments: { ...s.pdfAttachments, [paperId]: data.slice(0) },
-      papers: s.papers.map((p) =>
-        p.id === paperId ? { ...p, pdfPath: `${p.citekey || p.id}.pdf` } : p,
-      ),
+      pdfAttachments: { ...s.pdfAttachments, [paperId]: copy },
+      papers: s.papers.map((p) => (p.id === paperId ? { ...p, pdfPath: name } : p)),
     }));
+    // 持久化到 IndexedDB（fire-and-forget：失败仅告警，不打断 UI）
+    persistQuietly(
+      attachmentPut({ paperId, data: new Blob([copy]), name, savedAt: Date.now() }),
+    );
     return true;
   },
 
@@ -349,7 +367,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const paper = get().papers.find((p) => p.id === paperId);
     if (!paper) return { ok: false, error: 'no-paper' };
     const bytes = get().pdfAttachments[paperId];
-    if (!bytes) return { ok: false, error: 'no-attachment' };
+    if (!bytes) {
+      // 内存未命中（启动 hydrate 未完成或内存被清空）：异步从持久层回填，本次按无附件
+      // 返回（同步返回类型保持不变）；回填完成后再次 openPdf 即可打开。
+      persistQuietly(backfillAttachment(paperId));
+      return { ok: false, error: 'no-attachment' };
+    }
     const name = `${paper.citekey || paper.id}.pdf`;
     // 标注键绑定到 paperId（App 层经 resolveKey 读/写），再传出副本避免 pdfjs 转移存储 buffer
     useAnnotationStore.getState().bindPdfName(name, paperId);
@@ -366,22 +389,71 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 }));
 
-// 持久化订阅
+// 持久化订阅：papers 整库写 IndexedDB（setBigData 异步、同键串行、永不因配额抛错）；
+// 旧 localStorage 副本由启动迁移搬走，读路径经 getBigData 兜底。
 useLibraryStore.subscribe((s) => {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const snap: PersistedLibrary = { papers: s.papers, seeded: true };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-    }
-  } catch {
-    /* 忽略持久化失败 */
-  }
+  const snap: PersistedLibrary = { papers: s.papers, seeded: true };
+  void setBigData(STORAGE_KEY, snap);
 });
 
-/** 启动初始化：首次运行注入种子文献；随后按嵌入配置重建知识索引。 */
+/** fire-and-forget 持久化：失败仅控制台告警（与旧 localStorage try/catch 吞错同语义）。 */
+function persistQuietly(op: Promise<unknown>): void {
+  void op.catch((e) => console.warn('[storage] 附件持久化失败：', e));
+}
+
+/** 从持久层读回单条附件填内存（内存已有或持久层无则不动）。 */
+async function backfillAttachment(paperId: string): Promise<void> {
+  if (useLibraryStore.getState().pdfAttachments[paperId]) return;
+  const rec = await attachmentGet(paperId);
+  if (!rec) return;
+  const bytes = await blobToArrayBuffer(rec.data);
+  // 仅在内存仍缺时填入，避免覆盖稍新的 attachPdf 副本
+  useLibraryStore.setState((s) =>
+    s.pdfAttachments[paperId]
+      ? s
+      : { pdfAttachments: { ...s.pdfAttachments, [paperId]: bytes } },
+  );
+}
+
+/**
+ * 启动预载：把持久层全部附件读回内存 map，返回本次实际载入条数。幂等——内存已有
+ * 的键不覆盖、不计入。模块加载时自动执行一次（App 无需接线），此后 openPdf 只查
+ * 内存 map 即可同步打开。
+ */
+export async function hydrateAttachments(): Promise<number> {
+  const records = await attachmentGetAll();
+  let loaded = 0;
+  for (const rec of records) {
+    if (useLibraryStore.getState().pdfAttachments[rec.paperId]) continue;
+    const bytes = await blobToArrayBuffer(rec.data);
+    useLibraryStore.setState((s) =>
+      s.pdfAttachments[rec.paperId]
+        ? s
+        : { pdfAttachments: { ...s.pdfAttachments, [rec.paperId]: bytes } },
+    );
+    loaded += 1;
+  }
+  return loaded;
+}
+
+/**
+ * 启动初始化：优先读 IndexedDB 持久库（getBigData；旧 localStorage 副本兜底）；
+ * 首次运行注入种子文献；随后按嵌入配置重建知识索引。
+ */
 export async function initLibrary(): Promise<void> {
+  let fromIdb: Partial<PersistedLibrary> | undefined;
+  try {
+    fromIdb = await getBigData<Partial<PersistedLibrary>>(STORAGE_KEY);
+  } catch {
+    fromIdb = undefined; // IndexedDB 读取失败：退回模块加载时的 localStorage 旧副本
+  }
+  if (fromIdb && Array.isArray(fromIdb.papers)) {
+    useLibraryStore.setState({ papers: fromIdb.papers });
+  }
   const state = useLibraryStore.getState();
-  if (!persisted?.seeded && state.papers.length === 0) {
+  const alreadySeeded =
+    persisted?.seeded === true || fromIdb?.seeded === true || state.papers.length > 0;
+  if (!alreadySeeded) {
     useLibraryStore.setState({ papers: seedPapers() });
   }
   chooseEmbedder();
@@ -398,3 +470,11 @@ useSettingsStore.subscribe((s, prev) => {
     );
   }
 });
+
+// 模块加载即自举（App 无需接线）：
+//  1. 附件 hydrate——持久层全部 PDF 附件预载回内存 map（幂等），重启后附件不再丢失；
+//  2. localStorage → IndexedDB 启动迁移——把 ≥32KB 的 sf-* 大键搬入 IndexedDB 释放配额
+//     （惰性读取方属主的键跳过，见 kvStore 注释；所有 store 的模块级同步读取先于
+//      本异步迁移执行，搬运不与任何模块初始化竞争）。
+persistQuietly(hydrateAttachments());
+void migrateLocalStorageToIdb().catch((e) => console.warn('[storage] 启动迁移失败：', e));

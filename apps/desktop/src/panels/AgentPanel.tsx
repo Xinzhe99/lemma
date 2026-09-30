@@ -37,6 +37,8 @@ import {
   polishSelection,
 } from '../aiActions';
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
+import { PROVIDER_PRESETS, findPreset } from '../providers/presets';
+import { testProvider, type TestResult } from '../providers/connectionTest';
 import { ReviewPanel, RebuttalPanel } from './ReviewPanel';
 import { ChecklistReport } from './ChecklistReport';
 import { WorkflowLauncher } from '../components/WorkflowLauncher';
@@ -96,6 +98,19 @@ const STRINGS = {
     draftTitlePrompt: '新章节标题',
     offlineRulePolish: '规则润色（离线）',
     offlineDraft: '离线模板起草',
+    // —— 激活器：providers 为空时的快速配置引导卡 ——
+    activationTitle: 'AI 功能尚未激活',
+    activationChip: '30 秒配置',
+    activationDesc: '选一个模型服务，贴上 API Key（可先测试），保存即解锁全部 AI 工作流；也可稍后到「设置 → 模型服务」配置。',
+    activationPreset: '模型服务',
+    activationApiKey: 'API Key',
+    getKey: '去获取 Key ↗',
+    activateTest: '测试连接',
+    activateTesting: '测试中…',
+    activateTestOk: (ms: number, model: string) => `✓ 连接正常 · ${ms}ms · 模型 ${model} 可用`,
+    activateTestOkNoModel: (ms: number) => `✓ 连接正常 · ${ms}ms`,
+    activateTestFail: (err: string) => `✗ ${err}`,
+    activateSave: '保存并激活',
   },
   en: {
     newSession: 'New session',
@@ -133,6 +148,20 @@ const STRINGS = {
     draftTitlePrompt: 'New section title',
     offlineRulePolish: 'Rule-based polish (offline)',
     offlineDraft: 'Offline template draft',
+    // —— Activator: quick-setup card when no provider is configured ——
+    activationTitle: 'AI features not activated yet',
+    activationChip: '30-second setup',
+    activationDesc:
+      'Pick a provider, paste your API key (test it first if you like), save — every AI workflow unlocks. You can also configure later in Settings → Providers.',
+    activationPreset: 'Provider',
+    activationApiKey: 'API key',
+    getKey: 'Get key ↗',
+    activateTest: 'Test connection',
+    activateTesting: 'Testing…',
+    activateTestOk: (ms: number, model: string) => `✓ Connected · ${ms}ms · model ${model} available`,
+    activateTestOkNoModel: (ms: number) => `✓ Connected · ${ms}ms`,
+    activateTestFail: (err: string) => `✗ ${err}`,
+    activateSave: 'Save & activate',
   },
 } as const;
 
@@ -156,6 +185,8 @@ export function AgentPanel() {
 
   const providers = useSettingsStore((s) => s.providers);
   const activeProviderId = useSettingsStore((s) => s.activeProviderId);
+  const addProvider = useSettingsStore((s) => s.addProvider);
+  const setActive = useSettingsStore((s) => s.setActive);
   const language = useSettingsStore((s) => s.language);
   const t = STRINGS[language] as (typeof STRINGS)[Language];
 
@@ -180,6 +211,55 @@ export function AgentPanel() {
   const session = sessions.find((s) => s.id === activeSessionId) ?? sessions[0] ?? null;
 
   const providerLabel = useMemo(() => resolveProvider().label, [providers, activeProviderId]);
+
+  // ------------------------------------------------------------------
+  // 激活器：providers 为空时的快速配置卡（预设 + Key + 测试 + 保存并激活）。
+  // 比跳设置更快：直接调 settingsStore.addProvider/setActive，保存成功横幅随
+  // providers.length 变化自动消失。
+  // ------------------------------------------------------------------
+
+  const [quickPresetId, setQuickPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? '');
+  const [quickKey, setQuickKey] = useState('');
+  const [quickTesting, setQuickTesting] = useState(false);
+  const [quickResult, setQuickResult] = useState<TestResult | null>(null);
+  const quickPreset = quickPresetId ? findPreset(quickPresetId) : undefined;
+
+  const quickTest = async () => {
+    const preset = quickPresetId ? findPreset(quickPresetId) : undefined;
+    if (!preset || !quickKey.trim() || quickTesting) return;
+    setQuickTesting(true);
+    setQuickResult(null);
+    try {
+      setQuickResult(await testProvider({ baseUrl: preset.baseUrl, apiKey: quickKey, model: preset.models[0] }));
+    } finally {
+      setQuickTesting(false);
+    }
+  };
+
+  const quickSave = () => {
+    const preset = quickPresetId ? findPreset(quickPresetId) : undefined;
+    const key = quickKey.trim();
+    if (!preset || !key) return;
+    const id = createId();
+    addProvider({
+      id,
+      label: preset.label,
+      baseUrl: preset.baseUrl,
+      apiKey: key,
+      model: preset.models[0] ?? '',
+      tier: 'cheap',
+    });
+    setActive(id);
+    // providers 由 0 → 1，引导卡不再渲染
+  };
+
+  const quickTestLine = quickResult
+    ? quickResult.ok
+      ? quickResult.model
+        ? t.activateTestOk(quickResult.latencyMs ?? 0, quickResult.model)
+        : t.activateTestOkNoModel(quickResult.latencyMs ?? 0)
+      : t.activateTestFail(quickResult.error ?? '')
+    : null;
 
   // 确保存在会话
   useEffect(() => {
@@ -446,6 +526,74 @@ export function AgentPanel() {
           {t.newSession}
         </button>
       </div>
+
+      {/* 激活器：无 provider 时的快速配置引导卡（保存后自动消失） */}
+      {providers.length === 0 && (
+        <div className="sf-agent-approval sf-agent-activate">
+          <div className="sf-agent-run-head">
+            <strong>{t.activationTitle}</strong>
+            <span className="sf-chip warn">{t.activationChip}</span>
+          </div>
+          <p className="sf-agent-note">{t.activationDesc}</p>
+          <div className="sf-form">
+            <label className="sf-form-field" style={{ gridColumn: '1 / -1' }}>
+              <span>
+                {t.activationPreset}
+                {quickPreset?.keyUrl && (
+                  <a className="sf-link-btn" href={quickPreset.keyUrl} target="_blank" rel="noreferrer" title={quickPreset.keyUrl}>
+                    {t.getKey}
+                  </a>
+                )}
+              </span>
+              <select
+                className="sf-input"
+                value={quickPresetId}
+                onChange={(e) => {
+                  setQuickPresetId(e.target.value);
+                  setQuickResult(null);
+                }}
+              >
+                {PROVIDER_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              {quickPreset && (
+                <small className="sf-agent-note" style={{ margin: 0 }}>
+                  {language === 'en' && quickPreset.noteEn ? quickPreset.noteEn : quickPreset.note}
+                </small>
+              )}
+            </label>
+            <label className="sf-form-field">
+              <span>{t.activationApiKey}</span>
+              <input
+                className="sf-input"
+                type="password"
+                value={quickKey}
+                placeholder="sk-…"
+                onChange={(e) => {
+                  setQuickKey(e.target.value);
+                  setQuickResult(null);
+                }}
+              />
+            </label>
+            <div className="sf-form-actions">
+              <button className="sf-btn" onClick={() => void quickTest()} disabled={quickTesting || !quickKey.trim()}>
+                {quickTesting ? t.activateTesting : t.activateTest}
+              </button>
+              <button className="sf-btn sf-btn--primary" onClick={quickSave} disabled={!quickKey.trim()}>
+                {t.activateSave}
+              </button>
+            </div>
+            {quickTestLine && (
+              <p className="sf-agent-note" role="status" style={{ gridColumn: '1 / -1', margin: 0 }}>
+                {quickTestLine}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {showContext && contextPreview && (
         <details className="sf-agent-context" open>
