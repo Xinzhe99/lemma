@@ -7,8 +7,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Image, Table } from 'lucide-react';
+import { Image, Quote, Table } from 'lucide-react';
 import { EditorView, LatexEditor } from '@scholarforge/editor';
+// 字号调节用的 CodeMirror 底层件（@scholarforge/editor 同源依赖，非新增包）
+import { keymap, type KeyBinding } from '@codemirror/view';
+import { Compartment, type Extension } from '@codemirror/state';
 // KaTeX 渲染所需样式（mathPreview hover 浮层；经 vite 打包，不改任何 .css 文件）
 import 'katex/dist/katex.min.css';
 import { useT } from '../i18n';
@@ -23,6 +26,60 @@ import { polishSelection, quickAsk } from '../aiActions';
 import { StatusBar } from './StatusBar';
 
 const TEXT_EXT = /\.(tex|bib|md|txt|sty|cls|bst)$/i;
+
+// ---------------------------------------------------------------------------
+// 编辑器字号调节（Ctrl+= / Ctrl++ 放大、Ctrl+- 缩小、Ctrl+0 重置）
+// ---------------------------------------------------------------------------
+
+export const FONT_SIZE_STORAGE_KEY = 'sf-editor-fontsize';
+export const FONT_SIZE_MIN = 10;
+export const FONT_SIZE_MAX = 24;
+export const FONT_SIZE_DEFAULT = 14;
+
+/** 钳制到 10–24px（非有限值回落默认 14；步进 1 取整） */
+export function clampFontSize(size: number): number {
+  if (!Number.isFinite(size)) return FONT_SIZE_DEFAULT;
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(size)));
+}
+
+/** 挂载时读取持久化字号（缺失/空串/损坏/越界回落默认或钳制值） */
+export function loadFontSize(): number {
+  try {
+    const raw =
+      typeof localStorage === 'undefined' ? null : localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    if (raw === null || raw.trim() === '') return FONT_SIZE_DEFAULT;
+    return clampFontSize(Number(raw));
+  } catch {
+    return FONT_SIZE_DEFAULT;
+  }
+}
+
+/** 字号持久化（始终写钳制后的值；写失败静默） */
+export function saveFontSize(size: number): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(clampFontSize(size)));
+    }
+  } catch {
+    /* 持久化失败不打断 UI */
+  }
+}
+
+/**
+ * 字号快捷键纯函数：'=' / '+' → +1、'-' → -1、'0' → 重置 14，均经边界钳制；
+ * 其余按键返回 null（非字号快捷键，交回默认处理）。
+ */
+export function handleFontSizeKey(key: string, current: number): number | null {
+  if (key === '=' || key === '+') return clampFontSize(current + 1);
+  if (key === '-') return clampFontSize(current - 1);
+  if (key === '0') return FONT_SIZE_DEFAULT;
+  return null;
+}
+
+/** 字号主题（经 Compartment 重设）：EditorView.theme({'&': {fontSize}}) */
+function fontSizeThemeOf(size: number): Extension {
+  return EditorView.theme({ '&': { fontSize: `${clampFontSize(size)}px` } });
+}
 
 function scrollToLine(view: EditorView, line: number): void {
   const clamped = Math.min(Math.max(1, line), view.state.doc.lines);
@@ -72,6 +129,43 @@ export function EditorArea() {
   );
   const extraExtensions = useMemo(() => [selectionTracker, cursorTracker], [cursorTracker]);
 
+  // —— 编辑器字号调节（挂载时读取 localStorage，快捷键经 Compartment 重设主题）——
+  const [fontSize, setFontSize] = useState<number>(loadFontSize);
+  const fontSizeRef = useRef(fontSize);
+  fontSizeRef.current = fontSize;
+  const fontCompartmentRef = useRef<Compartment | null>(null);
+  if (fontCompartmentRef.current === null) fontCompartmentRef.current = new Compartment();
+  const fontCompartment = fontCompartmentRef.current;
+
+  const fontKeymap = useMemo(() => {
+    const bump = (key: string) => () => {
+      const next = handleFontSizeKey(key, fontSizeRef.current);
+      if (next !== null) setFontSize(next);
+      return next !== null;
+    };
+    const bindings: KeyBinding[] = [
+      { key: 'Mod-=', preventDefault: true, run: bump('=') },
+      { key: 'Mod-+', preventDefault: true, run: bump('+') },
+      { key: 'Mod--', preventDefault: true, run: bump('-') },
+      { key: 'Mod-0', preventDefault: true, run: bump('0') },
+    ];
+    return keymap.of(bindings);
+  }, []);
+
+  // extraExtensions 含字号 compartment（LatexEditor 侧外层 Compartment 会随数组变化整体重配）
+  const editorExtensions = useMemo(
+    () => [...extraExtensions, fontKeymap, fontCompartment.of(fontSizeThemeOf(fontSize))],
+    [extraExtensions, fontKeymap, fontCompartment, fontSize],
+  );
+
+  // 字号变化：持久化 + 经 Compartment 重设 EditorView.theme({'&': {fontSize}})
+  useEffect(() => {
+    saveFontSize(fontSize);
+    const view = viewRef.current;
+    if (view) view.dispatch({ effects: fontCompartment.reconfigure(fontSizeThemeOf(fontSize)) });
+  }, [fontSize, fontCompartment]);
+
+
   // 行级跳转桥：同文件直接滚动定位；跨文件先 openFile + 暂存，待新编辑器就绪后消费
   useEffect(() => {
     setJumpHandler((target) => {
@@ -97,7 +191,7 @@ export function EditorArea() {
     return () => setInsertHandler(null);
   }, []);
 
-  // 标签栏动作位「表格」按钮：动作区渲染在 App 内的 EditorTabs（本工作流不改 App），
+  // 标签栏动作位「表格」「插图」「引用」按钮：动作区渲染在 App 内的 EditorTabs（本工作流不改 App），
   // 用 portal 注入 .tabbar-actions（润色/历史 旁）；PDF 页签替换标签栏时自动隐藏。
   const language = useSettingsStore((s) => s.language);
   const [tabActionsHost, setTabActionsHost] = useState<HTMLElement | null>(null);
@@ -132,6 +226,17 @@ export function EditorArea() {
           onClick={() => useUiStore.getState().setImageWizardOpen(true)}
         >
           <Image size={13} /> {language === 'en' ? 'Figure' : '插图'}
+        </button>
+        <button
+          className="tab-action"
+          title={
+            language === 'en'
+              ? 'Citation picker (search library / smart suggest, insert \\cite at cursor)'
+              : '引用插入向导（文献库搜索 / 智能推荐，插入 \\cite 到光标处）'
+          }
+          onClick={() => useUiStore.getState().setCitationPickerOpen(true)}
+        >
+          <Quote size={13} /> {language === 'en' ? 'Cite' : '引用'}
         </button>
       </>,
       tabActionsHost,
@@ -212,7 +317,7 @@ export function EditorArea() {
           onChange={(v) => updateFile(activeTab, v)}
           filePath={activeTab}
           getCitations={() => citations}
-          extraExtensions={extraExtensions}
+          extraExtensions={editorExtensions}
           onEditorReady={(view) => {
             viewRef.current = view;
             if (view) {

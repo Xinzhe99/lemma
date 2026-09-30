@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { BUILTIN_WORKFLOWS, getBuiltinWorkflow, parseWorkflowYaml, WORKFLOW_YAML_SOURCES } from './builtin';
 
 describe('内置工作流 YAML', () => {
-  it('6 个内置工作流全部解析成功且结构合法', () => {
-    expect(BUILTIN_WORKFLOWS).toHaveLength(6);
+  it('7 个内置工作流全部解析成功且结构合法', () => {
+    expect(BUILTIN_WORKFLOWS).toHaveLength(7);
     expect(BUILTIN_WORKFLOWS.map((w) => w.id)).toEqual([
       'w2-section-draft',
       'w3-polish',
@@ -11,6 +11,7 @@ describe('内置工作流 YAML', () => {
       'w7-rebuttal',
       'w10-pre-submission',
       'w11-cover-letter',
+      'w12-related-work',
     ]);
     for (const w of BUILTIN_WORKFLOWS) {
       expect(w.name.length).toBeGreaterThan(0);
@@ -79,6 +80,25 @@ describe('内置工作流 YAML', () => {
     expect(w11.steps.map((s) => s.id)).toEqual(['research', 'draft', 'review', 'finalize']);
     expect(w11.steps.find((s) => s.id === 'review')!.checkpoint).toBe(true);
     expect(w11.steps[0]!.allowedTools).toContain('library.search_fulltext');
+  });
+
+  it('W12：检索→起草→确认(checkpoint)→插入，search 带库内检索、apply 带写级工具', () => {
+    const w12 = getBuiltinWorkflow('w12-related-work')!;
+    expect(w12.name).toBe('相关工作综述');
+    expect(w12.inputs).toEqual(['topic', 'manuscript']);
+    expect(w12.steps.map((s) => s.id)).toEqual(['search', 'draft', 'confirm', 'apply']);
+    const search = w12.steps.find((s) => s.id === 'search')!;
+    expect(search.allowedTools).toContain('library.search_fulltext');
+    expect(search.allowedTools).toContain('citation.validate');
+    expect(search.modelTier).toBe('cheap');
+    const draft = w12.steps.find((s) => s.id === 'draft')!;
+    expect(draft.dependsOn).toEqual(['search']);
+    expect(draft.modelTier).toBe('flagship');
+    expect(w12.steps.find((s) => s.id === 'confirm')!.checkpoint).toBe(true);
+    const apply = w12.steps.find((s) => s.id === 'apply')!;
+    expect(apply.dependsOn).toEqual(['confirm']);
+    expect(apply.allowedTools).toContain('tex.edit');
+    expect(apply.allowedTools).toContain('snapshot.create');
   });
 });
 

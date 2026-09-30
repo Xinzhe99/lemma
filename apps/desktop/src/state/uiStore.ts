@@ -61,6 +61,10 @@ interface UiState {
   searchPanelOpen: boolean;
   /** 插图向导 */
   imageWizardOpen: boolean;
+  /** 引用插入向导（从文献库搜索/智能推荐 → 插入 \cite） */
+  citationPickerOpen: boolean;
+  /** 全量备份/恢复对话框 */
+  backupDialogOpen: boolean;
   /** 应用内 prompt/confirm 对话框（替代 window.prompt/confirm，Tauri WKWebView 下原生对话框不可用） */
   textDialog: TextDialogRequest | null;
 
@@ -85,6 +89,8 @@ interface UiState {
   setProjectSwitcherOpen(open: boolean): void;
   setSearchPanelOpen(open: boolean): void;
   setImageWizardOpen(open: boolean): void;
+  setCitationPickerOpen(open: boolean): void;
+  setBackupDialogOpen(open: boolean): void;
   openTextDialog(req: TextDialogRequest): void;
   closeTextDialog(): void;
 }
@@ -110,6 +116,8 @@ export const useUiStore = create<UiState>((set) => ({
   projectSwitcherOpen: false,
   searchPanelOpen: false,
   imageWizardOpen: false,
+  citationPickerOpen: false,
+  backupDialogOpen: false,
   textDialog: null,
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -132,6 +140,8 @@ export const useUiStore = create<UiState>((set) => ({
   setProjectSwitcherOpen: (open) => set({ projectSwitcherOpen: open }),
   setSearchPanelOpen: (open) => set({ searchPanelOpen: open }),
   setImageWizardOpen: (open) => set({ imageWizardOpen: open }),
+  setCitationPickerOpen: (open) => set({ citationPickerOpen: open }),
+  setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   openTextDialog: (req) => set({ textDialog: req }),
   closeTextDialog: () => set({ textDialog: null }),
 }));

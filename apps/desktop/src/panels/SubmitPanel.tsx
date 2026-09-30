@@ -1,22 +1,25 @@
 /**
  * WF-1 投稿工作台（S1–S5）：
  * - 目标期刊/会议档案（submission/venues.ts）选择与全字段展示；
+ * - 投稿 deadline 追踪：type=date 输入绑定 submitStore.deadline，
+ *   deadlineCountdown 倒计时 chip（>14 天灰 / 3–14 天 warn / <3 天 err）；
  * - 投稿打包自检（@scholarforge/compile packagingChecklist）逐项 ✓/✗，
  *   全部通过才可 buildProjectZip 生成 zip 并触发浏览器下载；
  * - 「起草 Cover Letter (W11)」经 uiStore.launchWorkflow 预填 journal/highlights；
+ * - 「起草 Related Work (W12)」同经 launchWorkflow 预填 topic（摘要前 200 字或 venue 名）/manuscript；
  * - 期刊推荐（submission/recommend.ts）：库内发表去向 + 摘要 scope 重叠，可一键设为目标。
  * 壳层以动态 import 挂载：export function SubmitPanel()，无 props。
  * 文案为组件内自包含 zh/en 双语字典（读 settingsStore.language）。
  */
 
 import { useMemo } from 'react';
-import { Check, FileArchive, FileText, Plus } from 'lucide-react';
+import { BookOpen, Check, FileArchive, FileText, Plus } from 'lucide-react';
 import { buildProjectZip, packagingChecklist } from '@scholarforge/compile';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { useUiStore } from '../state/uiStore';
-import { useSubmitStore } from '../state/submitStore';
+import { deadlineCountdown, useSubmitStore } from '../state/submitStore';
 import { VENUE_PROFILES, venueById } from '../submission/venues';
 import { extractAbstractFromTex, recommendVenues } from '../submission/recommend';
 import './submit.css';
@@ -34,7 +37,10 @@ const STRINGS: Record<Language, {
   fSupplementary: string;
   fAiPolicy: string;
   fNotes: string;
+  deadlineTitle: string;
+  deadlineLabel: string;
   coverLetter: string;
+  relatedWork: string;
   checklistTitle: string;
   passedUnit: string;
   exportZip: string;
@@ -58,7 +64,10 @@ const STRINGS: Record<Language, {
     fSupplementary: '补充材料',
     fAiPolicy: 'AI 政策',
     fNotes: '备注',
+    deadlineTitle: '投稿 Deadline',
+    deadlineLabel: '投稿截止日期',
     coverLetter: '起草 Cover Letter (W11)',
+    relatedWork: '起草 Related Work (W12)',
     checklistTitle: '投稿打包自检',
     passedUnit: '项通过',
     exportZip: '打包导出 zip',
@@ -82,7 +91,10 @@ const STRINGS: Record<Language, {
     fSupplementary: 'Supplementary',
     fAiPolicy: 'AI policy',
     fNotes: 'Notes',
+    deadlineTitle: 'Submission deadline',
+    deadlineLabel: 'Submission deadline date',
     coverLetter: 'Draft Cover Letter (W11)',
+    relatedWork: 'Draft Related Work (W12)',
     checklistTitle: 'Packaging checklist',
     passedUnit: 'passed',
     exportZip: 'Export project zip',
@@ -108,6 +120,8 @@ export function SubmitPanel() {
   const lastExportAt = useSubmitStore((s) => s.lastExportAt);
   const setVenueId = useSubmitStore((s) => s.setVenueId);
   const markExported = useSubmitStore((s) => s.markExported);
+  const deadline = useSubmitStore((s) => s.deadline);
+  const setDeadline = useSubmitStore((s) => s.setDeadline);
 
   const profile = venueId ? venueById(venueId) : undefined;
 
@@ -119,6 +133,10 @@ export function SubmitPanel() {
   // S5：推荐输入 = 库内条目 venue + 从稿件源码抽取的摘要
   const abstract = useMemo(() => extractAbstractFromTex(files), [files]);
   const recs = useMemo(() => recommendVenues(papers, abstract, language), [papers, abstract, language]);
+
+  // deadline 倒计时 chip：>14 天 dim、3–14 天 warn、<3 天（含已过期/当天）err
+  const countdown = useMemo(() => (deadline ? deadlineCountdown(deadline) : null), [deadline]);
+  const countdownTone = countdown ? (countdown.days > 14 ? 'dim' : countdown.days >= 3 ? 'warn' : 'err') : '';
 
   const exportZip = () => {
     const { name, bytes } = buildProjectZip(files, projectName);
@@ -142,6 +160,13 @@ export function SubmitPanel() {
       journal: profile.name,
       highlights: '',
     });
+  };
+
+  // W12：topic 预填摘要前 200 字，稿件无摘要时回落 venue 名（都没有则留空，由启动器询问）
+  const draftRelatedWork = () => {
+    const abstractText = abstract.trim();
+    const topic = abstractText ? abstractText.slice(0, 200) : (profile?.name ?? '');
+    useUiStore.getState().launchWorkflow('w12-related-work', { topic, manuscript: '' });
   };
 
   const fields: [string, string][] = profile
@@ -198,6 +223,23 @@ export function SubmitPanel() {
         ) : (
           <p className="sf-submit-empty">{t.noVenue}</p>
         )}
+      </section>
+
+      <section className="sf-submit-card">
+        <div className="sf-submit-card-head">
+          <strong>{t.deadlineTitle}</strong>
+          {countdown && <span className={`sf-chip ${countdownTone}`}>{countdown.label}</span>}
+        </div>
+        <input
+          type="date"
+          className="sf-submit-select"
+          value={deadline ?? ''}
+          aria-label={t.deadlineLabel}
+          onChange={(e) => setDeadline(e.target.value || null)}
+        />
+        <button className="sf-btn sf-btn--primary sf-submit-coverletter" onClick={draftRelatedWork}>
+          <BookOpen size={12} /> {t.relatedWork}
+        </button>
       </section>
 
       <section className="sf-submit-card">

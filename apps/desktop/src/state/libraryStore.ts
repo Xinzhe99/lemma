@@ -227,11 +227,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         parsed.errors.push(`跳过重复条目：${partial.citekey}`);
         continue;
       }
-      existing.add(partial.citekey);
+      const baseKey = partial.citekey || generateCitekey(partial);
+      const finalKey = disambiguateCitekey(baseKey, existing);
+      existing.add(finalKey);
       added.push({
         ...partial,
         id: partial.id || createId(),
-        citekey: disambiguateCitekey(partial.citekey || generateCitekey(partial), existing),
+        citekey: finalKey,
         tags: partial.tags ?? [],
         collections: partial.collections ?? [],
         readStatus: partial.readStatus ?? 'to-read',

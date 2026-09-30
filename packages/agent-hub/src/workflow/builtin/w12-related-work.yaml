@@ -1,0 +1,66 @@
+id: w12-related-work
+name: 相关工作综述
+description: 从库内文献生成 Related Work 草稿（分组叙事、全部引用本地可验证）。
+inputs:
+  - topic
+  - manuscript
+steps:
+  - id: search
+    name: 检索与分组
+    prompt: |
+      围绕主题在文献库内检索并分组，为 Related Work 做准备。
+      综述主题：{{topic}}
+
+      待对照的稿件（可为空）：{{manuscript}}
+
+      请执行：
+      1. 调用 library.search_fulltext 按 {{topic}} 检索库内文献（主题宽时可拆成多组关键词分别检索）。
+      2. 对每篇命中文献调用 citation.validate 核对其 citekey 与元数据可用。
+      3. 将命中文献分组归类：方法同类（技术路线相近）、问题同类（研究问题重叠）、时间线（领域演进阶段）；一篇文献可归入多组。
+      4. 输出：分组清单（组名 + 组内每篇的 citekey、标题一句话、年份）+ 每组 3–5 条要点（该组研究与综述主题的关系）。
+    allowedTools:
+      - library.search_fulltext
+      - citation.validate
+    modelTier: cheap
+
+  - id: draft
+    name: 起草 Related Work
+    prompt: |
+      基于上一步的分组清单与要点，起草 Related Work 章节：
+      1. 每组写一段叙事性综述：先概括该组共性，再对比各工作的差异与局限，最后一句话点明与稿件的关系（承上启下引出本文定位）。
+      2. 输出 LaTeX 源码：以 \section{Related Work} 起头、完整可直接插入稿件的草稿。
+      3. 引用只允许使用上一步检索到的 citekey，禁止编造任何未检索到的文献；每个关键论断后以行内注释 % [citekey p.N] 标注依据（页码无法确认时写 % [citekey]）。
+      4. 不确定的事实性表述用 \todo{} 标出，留给作者核实。
+      输出：完整 \section 草稿 + 引用清单（citekey → 支撑的论断一览）。
+    dependsOn:
+      - search
+    modelTier: flagship
+
+  - id: confirm
+    name: 作者确认检查点
+    prompt: |
+      自查草稿后停在检查点等待作者确认：
+      1. 逐条核对草稿中的 citekey 是否都在检索结果内、% [citekey p.N] 依据标注是否与叙述匹配。
+      2. 检查措辞：列出可能贬低他人工作或过度拔高稿件的句子，给出软化/强化建议。
+      3. 列出待作者确认项：分组是否合理、是否有应补检索的关键词、各 \todo{} 项的处理建议。
+      输出自查清单后停在检查点（确认输入中写明修改意见，如「删掉时间线组；补检索 X；第 2 段语气放缓」）。
+    dependsOn:
+      - draft
+    checkpoint: true
+    modelTier: cheap
+
+  - id: apply
+    name: 插入稿件
+    prompt: |
+      用户已在检查点给出确认/修改意见（见 checkpointInput）。
+      按意见修订草稿并落盘：
+      1. 先调用 snapshot.create 为当前稿件创建快照。
+      2. 调用 tex.edit 把修订后的 \section 草稿插入稿件（建议插入正文主体之后、结论之前；会弹出 diff 审批卡，用户采纳后才生效）。
+      3. 引用如有增删仍只使用已检索到的 citekey。
+      输出：插入说明（插入位置、组段落数、使用的 citekey 清单、按作者意见未采纳的内容）。
+    dependsOn:
+      - confirm
+    allowedTools:
+      - tex.edit
+      - snapshot.create
+    modelTier: cheap

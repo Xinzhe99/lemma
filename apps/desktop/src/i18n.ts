@@ -131,6 +131,8 @@ const dict: MessageDict = {
   'cmd.toggleTheme': { zh: '切换深色/浅色主题', en: 'Toggle dark/light theme' },
   'cmd.globalSearch': { zh: '全局搜索（全项目）', en: 'Search across project' },
   'cmd.insertImage': { zh: '插入图片', en: 'Insert image' },
+  'cmd.insertCitation': { zh: '插入引用（从文献库选择）', en: 'Insert citation (from library)' },
+  'cmd.backup': { zh: '备份与恢复（全量数据导出/导入）', en: 'Backup & restore (full data export/import)' },
   'cmd.settings': { zh: '打开设置', en: 'Open settings' },
   'cmd.focusTree': { zh: '聚焦文件树', en: 'Focus file tree' },
   'cmd.clearLog': { zh: '清空编译日志', en: 'Clear compile log' },

@@ -74,6 +74,8 @@ export function App() {
   const setProjectSwitcherOpen = useUiStore((s) => s.setProjectSwitcherOpen);
   const searchPanelOpen = useUiStore((s) => s.searchPanelOpen);
   const imageWizardOpen = useUiStore((s) => s.imageWizardOpen);
+  const citationPickerOpen = useUiStore((s) => s.citationPickerOpen);
+  const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const textDialog = useUiStore((s) => s.textDialog);
   const closeTextDialog = useUiStore((s) => s.closeTextDialog);
   const setHistoryOpen = useUiStore((s) => s.setHistoryOpen);
@@ -474,6 +476,10 @@ export function App() {
 
       {imageWizardOpen && <LazyFeatureDialog file="ImageWizard" onClose={() => useUiStore.getState().setImageWizardOpen(false)} />}
 
+      {citationPickerOpen && <LazyFeatureDialog file="CitationPicker" onClose={() => useUiStore.getState().setCitationPickerOpen(false)} />}
+
+      {backupDialogOpen && <LazyFeatureDialog file="BackupDialog" onClose={() => useUiStore.getState().setBackupDialogOpen(false)} />}
+
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
       {toast && <div className="sf-toast">{toast}</div>}
@@ -490,11 +496,18 @@ function LazyFeatureDialog({
   file,
   onClose,
 }: {
-  file: 'TableEditor' | 'ProjectSwitcher' | 'SearchPanel' | 'ImageWizard' | 'TextDialog';
+  file:
+    | 'TableEditor'
+    | 'ProjectSwitcher'
+    | 'SearchPanel'
+    | 'ImageWizard'
+    | 'TextDialog'
+    | 'CitationPicker'
+    | 'BackupDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

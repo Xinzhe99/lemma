@@ -13,10 +13,13 @@ import { BookOpen, Download, Paperclip, Trash2 } from 'lucide-react';
 import {
   applyFilter,
   CITATION_STYLES,
+  disambiguateCitekey,
   formatCitation,
+  generateCitekey,
   mergeSearchHits,
   papersToBibtex,
   parseCitationSegments,
+  parseRis,
   searchArxiv,
   searchCrossref,
   type CitationStyle,
@@ -78,6 +81,9 @@ interface Copy {
   bibtexPlaceholder: string;
   importSummary: (added: number, notes: string) => string;
   importNotes: (n: number) => string;
+  risTitle: string;
+  risPlaceholder: string;
+  risImportSummary: (added: number, errors: number) => string;
   fetchTitle: string;
   fetchButton: string;
   fetching: string;
@@ -134,6 +140,9 @@ const COPY: Record<Language, Copy> = {
     bibtexPlaceholder: '粘贴 BibTeX 条目…\n\n@article{...}',
     importSummary: (added, notes) => `导入 ${added} 条${notes}`,
     importNotes: (n) => `；${n} 条提示`,
+    risTitle: '导入 RIS',
+    risPlaceholder: '粘贴 RIS 条目…\n\nTY  - JOUR\nTI  - …\nER  - ',
+    risImportSummary: (added, errors) => `导入 ${added} 条 / 错误 ${errors} 条`,
     fetchTitle: '按 DOI / arXiv ID 抓取元数据',
     fetchButton: '抓取',
     fetching: '抓取中…',
@@ -188,6 +197,9 @@ const COPY: Record<Language, Copy> = {
     bibtexPlaceholder: 'Paste BibTeX entries…\n\n@article{...}',
     importSummary: (added, notes) => `Imported ${added}${notes}`,
     importNotes: (n) => `; ${n} notes`,
+    risTitle: 'Import RIS',
+    risPlaceholder: 'Paste RIS records…\n\nTY  - JOUR\nTI  - …\nER  - ',
+    risImportSummary: (added, errors) => `Imported ${added} / ${errors} errors`,
     fetchTitle: 'Fetch metadata by DOI / arXiv ID',
     fetchButton: 'Fetch',
     fetching: 'Fetching…',
@@ -246,6 +258,11 @@ export function LibraryPanel() {
   const [fetchKind, setFetchKind] = useState<'doi' | 'arxiv'>('doi');
   const [fetchId, setFetchId] = useState('');
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);
+
+  // RIS 导入对话框（组件内部 state——不占用 uiStore.libraryDialog，该类型归集成者所有）
+  const [risOpen, setRisOpen] = useState(false);
+  const [risText, setRisText] = useState('');
+  const [risResult, setRisResult] = useState<string | null>(null);
 
   // L1 详情展开 / L5 多选 / L2 打开反馈
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -361,6 +378,31 @@ export function LibraryPanel() {
     setPdfMsg(c.exportBibDone(papers.length));
   };
 
+  /**
+   * RIS 导入：parseRis 解析后经 papersToBibtex → importBibtex 组合入库。
+   * parseRis 产物的 citekey 可能为空串——先按 importBibtex 同款流程补 key
+   * （generateCitekey + disambiguateCitekey，对库内既有 citekey 消歧），再转 BibTeX。
+   */
+  const importRis = (): void => {
+    const parsed = parseRis(risText);
+    const errors = [...parsed.errors];
+    let added = 0;
+    if (parsed.papers.length > 0) {
+      const existing = new Set(papers.map((p) => p.citekey));
+      const prepared = parsed.papers.map((p) => {
+        if (p.citekey) return p;
+        const key = disambiguateCitekey(generateCitekey(p), existing);
+        existing.add(key);
+        return { ...p, citekey: key };
+      });
+      const r = importBibtex(papersToBibtex(prepared));
+      added = r.added;
+      errors.push(...r.errors);
+    }
+    setRisResult(c.risImportSummary(added, errors.length));
+    if (added > 0) setRisText('');
+  };
+
   return (
     <div className="sf-lib">
       <div className="sf-lib-mode">
@@ -382,6 +424,9 @@ export function LibraryPanel() {
             />
             <button className="sf-btn" onClick={() => setDialog('bibtex')}>
               BibTeX
+            </button>
+            <button className="sf-btn" onClick={() => setRisOpen(true)}>
+              RIS
             </button>
             <button className="sf-btn" onClick={() => setDialog('fetch')}>
               DOI/arXiv
@@ -692,6 +737,37 @@ export function LibraryPanel() {
                   disabled={!fetchId.trim()}
                 >
                   {c.fetchButton}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {risOpen && (
+        <div className="sf-dialog-overlay" onMouseDown={() => setRisOpen(false)}>
+          <div className="sf-dialog sf-lib-dialog" onMouseDown={(e) => e.stopPropagation()}>
+            <header className="sf-dialog-header">
+              <strong>{c.risTitle}</strong>
+            </header>
+            <div className="sf-dialog-body">
+              <textarea
+                className="sf-input sf-lib-textarea"
+                placeholder={c.risPlaceholder}
+                value={risText}
+                onChange={(e) => setRisText(e.target.value)}
+              />
+              {risResult && <p className="sf-cites-msg">{risResult}</p>}
+              <div className="sf-lib-dialog-actions">
+                <button className="sf-btn" onClick={() => setRisOpen(false)}>
+                  {c.dialogClose}
+                </button>
+                <button
+                  className="sf-btn sf-btn--primary"
+                  onClick={importRis}
+                  disabled={!risText.trim()}
+                >
+                  {c.dialogImport}
                 </button>
               </div>
             </div>

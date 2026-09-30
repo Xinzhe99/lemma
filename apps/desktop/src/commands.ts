@@ -82,6 +82,18 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setImageWizardOpen(true),
     },
     {
+      id: 'app.backup',
+      title: ctx.t('cmd.backup'),
+      hint: ctx.t('hint.app'),
+      run: () => useUiStore.getState().setBackupDialogOpen(true),
+    },
+    {
+      id: 'insert.citation',
+      title: ctx.t('cmd.insertCitation'),
+      hint: '编辑',
+      run: () => useUiStore.getState().setCitationPickerOpen(true),
+    },
+    {
       id: 'file.new',
       title: ctx.t('cmd.newFile'),
       hint: ctx.t('hint.file'),

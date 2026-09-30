@@ -1,5 +1,5 @@
 /**
- * 内置工作流（W2/W3/W6/W7/W10/W11）：YAML 单一事实来源，构建期以 ?raw 内联，运行期 parseWorkflowYaml 解析。
+ * 内置工作流（W2/W3/W6/W7/W10/W11/W12）：YAML 单一事实来源，构建期以 ?raw 内联，运行期 parseWorkflowYaml 解析。
  */
 import { parse as parseYaml } from 'yaml';
 import type { WorkflowDef, WorkflowStepDef } from '@scholarforge/shared';
@@ -9,6 +9,7 @@ import w6Source from './builtin/w6-reviewer-sim.yaml?raw';
 import w7Source from './builtin/w7-rebuttal.yaml?raw';
 import w10Source from './builtin/w10-pre-submission.yaml?raw';
 import w11Source from './builtin/w11-cover-letter.yaml?raw';
+import w12Source from './builtin/w12-related-work.yaml?raw';
 
 export const WORKFLOW_YAML_SOURCES: Record<string, string> = {
   'w2-section-draft': w2Source,
@@ -17,6 +18,7 @@ export const WORKFLOW_YAML_SOURCES: Record<string, string> = {
   'w7-rebuttal': w7Source,
   'w10-pre-submission': w10Source,
   'w11-cover-letter': w11Source,
+  'w12-related-work': w12Source,
 };
 
 /**
