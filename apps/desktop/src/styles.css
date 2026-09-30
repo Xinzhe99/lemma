@@ -1511,3 +1511,125 @@ kbd {
   color: var(--fg-2);
   line-height: 1.4;
 }
+
+/* ==========================================================================
+   审稿结构化面板 / 选中即问工具条
+   ========================================================================== */
+
+.sf-editor-host {
+  position: relative;
+}
+
+.sf-selbar {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-dim);
+  border-radius: 8px;
+  padding: 5px 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.sf-selbar-label {
+  font-size: 10px;
+  color: var(--fg-2);
+  padding: 0 2px;
+}
+.sf-selbar .sf-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.sf-review {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+.sf-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sf-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+.sf-review-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 8px;
+  font-size: 11px;
+}
+.sf-review-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.sf-review-score {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-review-score--good {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
+}
+.sf-review-score--mid {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--border));
+}
+.sf-review-score--bad {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 40%, var(--border));
+}
+.sf-review-section {
+  margin-top: 6px;
+}
+.sf-review-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--fg-2);
+  margin-bottom: 2px;
+}
+.sf-review-section pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg-1);
+  font-family: inherit;
+  line-height: 1.45;
+  max-height: 180px;
+  overflow: auto;
+}
+.sf-review-section--good pre {
+  color: var(--ok);
+}
+.sf-review-section--bad pre {
+  color: var(--err);
+}
+.sf-review-card--meta {
+  margin-top: 8px;
+  border-color: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-2));
+}
+.sf-review-card--meta pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  color: var(--fg-0);
+  max-height: 260px;
+  overflow: auto;
+}

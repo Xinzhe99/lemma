@@ -32,8 +32,9 @@ npm run build       # 构建应用
 - 编译流水线（MockEngine 演示；Tectonic/latexmk 引擎待 Tauri 桥接）+ 6 套模板（含中文 ctex）+ Overleaf zip 一键导入
 - 文献库：BibTeX / DOI / arXiv 导入，发现检索（arXiv+Crossref 聚合去重一键入库），智能过滤，BM25+向量混合知识检索（可配语义嵌入，失败自动回退本地）
 - PDF 阅读器：四色语义标注，按文件持久化
-- Agent 中枢：Context Pack 注入流式对话（真实 provider 可调用只读论文域工具，多轮回填）、引用幻觉核查护栏、4 个内置工作流（含三审稿人仿真）
-- AI 改稿审批闭环：润色/起草 → diff 审批卡 → 采纳前强制快照 → 历史时间线一键恢复
+- Agent 中枢：Context Pack 注入流式对话（真实 provider 可调用论文域工具，多轮回填）、引用幻觉核查护栏、5 个内置工作流（三审稿人仿真 → 结构化审稿面板 → Rebuttal 起草一键衔接）
+- AI 改稿审批闭环：润色/起草/选中文本润色 → diff 审批卡 → 采纳前强制快照 → 历史时间线一键恢复
+- 选中即问：编辑器选中文本浮动工具条（润色/解释/翻译/找文献）
 - Agent 写级工具（tex.edit/citation.add）：阻塞式人工审批，裁决结果回传模型继续生成；unified diff 应用器支持 W3 工作流输出
 
 ## 平台说明

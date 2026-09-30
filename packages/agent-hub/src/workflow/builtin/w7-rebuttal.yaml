@@ -1,0 +1,58 @@
+id: w7-rebuttal
+name: Rebuttal 起草
+description: 逐条解析审稿意见并起草回复（direct-fix / partial / argue / cite 四类策略），检查点确认取舍后整合 rebuttal 文档与修改清单。
+inputs:
+  - reviews
+  - manuscript
+steps:
+  - id: parse
+    name: 逐条解析审稿意见
+    prompt: |
+      把下面的审稿意见逐条拆解为编号条目（R1.1、R1.2、R2.1…按审稿人分组）。
+      每条标注类型：事实性错误 / 实验补充 / 写作澄清 / 定位或引用 / 范围争议。
+      审稿意见：
+      {{reviews}}
+
+      待审稿件（供对照）：
+      {{manuscript}}
+
+      输出：条目清单（编号、原文摘录、类型、初步应对方向）。
+    modelTier: cheap
+
+  - id: draft
+    name: 逐条起草回复
+    prompt: |
+      基于上一步的条目清单逐条起草 rebuttal 回复：
+      1. 每条选择策略：direct-fix（直接修改并给出改法）/ partial（部分采纳+说明）/ argue（礼貌反驳，给证据）/ cite（补充引用支撑）。
+      2. 每条回复控制在 120 词内，语气专业克制，先致谢后回应；不承诺做不到的实验。
+      3. 涉及修改的条目指出稿件中的具体位置与改法。
+      输出：逐条回复草稿（编号、策略、回复正文）。
+    dependsOn:
+      - parse
+    modelTier: flagship
+
+  - id: confirm
+    name: 作者确认取舍
+    prompt: |
+      汇总回复草稿：按审稿人分组列出每条的策略与核心内容；
+      标记相互冲突的条目、需要作者补充数据才能回复的条目。
+      输出后停在检查点等待作者确认（确认输入中写明每条取舍，如「R1.2 改为 argue；R3.1 需补实验暂缓」）。
+    dependsOn:
+      - draft
+    checkpoint: true
+    modelTier: cheap
+
+  - id: finalize
+    name: 整合 Rebuttal 文档
+    prompt: |
+      用户已在检查点确认取舍（见 checkpointInput）。
+      按审稿人分组整合最终 rebuttal：开头总述（致谢 + 主要修改概览），逐条回复，结尾给出修改清单（与稿件位置的对应关系）。
+      需要落盘的修改可调用 tex.edit（会弹出 diff 审批卡，用户采纳后才生效）；引用变动必须经 citation.validate 核查。
+      输出：完整 rebuttal markdown + 修改清单。
+    dependsOn:
+      - confirm
+    allowedTools:
+      - tex.edit
+      - citation.validate
+      - snapshot.create
+    modelTier: flagship

@@ -31,6 +31,8 @@ interface UiState {
   /** 命令面板请求的 AI 改稿动作（AgentPanel 消费后清空） */
   agentAction: AgentAction;
   historyOpen: boolean;
+  /** 编辑器当前选中文本（选中即问工具条数据源；空串表示无选区） */
+  selectionText: string;
 
   setSidebarTab(tab: SidebarTab): void;
   setTemplateWizardOpen(open: boolean): void;
@@ -43,6 +45,7 @@ interface UiState {
   setWorkflowLaunch(id: string | null): void;
   requestAgentAction(action: Exclude<AgentAction, null>): void;
   setHistoryOpen(open: boolean): void;
+  setSelectionText(text: string): void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -57,6 +60,7 @@ export const useUiStore = create<UiState>((set) => ({
   workflowLaunch: null,
   agentAction: null,
   historyOpen: false,
+  selectionText: '',
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setTemplateWizardOpen: (open) => set({ templateWizardOpen: open }),
@@ -69,4 +73,5 @@ export const useUiStore = create<UiState>((set) => ({
   setWorkflowLaunch: (id) => set({ workflowLaunch: id }),
   requestAgentAction: (action) => set({ agentAction: action }),
   setHistoryOpen: (open) => set({ historyOpen: open }),
+  setSelectionText: (text) => set({ selectionText: text }),
 }));

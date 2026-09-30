@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { BUILTIN_WORKFLOWS, getBuiltinWorkflow, parseWorkflowYaml, WORKFLOW_YAML_SOURCES } from './builtin';
 
 describe('内置工作流 YAML', () => {
-  it('4 个内置工作流全部解析成功且结构合法', () => {
-    expect(BUILTIN_WORKFLOWS).toHaveLength(4);
+  it('5 个内置工作流全部解析成功且结构合法', () => {
+    expect(BUILTIN_WORKFLOWS).toHaveLength(5);
     expect(BUILTIN_WORKFLOWS.map((w) => w.id)).toEqual([
       'w2-section-draft',
       'w3-polish',
       'w6-reviewer-sim',
+      'w7-rebuttal',
       'w10-pre-submission',
     ]);
     for (const w of BUILTIN_WORKFLOWS) {
@@ -61,6 +62,15 @@ describe('内置工作流 YAML', () => {
     const w10 = getBuiltinWorkflow('w10-pre-submission')!;
     expect(w10.steps.map((s) => s.id)).toEqual(['requirements', 'compile-check', 'audit', 'report']);
     expect(w10.steps[3].dependsOn).toEqual(['audit']);
+  });
+
+  it('W7：解析→起草→确认(checkpoint)→整合，finalize 声明写级工具', () => {
+    const w7 = getBuiltinWorkflow('w7-rebuttal')!;
+    expect(w7.steps.map((s) => s.id)).toEqual(['parse', 'draft', 'confirm', 'finalize']);
+    expect(w7.steps.find((s) => s.id === 'confirm')!.checkpoint).toBe(true);
+    const finalize = w7.steps.find((s) => s.id === 'finalize')!;
+    expect(finalize.allowedTools).toContain('tex.edit');
+    expect(finalize.allowedTools).toContain('citation.validate');
   });
 });
 

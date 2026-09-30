@@ -10,59 +10,32 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUILTIN_WORKFLOWS,
   ChatPanel,
-  EchoProvider,
-  OpenAICompatibleProvider,
   WorkflowRun,
   WorkflowRunView,
   useAgentHubStore,
-  type ChatProvider,
   type WorkflowStepUiStatus,
 } from '@scholarforge/agent-hub';
-import type { AgentMessage, ToolDef, WorkflowDef } from '@scholarforge/shared';
+import type { WorkflowDef } from '@scholarforge/shared';
 import { DiffView } from '@scholarforge/editor';
-import { validateCitations } from '@scholarforge/knowledge';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
-import { useLibraryStore } from '../state/libraryStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
-import { bibCitekeys } from '../projectDoc';
+import { combinedDoc } from '../projectDoc';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from '../agentTools';
 import { resolveToolApproval, rejectPendingApproval } from '../approval';
+import {
+  abortChat,
+  resolveProvider,
+  sendChatMessage,
+  CITATION_RULE,
+  polishSelection,
+} from '../aiActions';
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
-
-const CITATION_RULE =
-  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n可用工具：library.search_fulltext（检索本地文献库）、project.context（项目上下文）、citation.validate（引用核验）、tex.last_errors（编译日志）、tex.edit（修改稿件，需用户审批 diff 后生效）、citation.add（添加参考文献，需审批）、snapshot.create（创建快照）、tex.compile（触发编译）。写级操作会弹出 diff 审批卡，用户裁决结果会回传给你；被拒绝时请勿重试同一修改。';
-
-interface ProviderChoice {
-  provider: ChatProvider;
-  model: string;
-  label: string;
-  real: boolean;
-}
-
-function resolveProvider(): ProviderChoice {
-  const s = useSettingsStore.getState();
-  const cfg = s.providers.find((p) => p.id === s.activeProviderId);
-  if (cfg && cfg.baseUrl.trim() && cfg.apiKey.trim()) {
-    return {
-      provider: new OpenAICompatibleProvider({
-        id: cfg.id,
-        label: cfg.label,
-        baseUrl: cfg.baseUrl.trim(),
-        apiKey: cfg.apiKey.trim(),
-        fetchFn: (url, init) => fetch(url, init),
-      }),
-      model: cfg.model.trim() || 'default',
-      label: `${cfg.label} · ${cfg.model || 'default'}`,
-      real: true,
-    };
-  }
-  return { provider: new EchoProvider(), model: 'echo', label: '回显模式（未配置模型服务）', real: false };
-}
+import { ReviewPanel } from './ReviewPanel';
 
 /** 工作流步骤声明的 allowedTools 与本形态已接通工具的交集 */
-function stepTools(allowed?: string[]): ToolDef[] {
+function stepTools(allowed?: string[]) {
   if (!allowed || allowed.length === 0) return [];
   return ENABLED_TOOLS.filter((t) => allowed.includes(t.name));
 }
@@ -106,16 +79,11 @@ export function AgentPanel() {
   const [contextPreview, setContextPreview] = useState('');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
 
-  const abortRef = useRef<AbortController | null>(null);
   const checkpointResolve = useRef<((input: string) => void) | null>(null);
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? sessions[0] ?? null;
 
-  const providerLabel = useMemo(() => {
-    const cfg = providers.find((p) => p.id === activeProviderId);
-    if (cfg && cfg.baseUrl.trim() && cfg.apiKey.trim()) return `${cfg.label} · ${cfg.model || 'default'}`;
-    return '回显模式（未配置模型服务）';
-  }, [providers, activeProviderId]);
+  const providerLabel = useMemo(() => resolveProvider().label, [providers, activeProviderId]);
 
   // 确保存在会话
   useEffect(() => {
@@ -125,64 +93,10 @@ export function AgentPanel() {
   }, [newSession]);
 
   // ------------------------------------------------------------------
-  // 会话：流式回复（真实 provider 带工具多轮）+ 引用核查护栏
+  // 会话：委托 aiActions（Context Pack + 工具循环 + 引用核查护栏）
   // ------------------------------------------------------------------
 
-  const send = async (text: string) => {
-    const hub = useAgentHubStore.getState();
-    const sessionId = session?.id ?? hub.newSession('host');
-    if (session?.status === 'streaming') return;
-
-    const system = (await buildContextPackMd(text)) + CITATION_RULE;
-    const history = (useAgentHubStore.getState().sessions.find((s) => s.id === sessionId)?.messages ?? [])
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(0, -2);
-    hub.sendMessage(sessionId, text);
-
-    const { provider, model, real } = resolveProvider();
-    const abort = new AbortController();
-    abortRef.current = abort;
-    const store = () => useAgentHubStore.getState();
-    let acc = '';
-    try {
-      acc = await runAgentTurn({
-        provider,
-        model,
-        system,
-        history,
-        user: text,
-        tools: real ? ENABLED_TOOLS : [],
-        signal: abort.signal,
-        onDelta: (delta) => store().appendDelta(sessionId, delta),
-        onToolCall: (call) => store().appendToolCall(sessionId, call),
-        onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
-      });
-    } catch (e) {
-      store().appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      abortRef.current = null;
-      // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
-      rejectPendingApproval('会话已中止或结束，本次修改未生效');
-    }
-
-    // 学术诚信护栏：引用核查（5.6）
-    const validKeys = [
-      ...new Set([
-        ...useLibraryStore.getState().papers.map((p) => p.citekey),
-        ...bibCitekeys(useWorkspaceStore.getState().files),
-      ]),
-    ];
-    const check = validateCitations(acc, validKeys);
-    if (!check.ok) {
-      store().appendDelta(
-        sessionId,
-        `\n\n---\n⚠️ **引用核查（学术诚信护栏）**：以下引用未在本地文献库或 refs.bib 中找到，疑似幻觉引用，请核实：${check.invalid
-          .map((k) => `[${k}]`)
-          .join(' ')}`,
-      );
-    }
-    store().finishSession(sessionId, 'idle');
-  };
+  const send = (text: string) => void sendChatMessage(text);
 
   // ------------------------------------------------------------------
   // AI 改稿：润色 / 起草 → diff 提案 → 审批
@@ -310,12 +224,13 @@ export function AgentPanel() {
   // 内置工作流（步骤可调用已接通的工具）
   // ------------------------------------------------------------------
 
-  const startWorkflow = async (id: string) => {
+  const startWorkflow = async (id: string, presetVars?: Record<string, string>) => {
     const def = BUILTIN_WORKFLOWS.find((w) => w.id === id);
     if (!def) return;
 
-    const vars: Record<string, string> = {};
+    const vars: Record<string, string> = { ...presetVars };
     for (const key of def.inputs) {
+      if (vars[key] !== undefined && vars[key] !== '') continue;
       const value = window.prompt(`工作流「${def.name}」需要输入：${key}`, WORKFLOW_VAR_DEFAULTS[key] ?? '');
       if (value === null) return;
       vars[key] = value.trim();
@@ -457,8 +372,8 @@ export function AgentPanel() {
         {session ? (
           <ChatPanel
             session={session}
-            onSend={(text) => void send(text)}
-            onStop={() => abortRef.current?.abort()}
+            onSend={(text) => send(text)}
+            onStop={() => abortChat()}
             placeholder="向 agent 提问（配置模型服务后可自动检索文献库、读取项目上下文）…"
           />
         ) : (
@@ -491,6 +406,14 @@ export function AgentPanel() {
                 setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [stepId]: 'running' } } : w));
               }}
             />
+            {workflow.def.id === 'w6-reviewer-sim' && workflow.outputs['meta-review'] && (
+              <ReviewPanel
+                outputs={workflow.outputs}
+                onDraftRebuttal={(reviews) =>
+                  void startWorkflow('w7-rebuttal', { reviews, manuscript: combinedDoc(useWorkspaceStore.getState().files) })
+                }
+              />
+            )}
           </div>
         ) : (
           <ul className="sf-agent-wf-list">
