@@ -326,6 +326,28 @@ export function buildCommands(ctx: CommandContext): Command[] {
       },
     },
     {
+      id: 'compile.aiFix',
+      title: ctx.t('cmd.aiFix'),
+      hint: ctx.t('hint.compile'),
+      run: () => void import('./aiActions').then(({ fixCompileErrors }) => fixCompileErrors()),
+    },
+    {
+      id: 'export.docx',
+      title: ctx.t('cmd.exportDocx'),
+      hint: ctx.t('hint.project'),
+      run: () =>
+        void import('./pandoc').then(async ({ exportDocx }) => {
+          const r = await exportDocx();
+          if (!r.ok) ctx.toast(r.error);
+        }),
+    },
+    {
+      id: 'reviews.import',
+      title: ctx.t('cmd.importReviews'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().setReviewsImportOpen(true),
+    },
+    {
       id: 'agent.workflowRelatedWork',
       title: ctx.t('cmd.wfRelatedWork'),
       hint: ctx.t('hint.agent'),

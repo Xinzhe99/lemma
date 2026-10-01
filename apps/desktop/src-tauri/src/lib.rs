@@ -276,12 +276,13 @@ fn tectonic_asset() -> Result<(String, &'static str), String> {
     Err(format!("当前平台暂不支持内置 Tectonic 自动下载。{TECTONIC_MANUAL_HINT}"))
 }
 
-/// 流式下载到文件；每约 1MB 向 stdout 打一行进度（供 tauri 日志/终端观察），
+/// 流式下载到文件（GitHub Releases 资产通用骨架：tectonic / pandoc 共用）；
+/// 每约 1MB 向 stdout 打一行进度（供 tauri 日志/终端观察），
 /// 拿不到细粒度百分比属预期（前端 UI 用不确定进度文案）。
-fn tectonic_download(url: &str, dest: &Path) -> Result<(), String> {
+fn release_download(url: &str, dest: &Path, tag: &str) -> Result<(), String> {
     let resp = ureq::get(url)
         .call()
-        .map_err(|e| format!("下载 Tectonic 失败：{e}"))?;
+        .map_err(|e| format!("下载 {tag} 失败：{e}"))?;
     let total: u64 = resp
         .header("Content-Length")
         .and_then(|v| v.parse().ok())
@@ -305,24 +306,30 @@ fn tectonic_download(url: &str, dest: &Path) -> Result<(), String> {
             last_print = downloaded;
             if total > 0 {
                 println!(
-                    "[tectonic-download] {}/{} MB",
+                    "[{tag}] {}/{} MB",
                     downloaded / (1024 * 1024),
                     total / (1024 * 1024)
                 );
             } else {
-                println!("[tectonic-download] 已下载 {} MB", downloaded / (1024 * 1024));
+                println!("[{tag}] 已下载 {} MB", downloaded / (1024 * 1024));
             }
         }
     }
-    println!("[tectonic-download] 下载完成（{downloaded} 字节），开始解包");
+    println!("[{tag}] 下载完成（{downloaded} 字节），开始解包");
     Ok(())
 }
 
-/// 从发行包中提取名为 tectonic / tectonic.exe 的可执行成员到 out。
-/// 实测两类包均为单文件成员（zip 内为 tectonic.exe，tar.gz 内为 tectonic），
-/// 这里按「文件名等于 tectonic[.exe]」匹配以兼容成员名带目录前缀的包。
-fn tectonic_extract(archive: &Path, kind: &str, out: &Path) -> Result<(), String> {
-    let is_tectonic = |name: &str| name == "tectonic" || name == "tectonic.exe";
+/// 内置 Tectonic 的下载入口（保留原日志标签）
+fn tectonic_download(url: &str, dest: &Path) -> Result<(), String> {
+    release_download(url, dest, "tectonic-download")
+}
+
+/// 从发行包中提取名为 want / want.exe 的文件成员到 out。
+/// 实测包内为单文件成员，但成员名可能带目录前缀（tectonic zip 内为 tectonic.exe；
+/// pandoc Windows zip 内为 pandoc-3.12/pandoc.exe），故按「文件名等于 want[.exe]」匹配。
+fn release_extract(archive: &Path, kind: &str, out: &Path, want: &str) -> Result<(), String> {
+    let want_exe = format!("{want}.exe");
+    let is_target = |name: &str| name == want || name == want_exe;
     match kind {
         "zip" => {
             let file = fs::File::open(archive).map_err(|e| format!("打开发行包失败：{e}"))?;
@@ -335,7 +342,7 @@ fn tectonic_extract(archive: &Path, kind: &str, out: &Path) -> Result<(), String
                     continue;
                 }
                 let name = entry.name().rsplit('/').next().unwrap_or("");
-                if is_tectonic(name) {
+                if is_target(name) {
                     let mut out_file =
                         fs::File::create(out).map_err(|e| format!("写出可执行文件失败：{e}"))?;
                     std::io::copy(&mut entry, &mut out_file)
@@ -343,7 +350,7 @@ fn tectonic_extract(archive: &Path, kind: &str, out: &Path) -> Result<(), String
                     return Ok(());
                 }
             }
-            Err("解包失败：发行包内未找到 tectonic 可执行文件".into())
+            Err(format!("解包失败：发行包内未找到 {want} 可执行文件"))
         }
         "tgz" => {
             let file = fs::File::open(archive).map_err(|e| format!("打开发行包失败：{e}"))?;
@@ -359,7 +366,7 @@ fn tectonic_extract(archive: &Path, kind: &str, out: &Path) -> Result<(), String
                 if !entry.header().entry_type().is_file() {
                     continue;
                 }
-                if is_tectonic(&name) {
+                if is_target(&name) {
                     let mut out_file =
                         fs::File::create(out).map_err(|e| format!("写出可执行文件失败：{e}"))?;
                     std::io::copy(&mut entry, &mut out_file)
@@ -367,10 +374,15 @@ fn tectonic_extract(archive: &Path, kind: &str, out: &Path) -> Result<(), String
                     return Ok(());
                 }
             }
-            Err("解包失败：发行包内未找到 tectonic 可执行文件".into())
+            Err(format!("解包失败：发行包内未找到 {want} 可执行文件"))
         }
         _ => Err("解包失败：未知的发行包格式".into()),
     }
+}
+
+/// 内置 Tectonic 的解包入口（等价于 release_extract(..., "tectonic")）
+fn tectonic_extract(archive: &Path, kind: &str, out: &Path) -> Result<(), String> {
+    release_extract(archive, kind, out, "tectonic")
 }
 
 #[derive(serde::Serialize)]
@@ -429,6 +441,118 @@ async fn download_and_install_tectonic(app: tauri::AppHandle) -> Result<Tectonic
         path: target.to_string_lossy().into_owned(),
         cached: false,
         first_run_note: true,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// 内置 pandoc（docx 导出）自动下载
+//
+// 普及问题：投稿或送导师批注常需要 Word（.docx）版本，pandoc 是 LaTeX →
+// docx 的事实标准转换器。官方 GitHub Releases 的 Windows x64 资产为
+// pandoc-x.y-windows-x86_64.zip（约 40MB，内含 pandoc-x.y/pandoc.exe，
+// 位于子目录，须按文件名提取），与 Tectonic 同为免安装单二进制，故复用
+// 同一套下载/解包骨架内置到数据目录 bin/pandoc.exe。
+//
+// 平台边界（务实方案）：macOS 新版官方资产为 .pkg 安装器（无法静默解包
+// 落盘），Linux 为 deb/tar.gz（发行版差异大）——两者不做内置下载，改为
+// 先探测系统 pandoc（--version 退出码 0 即直接使用，proc_run 经 PATH 解析），
+// 探测不到时返回中文指引（macOS：brew install pandoc）。
+// ---------------------------------------------------------------------------
+
+/// 内置的 pandoc 版本（升级时改这里，并核对 pandoc_asset 的资产名模式；
+/// URL 已验证：https://github.com/jgm/pandoc/releases/download/3.12/
+///   pandoc-3.12-windows-x86_64.zip -> 302 -> 200）
+const PANDOC_VERSION: &str = "3.12";
+
+/// 失败时统一附上的手动安装指引（网络错误/解包失败/平台不支持共用）
+const PANDOC_MANUAL_HINT: &str = "请检查网络/代理；也可手动安装 pandoc（https://pandoc.org/installing.html；macOS 可 brew install pandoc）后重启应用";
+
+/// 平台对应的 pandoc 发行资产（GitHub Releases 文件名 + 打包格式）。
+/// 仅 Windows x64 提供内置下载（官方 zip 资产）；其余平台回落系统 pandoc /
+/// 中文指引（见 download_and_install_pandoc）。
+fn pandoc_asset() -> Result<(String, &'static str), String> {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    return Ok((
+        format!("pandoc-{PANDOC_VERSION}-windows-x86_64.zip"),
+        "zip",
+    ));
+    #[allow(unreachable_code)]
+    Err(format!(
+        "当前平台暂不支持内置 pandoc 自动下载，请先安装系统 pandoc（macOS：brew install pandoc；Debian/Ubuntu：apt install pandoc）。{PANDOC_MANUAL_HINT}"
+    ))
+}
+
+/// 系统探测：PATH 上能否直接运行 pandoc（--version 退出码 0）。
+fn system_pandoc_available() -> bool {
+    Command::new("pandoc")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PandocInstall {
+    /// 可用的 pandoc 可执行路径（内置为数据目录绝对路径；系统 pandoc 为命令名 "pandoc"）
+    path: String,
+    /// true = 未发生下载（数据目录已有 / 使用系统 pandoc）
+    cached: bool,
+}
+
+/// 内置 pandoc 自动下载：探测链为数据目录 bin/pandoc[.exe]（幂等缓存）→
+/// 系统 pandoc（--version 探测）→ Windows x64 从 GitHub Releases 下载 zip
+/// 解包出 pandoc.exe；其余平台返回中文指引错误。
+/// async 命令：下载在线程池执行，不阻塞 UI 主线程。
+#[tauri::command]
+async fn download_and_install_pandoc(app: tauri::AppHandle) -> Result<PandocInstall, String> {
+    // 串行化并发调用（与 tectonic 共用解包骨架但不共用 download.tmp）
+    static INSTALL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = INSTALL_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let exe_name = if cfg!(windows) { "pandoc.exe" } else { "pandoc" };
+    let bin_dir = base_dir(&app).join("bin");
+    let target = bin_dir.join(exe_name);
+    if target.is_file() {
+        return Ok(PandocInstall {
+            path: target.to_string_lossy().into_owned(),
+            cached: true,
+        });
+    }
+
+    // 系统已装 pandoc：直接使用命令名（前端经 proc_run 调用，按 PATH 解析），免 40MB 下载
+    if system_pandoc_available() {
+        println!("[pandoc-download] 检测到系统 pandoc，跳过内置下载");
+        return Ok(PandocInstall {
+            path: "pandoc".into(),
+            cached: true,
+        });
+    }
+
+    let (asset, kind) = pandoc_asset().map_err(|e| format!("{e}。{PANDOC_MANUAL_HINT}"))?;
+    fs::create_dir_all(&bin_dir)
+        .map_err(|e| format!("创建 bin 目录失败：{e}。{PANDOC_MANUAL_HINT}"))?;
+    let url = format!("https://github.com/jgm/pandoc/releases/download/{PANDOC_VERSION}/{asset}");
+    println!("[pandoc-download] 开始下载内置 pandoc {PANDOC_VERSION}（{url}）");
+
+    let tmp = bin_dir.join("pandoc-download.tmp");
+    let work = release_download(&url, &tmp, "pandoc-download")
+        .and_then(|()| release_extract(&tmp, kind, &target, "pandoc"));
+    let _ = fs::remove_file(&tmp); // 临时发行包尽力清理（失败不致命）
+    work.map_err(|e| format!("{e}。{PANDOC_MANUAL_HINT}"))?;
+
+    // unix 下标记可执行（zip/tar 提取不保留权限位；当前仅 Windows 走此路径，防御性保留）
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("设置可执行权限失败：{e}"))?;
+    }
+
+    println!("[pandoc-download] 内置 pandoc 已就绪：{}", target.display());
+    Ok(PandocInstall {
+        path: target.to_string_lossy().into_owned(),
+        cached: false,
     })
 }
 
@@ -523,6 +647,73 @@ mod tectonic_install_tests {
     }
 }
 
+#[cfg(test)]
+mod pandoc_install_tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "sf-pandoc-test-{name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// 平台资产名与打包格式（Windows x64 上为 zip；版本升级时本测试同步约束命名模式）
+    #[test]
+    fn asset_name_pattern() {
+        if let Ok((asset, kind)) = pandoc_asset() {
+            assert!(
+                asset.starts_with(&format!("pandoc-{PANDOC_VERSION}-"))
+                    && asset.ends_with("-windows-x86_64.zip"),
+                "{asset}"
+            );
+            assert_eq!(kind, "zip");
+        }
+    }
+
+    /// zip 解包：官方 Windows 包布局为 pandoc-3.12/pandoc.exe（子目录前缀），按文件名提取
+    #[test]
+    fn extract_zip_picks_pandoc_exe_from_subdirectory() {
+        let dir = temp_dir("zip");
+        let archive = dir.join("pkg.zip");
+        let file = fs::File::create(&archive).unwrap();
+        let mut w = zip::ZipWriter::new(file);
+        let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+        w.start_file(&format!("pandoc-{PANDOC_VERSION}/COPYING.rtf"), opts)
+            .unwrap();
+        w.write_all(b"license").unwrap();
+        w.start_file(&format!("pandoc-{PANDOC_VERSION}/pandoc.exe"), opts)
+            .unwrap();
+        w.write_all(b"FAKE-PANDOC-EXE").unwrap();
+        w.finish().unwrap();
+
+        let out = dir.join("pandoc.exe");
+        release_extract(&archive, "zip", &out, "pandoc").unwrap();
+        assert_eq!(fs::read(&out).unwrap(), b"FAKE-PANDOC-EXE");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 包内没有 pandoc 成员时报中文错误（错误信息点名 pandoc，便于与 tectonic 区分）
+    #[test]
+    fn extract_missing_pandoc_member_errors_in_chinese() {
+        let dir = temp_dir("missing");
+        let archive = dir.join("pkg.zip");
+        let file = fs::File::create(&archive).unwrap();
+        let mut w = zip::ZipWriter::new(file);
+        let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+        w.start_file("MANUAL.html", opts).unwrap();
+        w.write_all(b"<html></html>").unwrap();
+        w.finish().unwrap();
+
+        let err = release_extract(&archive, "zip", &dir.join("pandoc.exe"), "pandoc").unwrap_err();
+        assert!(err.contains("未找到 pandoc"), "{err}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -538,7 +729,8 @@ mod tectonic_install_tests {
             secret_set,
             proc_run,
             updater_status,
-            download_and_install_tectonic
+            download_and_install_tectonic,
+            download_and_install_pandoc
         ])
         .run(tauri::generate_context!())
         .expect("error while running ScholarForge");

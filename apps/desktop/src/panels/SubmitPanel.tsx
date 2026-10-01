@@ -7,12 +7,14 @@
  *   全部通过才可 buildProjectZip 生成 zip 并触发浏览器下载；
  * - 「起草 Cover Letter (W11)」经 uiStore.launchWorkflow 预填 journal/highlights；
  * - 「起草 Related Work (W12)」同经 launchWorkflow 预填 topic（摘要前 200 字或 venue 名）/manuscript；
+ * - 「导出 Word (.docx)」经 pandoc.exportDocx（内置 pandoc 自动下载/系统探测）转换并下载，
+ *   含 loading/错误态（错误中文展示在自检卡片下方）；
  * - 期刊推荐（submission/recommend.ts）：库内发表去向 + 摘要 scope 重叠，可一键设为目标。
  * 壳层以动态 import 挂载：export function SubmitPanel()，无 props。
  * 文案为组件内自包含 zh/en 双语字典（读 settingsStore.language）。
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { BookOpen, Check, FileArchive, FileText, Plus } from 'lucide-react';
 import { buildProjectZip, packagingChecklist } from '@scholarforge/compile';
 import { useSettingsStore, type Language } from '../state/settingsStore';
@@ -20,6 +22,7 @@ import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { useUiStore } from '../state/uiStore';
 import { deadlineCountdown, useSubmitStore } from '../state/submitStore';
+import { exportDocx } from '../pandoc';
 import { VENUE_PROFILES, venueById } from '../submission/venues';
 import { extractAbstractFromTex, recommendVenues } from '../submission/recommend';
 import './submit.css';
@@ -46,6 +49,8 @@ const STRINGS: Record<Language, {
   exportZip: string;
   exportBlocked: string;
   lastExport: string;
+  exportDocx: string;
+  exportingDocx: string;
   recTitle: string;
   recEmpty: string;
   setTarget: string;
@@ -73,6 +78,8 @@ const STRINGS: Record<Language, {
     exportZip: '打包导出 zip',
     exportBlocked: '存在未通过项，处理后才能导出投稿包。',
     lastExport: '最近导出',
+    exportDocx: '导出 Word (.docx)',
+    exportingDocx: '导出中…',
     recTitle: '期刊推荐',
     recEmpty: '暂无推荐：库内没有指向内置场所的发表记录，且摘要未命中任何 scope 词表。',
     setTarget: '设为目标',
@@ -100,6 +107,8 @@ const STRINGS: Record<Language, {
     exportZip: 'Export project zip',
     exportBlocked: 'Some checks failed; fix them before exporting the submission package.',
     lastExport: 'Last export',
+    exportDocx: 'Export Word (.docx)',
+    exportingDocx: 'Exporting…',
     recTitle: 'Venue recommendations',
     recEmpty: 'No recommendations: no library papers map to built-in venues and the abstract hits no scope keywords.',
     setTarget: 'Set as target',
@@ -137,6 +146,23 @@ export function SubmitPanel() {
   // deadline 倒计时 chip：>14 天 dim、3–14 天 warn、<3 天（含已过期/当天）err
   const countdown = useMemo(() => (deadline ? deadlineCountdown(deadline) : null), [deadline]);
   const countdownTone = countdown ? (countdown.days > 14 ? 'dim' : countdown.days >= 3 ? 'warn' : 'err') : '';
+
+  // 导出 Word（.docx）：pandoc 转换在桌面形态可能触发内置下载（首用时较慢），故带 loading/错误态
+  const [docxPhase, setDocxPhase] = useState<'idle' | 'running' | 'error'>('idle');
+  const [docxError, setDocxError] = useState<string | null>(null);
+  const onExportDocx = () => {
+    if (docxPhase === 'running') return;
+    setDocxPhase('running');
+    setDocxError(null);
+    void exportDocx().then((r) => {
+      if (r.ok) {
+        setDocxPhase('idle');
+      } else {
+        setDocxPhase('error');
+        setDocxError(r.error);
+      }
+    });
+  };
 
   const exportZip = () => {
     const { name, bytes } = buildProjectZip(files, projectName);
@@ -272,6 +298,14 @@ export function SubmitPanel() {
           >
             <FileArchive size={12} /> {t.exportZip}
           </button>
+          <button
+            className="sf-btn"
+            disabled={docxPhase === 'running'}
+            title={docxPhase === 'running' ? t.exportingDocx : undefined}
+            onClick={onExportDocx}
+          >
+            <FileText size={12} /> {docxPhase === 'running' ? t.exportingDocx : t.exportDocx}
+          </button>
           {lastExportAt !== null && (
             <span className="sf-submit-lastexport">
               {t.lastExport}: {new Date(lastExportAt).toLocaleString(locale)}
@@ -279,6 +313,7 @@ export function SubmitPanel() {
           )}
         </div>
         {!allOk && <p className="sf-submit-hint">{t.exportBlocked}</p>}
+        {docxPhase === 'error' && docxError !== null && <p className="sf-submit-hint">{docxError}</p>}
       </section>
 
       <section className="sf-submit-card">

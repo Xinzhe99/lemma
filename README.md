@@ -41,7 +41,7 @@
 | 可视化工具 | 表格编辑器（图形网格 → tabular 代码）、插图向导（自动补 `graphicx`）、引用插入向导（语义推荐相关文献） |
 | 质量护栏 | LaTeX linter（环境配对/悬空引用/括号平衡）、拼写与学术用词检查（96 对错拼 + 26 组易混词，语境守卫防误报） |
 | 真实编译 | **无需预装 LaTeX**：首次点编译自动下载内置 Tectonic（约 30MB，缓存本地）；已装 TeX Live / Tectonic 则优先使用系统引擎；**SyncTeX 双向跳转** |
-| 效率特性 | Ctrl+P 快速打开、Ctrl+Shift+F 全项目搜索、编辑器字号、专注模式、多项目管理、快照时间线 |
+| 效率特性 | Ctrl+P 快速打开、Ctrl+Shift+F 全项目搜索、**AI 一键修编译错误**（诊断→diff 审批）、**导出 Word (.docx)**（自动下载内置 pandoc）、专注模式、多项目管理 |
 
 ![大纲与图表导航](docs/screenshots/outline.png)
 

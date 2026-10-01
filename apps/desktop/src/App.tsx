@@ -82,6 +82,7 @@ export function App() {
   const searchPanelOpen = useUiStore((s) => s.searchPanelOpen);
   const imageWizardOpen = useUiStore((s) => s.imageWizardOpen);
   const citationPickerOpen = useUiStore((s) => s.citationPickerOpen);
+  const reviewsImportOpen = useUiStore((s) => s.reviewsImportOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -541,6 +542,8 @@ export function App() {
 
       {statsDialogOpen && <LazyFeatureDialog file="StatsDialog" onClose={() => useUiStore.getState().setStatsDialogOpen(false)} />}
 
+      {reviewsImportOpen && <LazyFeatureDialog file="ReviewsImportDialog" onClose={() => useUiStore.getState().setReviewsImportOpen(false)} />}
+
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
       {tourOpen && <WelcomeTour onClose={() => setTourOpen(false)} />}
@@ -567,11 +570,12 @@ function LazyFeatureDialog({
     | 'TextDialog'
     | 'CitationPicker'
     | 'BackupDialog'
-    | 'StatsDialog';
+    | 'StatsDialog'
+    | 'ReviewsImportDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);
