@@ -30,10 +30,10 @@ import { initLibrary } from './state/libraryStore';
 import { initUpdateCheck } from './state/updateStore';
 import { useAnnotationStore } from './state/annotationStore';
 import { useUiStore } from './state/uiStore';
+import { shouldShowTour } from './state/onboardingStore';
 import { EditorTabs } from './components/EditorTabs';
 import { FileTree } from './components/FileTree';
 import { LazyPanel } from './components/LazyPanel';
-import { OnboardingCard } from './components/OnboardingCard';
 import { ResizableLayout } from './components/ResizableLayout';
 import { SettingsDialog } from './components/SettingsDialog';
 import { SnapshotDialog } from './components/SnapshotDialog';
@@ -42,6 +42,7 @@ import { QuickOpen, isQuickOpenTrigger } from './components/QuickOpen';
 import { ShortcutsDialog, isShortcutsTrigger } from './components/ShortcutsDialog';
 import { TemplateWizard } from './components/TemplateWizard';
 import { UpdateBar } from './components/UpdateBar';
+import { WelcomeTour } from './components/WelcomeTour';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { CitationsPanel } from './panels/CitationsPanel';
 import { GlossaryPanel } from './panels/GlossaryPanel';
@@ -58,6 +59,8 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // 欢迎导览（完整新手引导系统）：首屏判定一次，完成/稍后/跳过后经 onClose 卸载
+  const [tourOpen, setTourOpen] = useState(false);
 
   const sidebarTab = useUiStore((s) => s.sidebarTab);
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
@@ -109,6 +112,11 @@ export function App() {
     void initWorkspace();
     void initLibrary();
     initUpdateCheck();
+  }, []);
+
+  // 新手引导（P0）：首屏判定 shouldShowTour() —— 未完成导览且不在 24h「稍后」窗口内则弹出全屏导览。
+  useEffect(() => {
+    if (shouldShowTour()) setTourOpen(true);
   }, []);
 
   useEffect(() => applyTheme(theme), [theme]);
@@ -416,7 +424,6 @@ export function App() {
       <div className="panel-title">
         <MessageSquare size={14} /> {t('agent.title')}
       </div>
-      <OnboardingCard />
       <AgentPanel />
     </aside>
   );
@@ -535,6 +542,8 @@ export function App() {
       {statsDialogOpen && <LazyFeatureDialog file="StatsDialog" onClose={() => useUiStore.getState().setStatsDialogOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
+
+      {tourOpen && <WelcomeTour onClose={() => setTourOpen(false)} />}
 
       {toast && <div className="sf-toast">{toast}</div>}
     </div>

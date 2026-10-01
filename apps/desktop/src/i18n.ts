@@ -285,6 +285,84 @@ const dict: MessageDict = {
   },
   'onboarding.dismiss': { zh: '不再显示', en: "Don't show again" },
 
+  // 欢迎导览（WelcomeTour：首启全屏 4 页 carousel）
+  'tour.skip': { zh: '跳过引导', en: 'Skip the tour' },
+  'tour.prev': { zh: '上一步', en: 'Back' },
+  'tour.next': { zh: '下一步', en: 'Next' },
+  'tour.start': { zh: '开始使用', en: 'Get started' },
+  'tour.later': { zh: '先看看', en: 'Explore first' },
+  'tour.page1.title': { zh: '欢迎来到 ScholarForge', en: 'Welcome to ScholarForge' },
+  'tour.page1.desc': {
+    zh: 'AI 原生的一站式论文工作站——写作、编译、文献与智能体，在同一工作区完成一篇论文的完整生命周期。',
+    en: 'An AI-native, all-in-one workstation for papers — writing, compiling, references, and agents in a single workspace for the full life cycle of a paper.',
+  },
+  'tour.page2.title': { zh: '写作与编译', en: 'Write & compile' },
+  'tour.page2.desc': {
+    zh: '无需预装 LaTeX：点一次编译即自动配置内置 Tectonic 引擎；产出 PDF 与源码经 SyncTeX 双向跳转。',
+    en: 'No LaTeX install needed: one click auto-configures the bundled Tectonic engine; the PDF and source stay linked both ways via SyncTeX.',
+  },
+  'tour.page3.title': { zh: 'AI 深度参与', en: 'AI, deeply involved' },
+  'tour.page3.desc': {
+    zh: '7 条内置工作流覆盖起草、润色与投稿；写级修改一律经 diff 审批后落盘；引用幻觉自动拦截。',
+    en: 'Seven built-in workflows cover drafting, polishing, and submission; every write-level edit lands only after diff approval; hallucinated citations are intercepted.',
+  },
+  'tour.page4.title': { zh: '三步上手', en: 'Three steps to start' },
+  'tour.page4.desc': {
+    zh: '首页的新手任务清单会自动检测进度——跑通这三步，ScholarForge 就是你的了。',
+    en: 'The getting-started checklist on Home tracks progress automatically — finish these three steps and ScholarForge is yours.',
+  },
+  'tour.step1.title': { zh: '创建项目', en: 'Create a project' },
+  'tour.step1.desc': { zh: '从模板新建，或导入 Overleaf zip', en: 'Start from a template or import an Overleaf zip' },
+  'tour.step2.title': { zh: '写作并编译', en: 'Write & compile' },
+  'tour.step2.desc': { zh: '编辑 LaTeX，一键出 PDF', en: 'Edit LaTeX, get a PDF in one click' },
+  'tour.step3.title': { zh: '问 AI', en: 'Ask the AI' },
+  'tour.step3.desc': { zh: '润色、起草、跑工作流', en: 'Polish, draft, and run workflows' },
+  'tour.imgAlt.writing': { zh: '写作视图截图', en: 'Writing view screenshot' },
+  'tour.imgAlt.outline': { zh: '编译与 PDF 预览截图', en: 'Compile & PDF preview screenshot' },
+  'tour.imgAlt.reviewer': { zh: 'AI 工作流截图', en: 'AI workflow screenshot' },
+  'tour.pageOf': { zh: '第 {n} / {total} 页', en: 'Page {n} of {total}' },
+
+  // 新手任务清单（GettingStarted：Dashboard 顶部，自动检测完成态）
+  'gs.title': { zh: '上手 ScholarForge', en: 'Get started' },
+  'gs.subtitle': { zh: '完成这几个动作，跑通第一条工作流', en: 'Finish these actions to run your first workflow' },
+  'gs.progress': { zh: '{n} / 5', en: '{n} / 5' },
+  'gs.collapse': { zh: '收起', en: 'Collapse' },
+  'gs.expand': { zh: '展开新手清单', en: 'Show checklist' },
+  'gs.dismiss': { zh: '不再显示', en: "Don't show again" },
+  'gs.done': { zh: '已完成', en: 'Done' },
+  'gs.stepProject.title': { zh: '创建或导入项目', en: 'Create or import a project' },
+  'gs.stepProject.desc': {
+    zh: '从模板新建，或导入 Overleaf / LaTeX 项目 zip',
+    en: 'Start from a template, or import an Overleaf / LaTeX project zip',
+  },
+  'gs.stepProject.done': { zh: '已有项目', en: 'Project ready' },
+  'gs.stepProject.btn': { zh: '从模板新建', en: 'New from template' },
+  'gs.stepProject.alt': { zh: '导入 zip', en: 'Import zip' },
+  'gs.stepWrite.title': { zh: '写下第一段内容', en: 'Write your first paragraph' },
+  'gs.stepWrite.desc': {
+    zh: '在编辑器里打开任意文件，写点什么或改一句',
+    en: 'Open any file in the editor and write or tweak something',
+  },
+  'gs.stepWrite.btn': { zh: '去写作', en: 'Start writing' },
+  'gs.stepCompile.title': { zh: '完成一次编译', en: 'Run your first compile' },
+  'gs.stepCompile.desc': {
+    zh: 'Ctrl+Enter 或点按钮编译，首次会自动配置引擎',
+    en: 'Ctrl+Enter or the button compiles; the engine auto-configures on first run',
+  },
+  'gs.stepCompile.btn': { zh: '立即编译', en: 'Compile now' },
+  'gs.stepChat.title': { zh: '和 AI 对话一次', en: 'Chat with the AI once' },
+  'gs.stepChat.desc': {
+    zh: '右侧 Agent 面板可以润色、起草、跑工作流（未配置模型也有演示模式）',
+    en: 'The agent panel on the right polishes, drafts, and runs workflows (demo mode works without a model)',
+  },
+  'gs.stepChat.btn': { zh: '问一个问题', en: 'Ask a question' },
+  'gs.stepProvider.title': { zh: '激活 AI（配置模型服务）', en: 'Activate AI (configure a provider)' },
+  'gs.stepProvider.desc': {
+    zh: '在设置中添加任意 OpenAI 兼容服务；不配置也可用内置演示模式',
+    en: 'Add any OpenAI-compatible service in Settings; the built-in demo mode works without one',
+  },
+  'gs.stepProvider.btn': { zh: '去配置', en: 'Configure' },
+
   // 内置 TeX 引擎（Tectonic）自动下载（texSetup 状态机；编译日志行在 compileAction 的 L 字典）
   'texsetup.downloading': { zh: '正在下载 Tectonic（约 30MB）…', en: 'Downloading Tectonic (~30 MB)…' },
   'texsetup.ready': {

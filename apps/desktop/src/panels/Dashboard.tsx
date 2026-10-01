@@ -1,5 +1,7 @@
 /**
  * 首页指挥台（Dashboard）：打开应用第一眼即见「今天该做什么」。
+ *  - 新手任务清单：顶部渲染 <GettingStarted />（完整新手引导系统），5 步自动检测完成态，
+ *    全部完成或 dismissed 后组件自身不再显示；
  *  - 问候行：项目名 + 本地日期；无项目数据时给出「从模板新建 / 导入 zip」引导；
  *  - 今日写作卡：wordsToday / dailyGoal 进度条 + 🔥 streakDays + 「继续写作」（跳文件树）；
  *    goal 未设（<=0）时不给目标压力——只显示字数、不渲染进度条；
@@ -17,6 +19,7 @@
 
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { DigestPanel } from './DigestPanel';
+import { GettingStarted } from '../components/GettingStarted';
 import { computeHealth, healthTone, type HealthIssueKind, type HealthTone } from '../healthScore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
@@ -203,6 +206,9 @@ export function Dashboard() {
 
   return (
     <div className="sf-dash" style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0 16px' }}>
+      {/* —— 新手任务清单（完整新手引导系统）：未全部完成且未 dismissed 时显示，自带判定 —— */}
+      <GettingStarted />
+
       {/* —— 问候行：项目名 + 日期（无项目时引导新建/导入） —— */}
       <header className="sf-dash-head">
         {hasProject ? (
