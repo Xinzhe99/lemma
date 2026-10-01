@@ -113,6 +113,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       },
     },
     {
+      id: 'app.checkUpdate',
+      title: ctx.t('cmd.checkUpdate'),
+      hint: ctx.t('hint.app'),
+      run: () => void import('./state/updateStore').then(({ useUpdateStore }) => useUpdateStore.getState().checkNow()),
+    },
+    {
       id: 'app.backup',
       title: ctx.t('cmd.backup'),
       hint: ctx.t('hint.app'),

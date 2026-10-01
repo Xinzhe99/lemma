@@ -27,6 +27,7 @@ import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { quickAsk } from './aiActions';
 import { initLibrary } from './state/libraryStore';
+import { initUpdateCheck } from './state/updateStore';
 import { useAnnotationStore } from './state/annotationStore';
 import { useUiStore } from './state/uiStore';
 import { EditorTabs } from './components/EditorTabs';
@@ -40,6 +41,7 @@ import { EditorArea } from './components/EditorArea';
 import { QuickOpen, isQuickOpenTrigger } from './components/QuickOpen';
 import { ShortcutsDialog, isShortcutsTrigger } from './components/ShortcutsDialog';
 import { TemplateWizard } from './components/TemplateWizard';
+import { UpdateBar } from './components/UpdateBar';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { CitationsPanel } from './panels/CitationsPanel';
 import { GlossaryPanel } from './panels/GlossaryPanel';
@@ -106,6 +108,7 @@ export function App() {
   useEffect(() => {
     void initWorkspace();
     void initLibrary();
+    initUpdateCheck();
   }, []);
 
   useEffect(() => applyTheme(theme), [theme]);
@@ -420,6 +423,7 @@ export function App() {
 
   return (
     <div className="app">
+      <UpdateBar />
       <header className="topbar">
         <div className="brand">ScholarForge</div>
         <button

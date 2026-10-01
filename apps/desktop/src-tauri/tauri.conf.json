@@ -30,6 +30,7 @@
     "copyright": "© 2026 ScholarForge",
     "shortDescription": "AI-native scholarly writing workstation",
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,5 +38,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2RkQ4MzMyQzI1MDRCQjAKUldTd1MxRENNb1A5Rm9rTEFrblRQNVpFbFBnMXpGZHArMWNLUnhTTlJuZWJkZDBRR3puaFlQV2MK",
+      "endpoints": [
+        "https://github.com/Xinzhe99/scholarforge/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

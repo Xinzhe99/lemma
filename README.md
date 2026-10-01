@@ -101,10 +101,11 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_0.9.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/ScholarForge_0.9.0_x64-setup.exe) | 安装包（2.8 MB，NSIS 向导式安装） |
-| [scholarforge-portable-0.9.0.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/scholarforge-portable-0.9.0.exe) | 绿色单文件版（4.8 MB，免安装双击即用） |
+| [ScholarForge_0.9.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/ScholarForge_0.9.0_x64-setup.exe) | Windows 安装包（2.8 MB，NSIS 向导式） |
+| [scholarforge-portable-0.9.0.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/scholarforge-portable-0.9.0.exe) | Windows 绿色版（4.8 MB，双击即用） |
+| macOS（.dmg） | 打 tag 后由 CI 自动产出（Apple Silicon / Intel） |
 
-全部版本见 [Releases](https://github.com/Xinzhe99/scholarforge/releases)。
+全部版本见 [Releases](https://github.com/Xinzhe99/scholarforge/releases)。应用内建自动更新：闲时静默检查下载，重启即完成升级。
 
 ### 方式二：桌面版（Windows）
 

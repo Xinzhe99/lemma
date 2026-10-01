@@ -21,6 +21,13 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use tauri::Manager;
 
+// ---------------------------------------------------------------------------
+// 自动更新（类 Codex 无感三段：闲时静默检查 → 后台下载 → 重启即完成）
+// 检查/下载/安装与重启由前端 npm 插件（plugin-updater / plugin-process）经
+// 各自的 IPC 命令完成；Rust 侧只注册插件并暴露 updater_status 诊断桥。
+// 权限见 capabilities/default.json（updater:default + process:allow-restart）。
+// ---------------------------------------------------------------------------
+
 fn base_dir(app: &tauri::AppHandle) -> PathBuf {
     let dir = app
         .path()
@@ -204,9 +211,32 @@ fn proc_run(
     })
 }
 
+#[derive(serde::Serialize)]
+struct UpdaterStatus {
+    /// tauri.conf.json 的 updater.pubkey 是否非空（空 = 签名密钥未配置，
+    /// check 必失败；前端据此给出精确的中文提示而非晦涩的后端错误）。
+    configured: bool,
+}
+
+/// updater 诊断桥：读编译期配置，报告签名公钥配置状态。
+#[tauri::command]
+fn updater_status(app: tauri::AppHandle) -> UpdaterStatus {
+    // plugins 节为自由结构（各插件自定义 schema），经 serde_json 导航最稳。
+    let plugins = serde_json::to_value(&app.config().plugins).unwrap_or(serde_json::Value::Null);
+    let pubkey = plugins
+        .pointer("/updater/pubkey")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    UpdaterStatus {
+        configured: !pubkey.trim().is_empty(),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             fs_read,
             fs_read_base64,
@@ -216,7 +246,8 @@ pub fn run() {
             fs_list,
             secret_get,
             secret_set,
-            proc_run
+            proc_run,
+            updater_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running ScholarForge");

@@ -124,6 +124,18 @@ const dict: MessageDict = {
   'about.desc': { zh: 'AI 原生的一站式科研写作工作站', en: 'AI-native scholarly writing workstation' },
   'about.designDoc': { zh: '设计文档：DESIGN.md（仓库根）', en: 'Design doc: DESIGN.md (repo root)' },
 
+  // 自动更新横幅（UpdateBar：类 Codex 三段——静默检查 / 后台下载 / 重启即完成）
+  'update.available': { zh: '发现新版本 v{version}', en: 'New version v{version} available' },
+  'update.downloading': { zh: '正在后台下载…（{percent}%）', en: 'Downloading in background… ({percent}%)' },
+  'update.downloadingIndeterminate': { zh: '正在后台下载…', en: 'Downloading in background…' },
+  'update.ready': {
+    zh: '✓ 新版本 v{version} 已就绪 — 重启即可完成更新',
+    en: '✓ v{version} is ready — restart to finish updating',
+  },
+  'update.restart': { zh: '立即重启', en: 'Restart now' },
+  'update.later': { zh: '稍后', en: 'Later' },
+  'update.restarting': { zh: '正在重启…', en: 'Restarting…' },
+
   // 命令面板动作
   'cmd.newProject': { zh: '新建项目（演示重置）', en: 'New project (demo reset)' },
   'cmd.newFile': { zh: '新建文件', en: 'New file' },
@@ -133,6 +145,7 @@ const dict: MessageDict = {
   'cmd.insertImage': { zh: '插入图片', en: 'Insert image' },
   'cmd.insertCitation': { zh: '插入引用（从文献库选择）', en: 'Insert citation (from library)' },
   'cmd.backup': { zh: '备份与恢复（全量数据导出/导入）', en: 'Backup & restore (full data export/import)' },
+  'cmd.checkUpdate': { zh: '检查应用更新', en: 'Check for updates' },
   'cmd.openComments': { zh: '打开稿件批注面板', en: 'Open manuscript comments' },
   'cmd.focusMode': { zh: '切换专注模式（隐藏侧栏，沉浸写作）', en: 'Toggle focus mode' },
   'cmd.writingStats': { zh: '写作统计（字数/目标/连续天数）', en: 'Writing statistics' },
