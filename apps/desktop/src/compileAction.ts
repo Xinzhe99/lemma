@@ -1,6 +1,7 @@
 /**
- * 编译动作：Tauri 形态优先探测并使用真实引擎（tectonic → latexmk，经 proc_run 桥），
- * 都不可用或流程任一步失败时自动回退 MockEngine；浏览器形态直接 MockEngine。
+ * 编译动作：Tauri 形态按探测链使用真实引擎——系统 tectonic → 系统 latexmk →
+ * 内置 tectonic（数据目录；不存在则经 texSetup 自动下载，用户只需点一次编译）——
+ * 全链不可用或流程任一步失败时自动回退 MockEngine；浏览器形态直接 MockEngine。
  * 真实编译前先把项目文本文件物化到数据目录（引擎 cwd），成功后经 fs_read_base64 读回
  * PDF 产物并自动打开应用内预览（同时缓存为 lastPdf，预览关闭后可经 reopenLastPdf 重看，D14），
  * 随后回读 .synctex.gz 注册 SyncTeX 索引
@@ -16,6 +17,7 @@ import { useUiStore } from './state/uiStore';
 import { useSettingsStore, type Language } from './state/settingsStore';
 import { getPlatform } from './platform/types';
 import { tauriProcRun, tauriReadBase64 } from './platform/tauri';
+import { ensureBuiltinTectonic, getReadyBuiltinTectonicPath, isBuiltinTectonicInfo } from './texSetup';
 import { jumpTo } from './editorJump';
 import { setSynctexIndex } from './synctexBridge';
 
@@ -35,6 +37,28 @@ const tauriRunner = {
   },
 };
 
+/** proc_run 便捷 runner 的结构类型（与 compile 包的 CommandRunner 兼容） */
+export interface ProcRunner {
+  run(
+    cmd: string,
+    args: string[],
+    opts: { cwd: string; stdin?: string },
+  ): Promise<{ code: number; stdout: string; stderr: string }>;
+}
+
+/**
+ * 把 runner 的 'tectonic' 命令重映射到内置引擎的绝对路径（proc_run 支持任意 cmd 字符串，
+ * 直接传完整路径即可）；其余命令（latexmk/bibtex）原样。tectonicPath 为空时返回原 runner。
+ * TectonicEngine 内部写死 runner.run('tectonic', …)，故在 runner 层做替换，不改 compile 包。
+ */
+export function withBuiltinTectonic(base: ProcRunner, tectonicPath: string | null): ProcRunner {
+  if (!tectonicPath) return base;
+  return {
+    run: (cmd: string, args: string[], opts: { cwd: string; stdin?: string }) =>
+      base.run(cmd === 'tectonic' ? tectonicPath : cmd, args, opts),
+  };
+}
+
 export interface CompileActionResult {
   ok: boolean;
   entry: string;
@@ -50,7 +74,10 @@ export interface CompileActionResult {
 
 interface CompileDict {
   noEntry: string;
-  noEngine: string;
+  builtinDownloading: string;
+  builtinReady: (cached: boolean) => string;
+  builtinFirstRun: string;
+  builtinFail: (err: string) => string;
   mockStart: (entry: string) => string;
   realStart: (engine: string, entry: string, count: number) => string;
   summary: (engine: string, passes: number, durationMs: number, ok: boolean) => string;
@@ -66,7 +93,14 @@ interface CompileDict {
 export const L: Record<Language, CompileDict> = {
   zh: {
     noEntry: '✗ 未找到可编译的 .tex 入口文件',
-    noEngine: '⚠ 未检测到 Tectonic/latexmk，回退模拟引擎。安装 TeX Live（含 latexmk）或 Tectonic 后可获得真实编译。',
+    builtinDownloading: '⟳ 未检测到 TeX 引擎，正在自动下载内置 Tectonic…',
+    builtinReady: (cached) =>
+      cached
+        ? '✓ 内置 Tectonic 已就绪（缓存于应用数据目录）'
+        : '✓ 内置 Tectonic 下载完成，已就绪（缓存于应用数据目录）',
+    builtinFirstRun: 'ℹ 首次编译将联网获取宏包，稍慢属正常',
+    builtinFail: (err) =>
+      `⚠ 内置 Tectonic 自动下载失败（${err}），回退模拟引擎。可检查网络/代理，或手动安装 Tectonic / TeX Live。`,
     mockStart: (entry) => `▶ 开始编译 ${entry}（模拟引擎）`,
     realStart: (engine, entry, count) => `▶ ${engine} 真实编译 ${entry}（已物化 ${count} 个项目文件到本地工作目录）`,
     summary: (engine, passes, durationMs, ok) => `▣ ${engine} · ${passes} 趟 · ${durationMs}ms · ${ok ? '成功' : '失败'}`,
@@ -80,7 +114,14 @@ export const L: Record<Language, CompileDict> = {
   },
   en: {
     noEntry: '✗ No compilable .tex entry file found',
-    noEngine: '⚠ Tectonic/latexmk not detected; falling back to the mock engine. Install TeX Live (with latexmk) or Tectonic for real compilation.',
+    builtinDownloading: '⟳ No TeX engine detected; automatically downloading the bundled Tectonic…',
+    builtinReady: (cached) =>
+      cached
+        ? '✓ Bundled Tectonic is ready (cached in the app data directory)'
+        : '✓ Bundled Tectonic downloaded and ready (cached in the app data directory)',
+    builtinFirstRun: 'ℹ The first compile fetches TeX packages online and may be slower',
+    builtinFail: (err) =>
+      `⚠ Failed to download the bundled Tectonic (${err}); falling back to the mock engine. Check your network/proxy, or install Tectonic / TeX Live manually.`,
     mockStart: (entry) => `▶ Compiling ${entry} (mock engine)`,
     realStart: (engine, entry, count) => `▶ ${engine} real compile of ${entry} (${count} project files materialized into the local working directory)`,
     summary: (engine, passes, durationMs, ok) => `▣ ${engine} · ${passes} pass(es) · ${durationMs}ms · ${ok ? 'succeeded' : 'failed'}`,
@@ -127,13 +168,28 @@ export interface ExecOutcome {
 }
 
 /**
- * 依据探测结果选择真实引擎：tectonic 可用优先（自包含、无外部 TeX 依赖），
- * 其次 latexmk；两者 --version 均非 0 退出（或命令不存在）返回 null（回退模拟引擎）。
+ * 依据探测结果选择真实引擎：系统 tectonic 可用优先（自包含、无外部 TeX 依赖），
+ * 其次系统 latexmk；两者 --version 均非 0 退出（或命令不存在）时，
+ * 若注入了内置 tectonic 路径（数据目录已就绪/自动下载成功）则选内置，否则返回 null（回退模拟引擎）。
+ * builtinTectonicPath 为新增探测注入点：非空字符串即视为可用（Rust 侧落盘前已校验过）。
  */
-export function detectEngine(probes: { tectonic: ExecOutcome; latexmk: ExecOutcome }): 'tectonic' | 'latexmk' | null {
+export type RealEngineKind = 'tectonic' | 'latexmk' | 'builtin-tectonic';
+
+export function detectEngine(probes: {
+  tectonic: ExecOutcome;
+  latexmk: ExecOutcome;
+  builtinTectonicPath?: string | null;
+}): RealEngineKind | null {
   if (probes.tectonic.ok) return 'tectonic';
   if (probes.latexmk.ok) return 'latexmk';
+  if (probes.builtinTectonicPath) return 'builtin-tectonic';
   return null;
+}
+
+/** 日志里展示的引擎名：内置引擎标注（内置）以便与系统安装区分 */
+export function engineLabel(kind: RealEngineKind): string {
+  if (kind === 'builtin-tectonic') return 'tectonic（内置）';
+  return kind;
 }
 
 /** proc_run 成功返回 → 探测结果（退出码 0 即可用） */
@@ -259,8 +315,9 @@ export async function runMockCompile(): Promise<CompileActionResult> {
 // ---------------------------------------------------------------------------
 
 /**
- * Tauri 真实编译：探测 tectonic/latexmk → 物化项目文件到数据目录 → 编译 → 读回 PDF 打开预览。
- * 返回 null 表示应回退模拟引擎（引擎未检测到 / 物化或编译执行失败）；
+ * Tauri 真实编译：探测链（系统 tectonic → 系统 latexmk → 内置 tectonic，必要时自动下载）
+ * → 物化项目文件到数据目录 → 编译 → 读回 PDF 打开预览。
+ * 返回 null 表示应回退模拟引擎（全链不可用（含下载失败）/ 物化或编译执行失败）；
  * 编译本身的失败（有诊断）是真实结果，不回退。
  */
 async function runRealCompile(entry: string): Promise<CompileActionResult | null> {
@@ -268,20 +325,34 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
   const t = pick(useSettingsStore.getState().language);
   s.setCompileStatus('running');
 
-  const engineKind = detectEngine({
+  // 前两级系统探测；内置引擎已就绪（本会话早前下载过）时作为第三级注入
+  let engineKind = detectEngine({
     tectonic: await probeEngine('tectonic'),
     latexmk: await probeEngine('latexmk'),
+    builtinTectonicPath: getReadyBuiltinTectonicPath(),
   });
+  let builtinPath = engineKind === 'builtin-tectonic' ? getReadyBuiltinTectonicPath() : null;
   if (!engineKind) {
-    s.appendCompileLog(t.noEngine);
-    return null;
+    // 全链兜底：触发内置 Tectonic 自动下载（数据目录已有则 Rust 侧直接返回 cached）。
+    // 用户只需点一次编译，全自动；下载失败日志中文说明后回退模拟引擎。
+    s.appendCompileLog(t.builtinDownloading);
+    const info = await ensureBuiltinTectonic();
+    if (!isBuiltinTectonicInfo(info)) {
+      s.appendCompileLog(t.builtinFail(info.error));
+      return null;
+    }
+    builtinPath = info.path;
+    engineKind = 'builtin-tectonic';
+    s.appendCompileLog(t.builtinReady(info.cached));
+    if (info.firstRunNote) s.appendCompileLog(t.builtinFirstRun);
   }
+  const label = engineLabel(engineKind);
 
   // 物化项目文本文件到引擎工作目录（proc_run 的 cwd='' 即数据目录根）
   try {
     const fs = getPlatform().fs;
     const count = await materializeProjectFiles(s.files, (p, c) => fs.writeFile(p, c));
-    s.appendCompileLog(t.realStart(engineKind, entry, count));
+    s.appendCompileLog(t.realStart(label, entry, count));
   } catch (e) {
     s.appendCompileLog(t.materializeFail(errText(e)));
     return null;
@@ -291,15 +362,15 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
   try {
     result = await runFullCompile(
       { files: s.files, entry, cwd: '' },
-      engineKind === 'tectonic' ? new TectonicEngine() : new LatexmkEngine(),
-      tauriRunner,
+      engineKind === 'latexmk' ? new LatexmkEngine() : new TectonicEngine(),
+      withBuiltinTectonic(tauriRunner, builtinPath),
     );
   } catch (e) {
-    s.appendCompileLog(t.engineFail(engineKind, errText(e)));
+    s.appendCompileLog(t.engineFail(label, errText(e)));
     return null;
   }
 
-  s.appendCompileLog(t.summary(engineKind, result.passes, result.durationMs, result.success));
+  s.appendCompileLog(t.summary(label, result.passes, result.durationMs, result.success));
   logDiagnostics(entry, result.diagnostics);
 
   // 读回 PDF 产物并打开应用内预览（产物缺失只记录日志，不影响编译结果）；
@@ -337,7 +408,8 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
   return { ok: result.success, entry, passes: result.passes, diagnostics: result.diagnostics.length };
 }
 
-/** 统一入口：Tauri 环境先探测真实引擎（tectonic → latexmk），不可用回退模拟引擎；浏览器直接模拟。 */
+/** 统一入口：Tauri 环境按探测链使用真实引擎（系统 tectonic → 系统 latexmk → 内置 tectonic，
+ *  内置不存在时自动下载，下载失败回退模拟引擎）；浏览器直接模拟。 */
 export async function runCompile(): Promise<CompileActionResult> {
   if (getPlatform().kind === 'tauri') {
     const entry = resolveCompileEntry();

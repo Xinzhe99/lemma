@@ -10,6 +10,7 @@ import type { SynctexIndex } from '@scholarforge/compile';
 import type { Diagnostic } from '@scholarforge/shared';
 import {
   detectEngine,
+  engineLabel,
   firstErrorJump,
   materializeProjectFiles,
   pdfTargetFor,
@@ -18,6 +19,7 @@ import {
   reopenLastPdf,
   runCompile,
   synctexTargetFor,
+  withBuiltinTectonic,
 } from './compileAction';
 import { base64ToBytes, tauriReadBase64 } from './platform/tauri';
 import { useWorkspaceStore } from './state/workspaceStore';
@@ -41,6 +43,60 @@ describe('detectEngine（探测结果注入，不依赖真实进程）', () => {
 
   it('两者都不可用返回 null（应回退模拟引擎）', () => {
     expect(detectEngine({ tectonic: bad(), latexmk: bad() })).toBeNull();
+  });
+});
+
+describe('detectEngine + builtinTectonicPath（内置引擎探测注入点）', () => {
+  const builtin = 'C:\\AppData\\ScholarForge\\bin\\tectonic.exe';
+
+  it('系统引擎均不可用、注入内置路径时选择 builtin-tectonic', () => {
+    expect(detectEngine({ tectonic: bad(), latexmk: bad(), builtinTectonicPath: builtin })).toBe('builtin-tectonic');
+    expect(detectEngine({ tectonic: bad(), latexmk: bad(), builtinTectonicPath: '/data/bin/tectonic' })).toBe(
+      'builtin-tectonic',
+    );
+  });
+
+  it('优先级：系统 tectonic > 系统 latexmk > 内置 tectonic', () => {
+    expect(detectEngine({ tectonic: ok(), latexmk: bad(), builtinTectonicPath: builtin })).toBe('tectonic');
+    expect(detectEngine({ tectonic: bad(), latexmk: ok(), builtinTectonicPath: builtin })).toBe('latexmk');
+    expect(detectEngine({ tectonic: ok(), latexmk: ok(), builtinTectonicPath: builtin })).toBe('tectonic');
+  });
+
+  it('内置路径为 null/空串时不参与选择（保持既有行为）', () => {
+    expect(detectEngine({ tectonic: bad(), latexmk: bad(), builtinTectonicPath: null })).toBeNull();
+    expect(detectEngine({ tectonic: bad(), latexmk: bad(), builtinTectonicPath: '' })).toBeNull();
+  });
+
+  it('engineLabel：内置引擎标注（内置），其余原样', () => {
+    expect(engineLabel('builtin-tectonic')).toBe('tectonic（内置）');
+    expect(engineLabel('tectonic')).toBe('tectonic');
+    expect(engineLabel('latexmk')).toBe('latexmk');
+  });
+});
+
+describe('withBuiltinTectonic（runner 命令重映射）', () => {
+  const fakeRunner = {
+    async run(
+      cmd: string,
+      args: string[],
+      _opts: { cwd: string; stdin?: string },
+    ): Promise<{ code: number; stdout: string; stderr: string }> {
+      return { code: 0, stdout: `ran:${cmd}:${args.join(',')}`, stderr: '' };
+    },
+  };
+
+  it('注入路径时把 tectonic 重映射到绝对路径，其余命令原样', async () => {
+    const wrapped = withBuiltinTectonic(fakeRunner, 'C:\\bin\\tectonic.exe');
+    const t = await wrapped.run('tectonic', ['-X', 'compile', 'main.tex'], { cwd: '' });
+    expect(t.stdout).toBe('ran:C:\\bin\\tectonic.exe:-X,compile,main.tex');
+    const b = await wrapped.run('bibtex', ['main.aux'], { cwd: '' });
+    expect(b.stdout).toBe('ran:bibtex:main.aux');
+    const l = await wrapped.run('latexmk', ['-pdf'], { cwd: '' });
+    expect(l.stdout).toBe('ran:latexmk:-pdf');
+  });
+
+  it('路径为 null 时返回原 runner（系统引擎路径零开销）', () => {
+    expect(withBuiltinTectonic(fakeRunner, null)).toBe(fakeRunner);
   });
 });
 

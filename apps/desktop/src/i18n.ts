@@ -285,6 +285,22 @@ const dict: MessageDict = {
   },
   'onboarding.dismiss': { zh: '不再显示', en: "Don't show again" },
 
+  // 内置 TeX 引擎（Tectonic）自动下载（texSetup 状态机；编译日志行在 compileAction 的 L 字典）
+  'texsetup.downloading': { zh: '正在下载 Tectonic（约 30MB）…', en: 'Downloading Tectonic (~30 MB)…' },
+  'texsetup.ready': {
+    zh: '内置 Tectonic 已就绪（缓存于应用数据目录）',
+    en: 'Bundled Tectonic is ready (cached in the app data directory)',
+  },
+  'texsetup.error': { zh: '内置 Tectonic 获取失败：{reason}', en: 'Failed to get the bundled Tectonic: {reason}' },
+  'texsetup.browserUnsupported': {
+    zh: '浏览器形态无法内置编译器，请使用桌面版',
+    en: 'The browser build cannot bundle a compiler; please use the desktop app',
+  },
+  'texsetup.firstRun': {
+    zh: '首次编译将联网获取宏包，稍慢属正常',
+    en: 'The first compile fetches TeX packages online and may be slower',
+  },
+
   // 产品代号（暂不提供英文，验证 zh 回退）
   'app.codename': { zh: '论文 IDE' },
 };

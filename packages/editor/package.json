@@ -1,6 +1,6 @@
 {
   "name": "@scholarforge/editor",
-  "version": "0.9.0",
+  "version": "0.11.0",
   "private": true,
   "main": "src/index.ts",
   "types": "src/index.ts",

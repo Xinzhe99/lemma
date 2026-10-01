@@ -40,7 +40,7 @@
 | 数学实时预览 | 悬停 `$...$` / `\[...\]` 即出 KaTeX 渲染浮层 |
 | 可视化工具 | 表格编辑器（图形网格 → tabular 代码）、插图向导（自动补 `graphicx`）、引用插入向导（语义推荐相关文献） |
 | 质量护栏 | LaTeX linter（环境配对/悬空引用/括号平衡）、拼写与学术用词检查（96 对错拼 + 26 组易混词，语境守卫防误报） |
-| 真实编译 | 自动探测本机 Tectonic / latexmk，产物直接在应用内预览 PDF；**SyncTeX 双向跳转**（点 PDF 回源码行 / 状态栏 ⇄ 按钮跳 PDF） |
+| 真实编译 | **无需预装 LaTeX**：首次点编译自动下载内置 Tectonic（约 30MB，缓存本地）；已装 TeX Live / Tectonic 则优先使用系统引擎；**SyncTeX 双向跳转** |
 | 效率特性 | Ctrl+P 快速打开、Ctrl+Shift+F 全项目搜索、编辑器字号、专注模式、多项目管理、快照时间线 |
 
 ![大纲与图表导航](docs/screenshots/outline.png)
@@ -109,7 +109,7 @@ npm run dev        # 打开 http://localhost:5173
 
 ### 方式二：桌面版（Windows）
 
-**前置**：[Rust](https://rustup.rs) + Node 20+；建议装有 Tectonic 或 TeX Live（缺失自动回退模拟编译）
+**前置**：[Rust](https://rustup.rs) + Node 20+。**无需预装 LaTeX**——首次编译自动下载内置 Tectonic 引擎
 
 ```bash
 npm install
