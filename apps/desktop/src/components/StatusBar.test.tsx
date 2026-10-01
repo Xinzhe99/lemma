@@ -45,6 +45,8 @@ vi.mock('zustand', async () => {
 import { StatusBar, countWords, relativeTime } from './StatusBar';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useUiStore } from '../state/uiStore';
+import { useSubmitStore } from '../state/submitStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { todayKey, useWritingStatsStore } from '../state/writingStats';
 import { hasSynctexIndex, jumpSourceToPdf, onPdfGoto, setSynctexIndex } from '../synctexBridge';
 import type { SynctexIndex } from '@scholarforge/compile';
@@ -66,6 +68,7 @@ function renderView(cursor: { line: number; col: number } = { line: 3, col: 7 })
 beforeEach(() => {
   useWorkspaceStore.getState().loadDemoProject();
   useWorkspaceStore.setState({ dirty: false, lastSavedAt: null });
+  useSubmitStore.setState({ venueId: null });
 });
 
 afterEach(() => {
@@ -288,5 +291,77 @@ describe('StatusBar「⇄ PDF」同步按钮（WS-2 源码 → PDF）', () => {
     });
     expect(hasSynctexIndex()).toBe(true);
     expect(findSyncButton().disabled).toBe(false);
+  });
+});
+
+describe('StatusBar 页数预算 chip（mock workspace + submit 两 store）', () => {
+  const PDFLATEX_OK = [
+    '▶ latexmk 真实编译 main.tex',
+    'Output written on main.pdf (10 pages, 348576 bytes).',
+  ];
+
+  function pageChip(): HTMLElement | null {
+    return container!.querySelector<HTMLElement>('.sf-page-chip');
+  }
+
+  function setCompile(log: string[], status: 'ok' | 'idle' | 'fail' = 'ok'): void {
+    act(() => {
+      useWorkspaceStore.setState({ compileLog: log, compileStatus: status });
+    });
+  }
+
+  it('编译成功且日志有页数、未选 venue → 只显示「N 页」（中性样式）', () => {
+    renderView();
+    expect(pageChip()).toBeNull(); // idle 无 chip
+    setCompile(PDFLATEX_OK);
+    const chip = pageChip();
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent).toBe('10 页');
+    expect(chip!.className).not.toContain('err');
+    expect(chip!.className).not.toContain('ok');
+    expect(chip!.title).toContain('页数上限');
+  });
+
+  it('选了 venue（NeurIPS 9 页）→ 「N / M 页」，超限 err 红、未超限 ok', () => {
+    renderView();
+    act(() => {
+      useSubmitStore.setState({ venueId: 'neurips' });
+    });
+    setCompile(PDFLATEX_OK); // 10 页 > 9
+    let chip = pageChip()!;
+    expect(chip.textContent).toBe('10 / 9 页');
+    expect(chip.className).toContain('err');
+
+    setCompile(['note: Wrote 9 pages']); // tectonic 日志：恰好达限
+    chip = pageChip()!;
+    expect(chip.textContent).toBe('9 / 9 页');
+    expect(chip.className).toContain('ok');
+    expect(chip.className).not.toContain('err');
+  });
+
+  it('venue 无数字上限（venueId null）→ 不带上限展示；编译失败/无页数不渲染 chip', () => {
+    renderView();
+    setCompile(PDFLATEX_OK, 'fail'); // 失败：即使日志有页数也不显示
+    expect(pageChip()).toBeNull();
+
+    setCompile(['▣ tectonic（内置） · 3 趟 · 1200ms · 成功'], 'ok'); // 成功但日志无页数行
+    expect(pageChip()).toBeNull();
+  });
+
+  it('en 语言显示「N / M pages」且超限仍为 err', () => {
+    act(() => {
+      useSettingsStore.setState({ language: 'en' });
+    });
+    renderView();
+    act(() => {
+      useSubmitStore.setState({ venueId: 'cvpr' }); // 上限 8
+    });
+    setCompile(PDFLATEX_OK); // 10 页
+    const chip = pageChip()!;
+    expect(chip.textContent).toBe('10 / 8 pages');
+    expect(chip.className).toContain('err');
+    act(() => {
+      useSettingsStore.setState({ language: 'zh' });
+    });
   });
 });

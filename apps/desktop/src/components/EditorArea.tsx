@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Image, Quote, Table } from 'lucide-react';
-import { EditorView, LatexEditor, spellcheckExtension } from '@scholarforge/editor';
+import { EditorView, LatexEditor, spellcheckExtension, thesaurusExtension } from '@scholarforge/editor';
 // 字号调节用的 CodeMirror 底层件（@scholarforge/editor 同源依赖，非新增包）
 import { keymap, type KeyBinding } from '@codemirror/view';
 import { Compartment, type Extension } from '@codemirror/state';
@@ -135,7 +135,7 @@ export function EditorArea() {
     [],
   );
   const extraExtensions = useMemo(
-    () => [selectionTracker, cursorTracker, spellcheckExtension(spellcheckEnabled)],
+    () => [selectionTracker, cursorTracker, spellcheckExtension(spellcheckEnabled), thesaurusExtension()],
     [cursorTracker, spellcheckEnabled],
   );
 

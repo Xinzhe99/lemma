@@ -9,6 +9,7 @@ import {
   ArrowDownToLine,
   Copy,
   CopyPlus,
+  FileCode2,
   FileDown,
   Link2,
   Pencil,
@@ -25,6 +26,8 @@ import { useAnnotationStore } from '../state/annotationStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { jumpTo } from '../editorJump';
+import { buildReviewPackage } from '../reviewPackage';
+import { downloadAnnotationReport } from '../components/AnnotationReport';
 import './knowledge.css';
 
 // ---------------------------------------------------------------------------
@@ -59,6 +62,8 @@ interface Dict {
   noTexFile: string;
   exportMd: string;
   exportedMd: (n: number) => string;
+  exportHtmlReport: string;
+  exportedHtmlReport: (n: number) => string;
   convertAll: string;
   convertAllDone: (n: number) => string;
   inserted: (file: string) => string;
@@ -96,6 +101,8 @@ const DICT: Record<Language, Dict> = {
     noTexFile: '项目中没有 .tex 文件，无法插入',
     exportMd: '导出全部标注 .md',
     exportedMd: (n) => `已导出 ${n} 条标注为 .md`,
+    exportHtmlReport: '导出标注报告',
+    exportedHtmlReport: (n) => `已导出标注报告（${n} 条标注）`,
     convertAll: '全部转卡片',
     convertAllDone: (n) => `已将 ${n} 条标注转为卡片`,
     inserted: (file) => `已插入 ${file} 末尾（快照 +1）`,
@@ -131,6 +138,8 @@ const DICT: Record<Language, Dict> = {
     noTexFile: 'No .tex file in the project',
     exportMd: 'Export all annotations as .md',
     exportedMd: (n) => `Exported ${n} annotations as .md`,
+    exportHtmlReport: 'Export annotation report',
+    exportedHtmlReport: (n) => `Annotation report exported (${n} annotations)`,
     convertAll: 'Convert all to cards',
     convertAllDone: (n) => `Converted ${n} annotations to cards`,
     inserted: (file) => `Appended to ${file} (snapshot +1)`,
@@ -290,6 +299,7 @@ export function NotesPanel() {
   const papers = useLibraryStore((s) => s.papers);
   const files = useWorkspaceStore((s) => s.files);
   const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const projectName = useWorkspaceStore((s) => s.projectName);
   const texFiles = useMemo(
     () => Object.keys(files).filter((f) => f.endsWith('.tex')).sort(),
     [files],
@@ -379,6 +389,14 @@ export function NotesPanel() {
     );
     downloadText(`pdf-annotations-${stamp()}.md`, md, 'text/markdown;charset=utf-8');
     setStatus(t.exportedMd(annotationRows.length));
+  };
+
+  /** 全部标注 → 自包含 HTML 标注报告（sf-annotations-{项目名}-{日期}.html，浏览器打开 / Ctrl+P 打印为 PDF） */
+  const exportAnnotationReportHtml = () => {
+    if (annotationRows.length === 0) return;
+    const pkg = buildReviewPackage({ projectName, comments: [], annotations: byFile });
+    downloadAnnotationReport(pkg, { prefix: 'sf-annotations' });
+    setStatus(t.exportedHtmlReport(annotationRows.length));
   };
 
   /** 未转卡片的新标注全部走 addNoteFromAnnotation 通路转卡片 */
@@ -482,6 +500,15 @@ export function NotesPanel() {
               onClick={exportAnnotationsMd}
             >
               <FileDown size={12} /> {t.exportMd}
+            </button>
+            <button
+              type="button"
+              className="sf-btn sf-export-annot-html"
+              disabled={annotationRows.length === 0}
+              title={t.exportHtmlReport}
+              onClick={exportAnnotationReportHtml}
+            >
+              <FileCode2 size={12} /> {t.exportHtmlReport}
             </button>
             <button
               type="button"

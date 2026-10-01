@@ -1,0 +1,48 @@
+id: w14-compress
+name: AI 页数压缩
+description: 按目标压缩页数（保引用、保结论）——分析稿件冗余，逐候选给出删减 diff，检查点确认取舍后落盘。
+inputs:
+  - targetReduction
+steps:
+  - id: analyze
+    name: 分析冗余候选
+    prompt: |
+      目标压缩量：{{targetReduction}}（如「1 页」或「15%」）。
+      请分析稿件冗余，为后续压缩做准备：
+      1. 通读当前稿件，统计各 \section 的字数与占比。
+      2. 找出候选压缩点：套话/客套句、重复论述（同一论点多次展开）、可合并的相邻段落、过长的背景铺垫、可压成一句的过渡段。
+      3. 对每个候选标注：位置（节名 + 首句摘录）、预估可省字数、风险等级（低=纯删冗余；中=需改写压缩；高=触及论证结构，建议不动）。
+      4. 汇总：候选按预估节省字数降序排列，并说明全部采纳是否足以达到 {{targetReduction}}；不足时指出还需作者决策的结构性取舍（不擅自执行）。
+    allowedTools:
+      - project.context
+    modelTier: cheap
+
+  - id: compress
+    name: 逐候选压缩
+    prompt: |
+      基于上一步的候选压缩点清单，逐候选给出删减/改写 diff（LaTeX 源码级 before/after 对照）。
+      硬性约束（违反任何一条即视为失败）：
+      1. \cite、\ref、\label 一律不动（引用键、交叉引用与标签原样保留，不得增删改）。
+      2. 数字与结论不得改变（数值、单位、对比关系、显著性结论逐字保留）。
+      3. 宁少勿错：拿不准的候选宁可跳过并说明理由，不做有风险的改写。
+      请执行：低/中风险候选逐个输出删减或改写对照与预估节省字数；高风险候选只给说明、不改写；最后估算「全部采纳」的总节省字数。
+      输出后停在检查点等待用户确认取舍（确认输入中写明采纳/跳过哪些候选，如「采纳 1、3、5；跳过 2；4 只删第一句」）。
+    dependsOn:
+      - analyze
+    modelTier: flagship
+    checkpoint: true
+
+  - id: apply
+    name: 按确认落盘
+    prompt: |
+      用户已在检查点确认取舍（见 checkpointInput）。按用户确认压缩结果落盘：
+      1. 先调用 snapshot.create 为每个将被修改的文件创建快照（可随时回滚）。
+      2. 对每个确认采纳的候选调用 tex.edit 应用删减/改写（每次编辑以 diff 审批卡呈现，用户批准后才生效）。
+      3. 再次遵守硬约束：\cite/\ref/\label 不动、数字与结论不变、用户未确认的候选一律不改。
+      输出：压缩后统计（各节字数变化、总节省字数、跳过的候选与原因），并提示重新编译查看是否达到 {{targetReduction}}。
+    dependsOn:
+      - compress
+    allowedTools:
+      - tex.edit
+      - snapshot.create
+    modelTier: cheap

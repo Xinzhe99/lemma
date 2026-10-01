@@ -65,6 +65,8 @@ interface UiState {
   citationPickerOpen: boolean;
   /** 真实审稿意见导入（多格式 → 拆条 → W7） */
   reviewsImportOpen: boolean;
+  /** 外部版本对比（导师改稿 vs 当前稿） */
+  externalDiffOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -99,6 +101,7 @@ interface UiState {
   setImageWizardOpen(open: boolean): void;
   setCitationPickerOpen(open: boolean): void;
   setReviewsImportOpen(open: boolean): void;
+  setExternalDiffOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -130,6 +133,7 @@ export const useUiStore = create<UiState>((set) => ({
   imageWizardOpen: false,
   citationPickerOpen: false,
   reviewsImportOpen: false,
+  externalDiffOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -158,6 +162,7 @@ export const useUiStore = create<UiState>((set) => ({
   setImageWizardOpen: (open) => set({ imageWizardOpen: open }),
   setCitationPickerOpen: (open) => set({ citationPickerOpen: open }),
   setReviewsImportOpen: (open) => set({ reviewsImportOpen: open }),
+  setExternalDiffOpen: (open) => set({ externalDiffOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),

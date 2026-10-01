@@ -1,9 +1,11 @@
 /**
  * 状态栏（编辑区底部一行，sf-statusbar）：
  * 左 = 当前文件名 + dirty 圆点；右 = 字数 · 今日目标进度（wordsToday/goal，达标 ✓）· 行数 ·
+ * 页数预算 chip（最近编译页数 / 目标 venue 页数上限，超限 err 红）·
  * 光标行列 · 保存状态（● 未保存 / ✓ 已保存 + 相对时间）。
  * 字数与相对时间为导出的纯函数（countWords / relativeTime），便于单测与跨组件复用；
- * 目标进度 chip 数据来自 writingStats store（状态/state/writingStats）。
+ * 目标进度 chip 数据来自 writingStats store（状态/state/writingStats）；
+ * 页数解析为纯函数 parsePageCount/venuePageLimit（pageBudget.ts），venue 来自 submitStore。
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -11,6 +13,9 @@ import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useWritingStatsStore } from '../state/writingStats';
+import { useSubmitStore } from '../state/submitStore';
+import { venueById } from '../submission/venues';
+import { parsePageCount, venuePageLimit } from '../pageBudget';
 import { hasSynctexIndex, jumpSourceToPdf } from '../synctexBridge';
 
 // ---------------------------------------------------------------------------
@@ -68,6 +73,8 @@ const STRINGS = {
     syncNoPdf: '请先编译以生成 PDF 预览',
     syncNoHit: 'SyncTeX 未命中该文件',
     goalChipTitle: '今日写作字数/目标（命令面板可改目标）',
+    pagesUnit: '页',
+    pagesChipTitle: '最近一次编译页数 / 目标 venue 页数上限（超限变红）',
   },
   en: {
     words: 'Words',
@@ -82,6 +89,8 @@ const STRINGS = {
     syncNoPdf: 'Compile first to generate the PDF preview',
     syncNoHit: 'No SyncTeX match for this file',
     goalChipTitle: "Today's words / goal (adjust the goal from the command palette)",
+    pagesUnit: 'pages',
+    pagesChipTitle: 'Pages of the last compile / venue page limit (red when over)',
   },
 } as const;
 
@@ -123,8 +132,16 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
 
   // WS-2：SyncTeX 索引可用性为模块级单例（非响应式），索引仅在真实编译产出后变化；
   // 借 compileStatus 订阅在编译结束时重渲染，重读取 hasSynctexIndex()。
-  useWorkspaceStore((s) => s.compileStatus);
+  const compileStatus = useWorkspaceStore((s) => s.compileStatus);
   const syncAvailable = hasSynctexIndex();
+
+  // 页数预算：compileStatus 为 ok 且日志解析出页数时显示 chip；
+  // submitStore 选了 venue 且 pageLimit 含整数 → 「N / M 页」，超限 err 红；无 venue 只显示「N 页」。
+  const compileLog = useWorkspaceStore((s) => s.compileLog);
+  const venueId = useSubmitStore((s) => s.venueId);
+  const pages = compileStatus === 'ok' ? parsePageCount(compileLog.join('\n')) : null;
+  const pageLimit = venuePageLimit(venueId ? venueById(venueId) : undefined);
+  const pagesOver = pages !== null && pageLimit !== null && pages > pageLimit;
 
   // WS-2：源码 → PDF 同步（D11 修复：以编辑器光标行为基准，取该行就近命中的 PDF 位置）
   const handleSyncToPdf = (): void => {
@@ -167,6 +184,14 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
       <span className="sf-statusbar-item">
         {L.lines} {lines}
       </span>
+      {pages !== null && (
+        <span
+          className={`sf-statusbar-item sf-page-chip${pageLimit === null ? '' : pagesOver ? ' err' : ' ok'}`}
+          title={L.pagesChipTitle}
+        >
+          {pageLimit === null ? `${pages} ${L.pagesUnit}` : `${pages} / ${pageLimit} ${L.pagesUnit}`}
+        </span>
+      )}
       <span className="sf-statusbar-item">
         {L.cursor} {cursor.line}, {cursor.col}
       </span>

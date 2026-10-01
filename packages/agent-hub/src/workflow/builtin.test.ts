@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { BUILTIN_WORKFLOWS, getBuiltinWorkflow, parseWorkflowYaml, WORKFLOW_YAML_SOURCES } from './builtin';
 
 describe('内置工作流 YAML', () => {
-  it('7 个内置工作流全部解析成功且结构合法', () => {
-    expect(BUILTIN_WORKFLOWS).toHaveLength(7);
+  // 当前 10 个：W2/W3/W6/W7/W10/W11/W12/W13/W14/W16
+  it('10 个内置工作流全部解析成功且结构合法', () => {
+    expect(BUILTIN_WORKFLOWS).toHaveLength(10);
     expect(BUILTIN_WORKFLOWS.map((w) => w.id)).toEqual([
       'w2-section-draft',
       'w3-polish',
@@ -12,6 +13,9 @@ describe('内置工作流 YAML', () => {
       'w10-pre-submission',
       'w11-cover-letter',
       'w12-related-work',
+      'w13-beamer',
+      'w14-compress',
+      'w16-promo',
     ]);
     for (const w of BUILTIN_WORKFLOWS) {
       expect(w.name.length).toBeGreaterThan(0);
@@ -97,6 +101,104 @@ describe('内置工作流 YAML', () => {
     expect(w12.steps.find((s) => s.id === 'confirm')!.checkpoint).toBe(true);
     const apply = w12.steps.find((s) => s.id === 'apply')!;
     expect(apply.dependsOn).toEqual(['confirm']);
+    expect(apply.allowedTools).toContain('tex.edit');
+    expect(apply.allowedTools).toContain('snapshot.create');
+  });
+
+  it('W13：大纲→Beamer 源码→自查(checkpoint)→落盘，outline 带项目上下文、apply 带写级工具', () => {
+    const w13 = getBuiltinWorkflow('w13-beamer')!;
+    expect(w13.name).toBe('生成演示文稿');
+    expect(w13.description).toContain('Beamer slides 骨架');
+    expect(w13.inputs).toEqual(['audience', 'duration']);
+    expect(w13.steps.map((s) => s.id)).toEqual(['outline', 'write', 'confirm', 'apply']);
+
+    const outline = w13.steps.find((s) => s.id === 'outline')!;
+    expect(outline.allowedTools).toEqual(['project.context']);
+    expect(outline.modelTier).toBe('cheap');
+    expect(outline.prompt).toContain('{{audience}}');
+    expect(outline.prompt).toContain('{{duration}}');
+
+    const write = w13.steps.find((s) => s.id === 'write')!;
+    expect(write.dependsOn).toEqual(['outline']);
+    expect(write.modelTier).toBe('flagship');
+    // Beamer 骨架硬要求写入 prompt：documentclass/主题/frame/itemize/\ref
+    expect(write.prompt).toContain('\\documentclass{beamer}');
+    expect(write.prompt).toContain('Madrid');
+    expect(write.prompt).toContain('metropolis');
+    expect(write.prompt).toContain('\\begin{frame}');
+    expect(write.prompt).toContain('itemize');
+    expect(write.prompt).toContain('\\ref');
+
+    const confirm = w13.steps.find((s) => s.id === 'confirm')!;
+    expect(confirm.dependsOn).toEqual(['write']);
+    expect(confirm.checkpoint).toBe(true);
+    expect(confirm.modelTier).toBe('cheap');
+    expect(confirm.prompt).toContain('页数');
+    expect(confirm.prompt).toContain('{{audience}}');
+    expect(confirm.prompt).toContain('{{duration}}');
+
+    const apply = w13.steps.find((s) => s.id === 'apply')!;
+    expect(apply.dependsOn).toEqual(['confirm']);
+    expect(apply.modelTier).toBe('cheap');
+    expect(apply.allowedTools).toContain('tex.edit');
+    expect(apply.allowedTools).toContain('snapshot.create');
+    expect(apply.prompt).toContain('slides.tex');
+  });
+
+  it('W16：起草(flagship)四种宣传物料→自查(checkpoint, cheap)停检查点，两输入均入 prompt', () => {
+    const w16 = getBuiltinWorkflow('w16-promo');
+    expect(w16).toBeDefined();
+    expect(w16!.name).toBe('发表后宣传物料');
+    expect(w16!.description).toContain('论文接收后');
+    expect(w16!.inputs).toEqual(['paperTitle', 'venue']);
+    expect(w16!.steps.map((s) => s.id)).toEqual(['draft', 'confirm']);
+
+    const draft = w16!.steps.find((s) => s.id === 'draft')!;
+    expect(draft.modelTier).toBe('flagship');
+    expect(draft.checkpoint).toBeUndefined();
+    // 四种物料各有硬性小节要求，且两输入占位符进入 prompt
+    expect(draft.prompt).toContain('{{paperTitle}}');
+    expect(draft.prompt).toContain('{{venue}}');
+    expect(draft.prompt).toContain('280 字符');
+    expect(draft.prompt).toContain('3 个 # 标签');
+    expect(draft.prompt).toContain('150–250 字');
+    expect(draft.prompt).toContain('graphical abstract');
+    expect(draft.prompt).toContain('200–300 字');
+    expect(draft.prompt).toContain('markdown');
+
+    const confirm = w16!.steps.find((s) => s.id === 'confirm')!;
+    expect(confirm.dependsOn).toEqual(['draft']);
+    expect(confirm.checkpoint).toBe(true);
+    expect(confirm.modelTier).toBe('cheap');
+    // 自查范围写入 prompt：语气事实性（不夸大、数字与稿件一致）+ 各平台字数
+    expect(confirm.prompt).toContain('语气事实性');
+    expect(confirm.prompt).toContain('夸大');
+    expect(confirm.prompt).toContain('字数');
+  });
+
+  it('W14：分析→压缩(checkpoint)→按确认落盘，硬约束写入 prompt、apply 声明写级工具', () => {
+    const w14 = getBuiltinWorkflow('w14-compress')!;
+    expect(w14.name).toBe('AI 页数压缩');
+    expect(w14.inputs).toEqual(['targetReduction']);
+    expect(w14.steps.map((s) => s.id)).toEqual(['analyze', 'compress', 'apply']);
+
+    const analyze = w14.steps.find((s) => s.id === 'analyze')!;
+    expect(analyze.modelTier).toBe('cheap');
+    expect(analyze.allowedTools).toEqual(['project.context']);
+    expect(analyze.prompt).toContain('{{targetReduction}}');
+
+    const compress = w14.steps.find((s) => s.id === 'compress')!;
+    expect(compress.dependsOn).toEqual(['analyze']);
+    expect(compress.modelTier).toBe('flagship');
+    expect(compress.checkpoint).toBe(true); // 停在检查点等用户确认取舍
+    // 硬性约束写进 prompt：引用命令不动 / 数字与结论不变 / 宁少勿错
+    expect(compress.prompt).toContain('\\cite、\\ref、\\label 一律不动');
+    expect(compress.prompt).toContain('数字与结论不得改变');
+    expect(compress.prompt).toContain('宁少勿错');
+
+    const apply = w14.steps.find((s) => s.id === 'apply')!;
+    expect(apply.dependsOn).toEqual(['compress']);
+    expect(apply.modelTier).toBe('cheap');
     expect(apply.allowedTools).toContain('tex.edit');
     expect(apply.allowedTools).toContain('snapshot.create');
   });

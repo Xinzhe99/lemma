@@ -326,6 +326,30 @@ export function buildCommands(ctx: CommandContext): Command[] {
       },
     },
     {
+      id: 'external.diff',
+      title: ctx.t('cmd.externalDiff'),
+      hint: ctx.t('hint.file'),
+      run: () => useUiStore.getState().setExternalDiffOpen(true),
+    },
+    {
+      id: 'wf.compress',
+      title: ctx.t('cmd.wfCompress'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().launchWorkflow('w14-compress'),
+    },
+    {
+      id: 'wf.beamer',
+      title: ctx.t('cmd.wfBeamer'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().launchWorkflow('w13-beamer'),
+    },
+    {
+      id: 'wf.promo',
+      title: ctx.t('cmd.wfPromo'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().launchWorkflow('w16-promo'),
+    },
+    {
       id: 'compile.aiFix',
       title: ctx.t('cmd.aiFix'),
       hint: ctx.t('hint.compile'),

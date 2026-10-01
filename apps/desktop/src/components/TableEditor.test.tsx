@@ -2,7 +2,9 @@
 /**
  * 测试环境说明同 QuickOpen.test.tsx：mock zustand 为仅依赖本包 react@18 的等价实现，
  * 并 mock editorInsert 桥以控制插入成败。覆盖：初始 3×3 网格与实时预览、加/删行列、
- * 单元格转义、表头开关（首行后 \hline）、插入成功关/失败保持打开、Esc 关闭、复制。
+ * 单元格转义、表头开关（首行后 \hline）、插入成功关/失败保持打开、Esc 关闭、复制，
+ * 以及 CSV/Excel 导入：入口渲染、CSV 载入行列/列规格、首行表头开关联动、
+ * xlsx 分流调用 parseXlsx、错误态中文提示（role=alert）、取消导入。
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -46,10 +48,19 @@ vi.mock('../editorInsert', () => ({
   insertAtCursor: vi.fn<(code: string) => boolean>(),
 }));
 
+// @scholarforge/editor：gridToTabular/parseCsv 用真实实现（纯函数），
+// parseXlsx 换可控 mock（xlsx 解析本身在 packages/editor 的单测覆盖）
+vi.mock('@scholarforge/editor', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, parseXlsx: vi.fn<(data: ArrayBuffer) => string[][]>() };
+});
+
 import { TableEditor } from './TableEditor';
 import { insertAtCursor } from '../editorInsert';
+import { parseXlsx } from '@scholarforge/editor';
 
 const insertMock = vi.mocked(insertAtCursor);
+const parseXlsxMock = vi.mocked(parseXlsx);
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -90,6 +101,7 @@ function buttonWithText(text: string): HTMLButtonElement {
 
 beforeEach(() => {
   insertMock.mockReset();
+  parseXlsxMock.mockReset();
   onClose = vi.fn();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -197,8 +209,133 @@ describe('TableEditor', () => {
     act(() => {
       container!
         .querySelector('.sf-dialog-overlay')!
-        .dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CSV / Excel 导入
+// ---------------------------------------------------------------------------
+
+/**
+ * jsdom 25 的 File 没有 arrayBuffer()：fixture 上补齐（组件按标准 Web API 调用，
+ * 真实 WKWebView/浏览器均有该方法）。ReviewsImportDialog.test 同款手法。
+ */
+function fixtureFile(content: string | Uint8Array, name: string, type: string): File {
+  const file = new File(
+    [
+      typeof content === 'string'
+        ? content
+        : (content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) as ArrayBuffer),
+    ],
+    name,
+    { type },
+  );
+  const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+  Object.defineProperty(file, 'arrayBuffer', {
+    value: async (): Promise<ArrayBuffer> =>
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+    configurable: true,
+  });
+  return file;
+}
+
+/** 往隐藏 file input 塞文件并触发 change */
+async function pickFile(file: File): Promise<void> {
+  const input = container!.querySelector<HTMLInputElement>('input[type="file"]');
+  if (!input) throw new Error('hidden file input not found');
+  const shaped = {} as { [index: number]: File; length: number; item: (i: number) => File | null };
+  shaped[0] = file;
+  shaped.length = 1;
+  shaped.item = (i: number) => shaped[i] ?? null;
+  Object.defineProperty(input, 'files', { value: shaped, configurable: true });
+  await act(async () => {
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 10));
+  });
+}
+
+describe('TableEditor：CSV/Excel 导入', () => {
+  it('入口渲染：「导入 CSV/Excel」按钮 + 隐藏 file input（accept 限定四种扩展名）', () => {
+    const btn = buttonWithText('导入 CSV/Excel');
+    expect(btn.title).toContain('XLSX');
+    const input = container!.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).toBeTruthy();
+    expect(input!.getAttribute('accept')).toBe('.csv,.tsv,.txt,.xlsx');
+  });
+
+  it('CSV 载入：确认预览显示 N 行 × M 列与前 5 行；替换网格载入 rows 并按列数生成列规格', async () => {
+    await pickFile(fixtureFile('a,b\n1,2\n3,4\n', 'data.csv', 'text/csv'));
+    const panel = container!.querySelector('.sf-table-import');
+    expect(panel).toBeTruthy();
+    expect(panel!.querySelector('.sf-table-import-summary')!.textContent).toContain('3 行 × 2 列');
+    expect(panel!.querySelectorAll('.sf-table-import-grid td')).toHaveLength(6); // 前 5 行 → 全部 3 行
+    expect([...panel!.querySelectorAll('.sf-table-import-grid td')].map((td) => td.textContent)).toEqual([
+      'a', 'b', '1', '2', '3', '4',
+    ]);
+
+    click(buttonWithText('替换网格'));
+    expect(cells()).toHaveLength(6); // 3 行 × 2 列替换原 3×3
+    expect(cells()[0]!.value).toBe('a');
+    expect(cells()[5]!.value).toBe('4');
+    expect(container!.querySelector<HTMLInputElement>('.sf-table-colspec')!.value).toBe('|c|c|');
+    expect(container!.querySelector('.sf-table-import')).toBeNull(); // 预览关闭
+    expect(previewText()).toContain('a & b'); // 预览代码用导入数据
+  });
+
+  it('TSV 文件走 parseCsv 文本读（tab 探测生效）', async () => {
+    await pickFile(fixtureFile('x\ty\n10\t20\n', 'data.tsv', 'text/tab-separated-values'));
+    click(buttonWithText('替换网格'));
+    expect(cells()).toHaveLength(4);
+    expect(cells()[1]!.value).toBe('y');
+  });
+
+  it('首行表头开关联动：导入预览勾选 → 替换后既有表头开关开启、预览补 \\hline', async () => {
+    await pickFile(fixtureFile('h1,h2\n5,6\n', 'h.csv', 'text/csv'));
+    const box = container!.querySelector<HTMLInputElement>('.sf-table-import input[type="checkbox"]');
+    expect(box!.checked).toBe(false); // 初值联动主开关（默认关）
+    act(() => {
+      box!.click();
+    });
+    click(buttonWithText('替换网格'));
+    const mainToggle = container!.querySelector<HTMLInputElement>('.sf-table-toolbar .sf-table-header-toggle input');
+    expect(mainToggle!.checked).toBe(true);
+    expect(previewText().match(/\\hline/g)).toHaveLength(3); // 头 + 表头分隔 + 尾
+  });
+
+  it('xlsx 分流：parseXlsx 收到 ArrayBuffer，返回网格载入', async () => {
+    parseXlsxMock.mockReturnValue([
+      ['X', 'Y'],
+      ['1', '2'],
+    ]);
+    await pickFile(fixtureFile(new Uint8Array([1, 2, 3]), 'book.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+    expect(parseXlsxMock).toHaveBeenCalledTimes(1);
+    const arg = parseXlsxMock.mock.calls[0]![0];
+    expect(arg).toBeInstanceOf(ArrayBuffer);
+    click(buttonWithText('替换网格'));
+    expect(cells()).toHaveLength(4);
+    expect(cells()[0]!.value).toBe('X');
+  });
+
+  it('错误态：解析抛错 → role=alert 中文提示，网格保持不变', async () => {
+    parseXlsxMock.mockImplementation(() => {
+      throw new Error('无法解析该文件：不是有效的 .xlsx（Excel 工作簿）文件');
+    });
+    await pickFile(fixtureFile('plain text', 'bad.xlsx', 'application/octet-stream'));
+    const alert = container!.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('不是有效的 .xlsx');
+    expect(cells()).toHaveLength(9); // 原 3×3 未动
+    expect(container!.querySelector('.sf-table-import')).toBeNull();
+  });
+
+  it('取消导入：预览关闭且网格不受影响', async () => {
+    await pickFile(fixtureFile('a,b\n1,2\n', 'data.csv', 'text/csv'));
+    click(buttonWithText('取消导入'));
+    expect(container!.querySelector('.sf-table-import')).toBeNull();
+    expect(cells()).toHaveLength(9);
+    const first = cells()[0]!.value;
+    expect(first).toBe(''); // 未载入任何数据
   });
 });

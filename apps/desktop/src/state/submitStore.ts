@@ -1,11 +1,57 @@
 /**
- * WF-1 投稿工作台状态：目标 venue 选择、投稿 deadline 与最近一次导出时间。
+ * WF-1 投稿工作台状态：目标 venue 选择、投稿 deadline、最近一次导出时间，
+ * 以及多轮投稿追踪（SubmissionRound：真实投稿常跨月多轮，
+ * submitted → under review → major/minor revision → accepted/rejected）。
  * 持久化到 localStorage（key: sf-submit），模式与 settingsStore / libraryStore 一致。
  */
 
 import { create } from 'zustand';
+import { createId } from '@scholarforge/shared';
 
 export const SUBMIT_STORAGE_KEY = 'sf-submit';
+
+/** 一轮投稿的状态（六态；revision 视为仍在投） */
+export type SubmissionStatus =
+  | 'submitted'
+  | 'under-review'
+  | 'major-revision'
+  | 'minor-revision'
+  | 'accepted'
+  | 'rejected';
+
+export const SUBMISSION_STATUSES: readonly SubmissionStatus[] = [
+  'submitted',
+  'under-review',
+  'major-revision',
+  'minor-revision',
+  'accepted',
+  'rejected',
+];
+
+/** 一轮投稿记录：venue + 投出日期 + 当前状态（+ venue 回应日期与备注） */
+export interface SubmissionRound {
+  id: string;
+  venue: string;
+  /** 投出日期（ISO YYYY-MM-DD，来自 <input type="date">） */
+  submittedAt: string;
+  status: SubmissionStatus;
+  /** venue 给出结论（revision/接收/拒稿）的日期；未回应则缺省 */
+  respondedAt?: string;
+  note?: string;
+}
+
+/** 新增一轮的输入（状态固定从 submitted 起步；id 由 store 生成） */
+export interface AddRoundInput {
+  venue: string;
+  submittedAt: string;
+  note?: string;
+}
+
+/** updateRoundStatus 的可选附加修改（回应日期/备注） */
+export interface UpdateRoundExtra {
+  respondedAt?: string;
+  note?: string;
+}
 
 export interface SubmitState {
   /** 目标期刊/会议档案 id（submission/venues.ts；null = 未选择） */
@@ -14,18 +60,56 @@ export interface SubmitState {
   lastExportAt: number | null;
   /** 投稿 deadline（ISO 日期字符串 YYYY-MM-DD，来自 <input type="date">；null = 未设置） */
   deadline: string | null;
+  /** 多轮投稿记录（按投出先后排列；最新一轮在末尾） */
+  rounds: SubmissionRound[];
   setVenueId(id: string | null): void;
   markExported(): void;
   setDeadline(deadline: string | null): void;
+  addRound(input: AddRoundInput): void;
+  updateRoundStatus(id: string, status: SubmissionStatus, extra?: UpdateRoundExtra): void;
+  removeRound(id: string): void;
 }
 
 interface PersistedSubmit {
   venueId: string | null;
   lastExportAt: number | null;
   deadline: string | null;
+  rounds: SubmissionRound[];
 }
 
-const EMPTY: PersistedSubmit = { venueId: null, lastExportAt: null, deadline: null };
+const EMPTY: PersistedSubmit = { venueId: null, lastExportAt: null, deadline: null, rounds: [] };
+
+function isSubmissionStatus(v: unknown): v is SubmissionStatus {
+  return typeof v === 'string' && (SUBMISSION_STATUSES as readonly string[]).includes(v);
+}
+
+/** 校验单轮记录：字段齐全且类型正确才保留，否则丢弃（坏数据回退） */
+function sanitizeRound(item: unknown): SubmissionRound | null {
+  if (!item || typeof item !== 'object') return null;
+  const r = item as Record<string, unknown>;
+  if (typeof r.id !== 'string' || !r.id) return null;
+  if (typeof r.venue !== 'string' || !r.venue.trim()) return null;
+  if (typeof r.submittedAt !== 'string' || !r.submittedAt) return null;
+  if (!isSubmissionStatus(r.status)) return null;
+  return {
+    id: r.id,
+    venue: r.venue,
+    submittedAt: r.submittedAt,
+    status: r.status,
+    respondedAt: typeof r.respondedAt === 'string' && r.respondedAt ? r.respondedAt : undefined,
+    note: typeof r.note === 'string' && r.note.trim() ? r.note : undefined,
+  };
+}
+
+function sanitizeRounds(v: unknown): SubmissionRound[] {
+  if (!Array.isArray(v)) return [];
+  const out: SubmissionRound[] = [];
+  for (const item of v) {
+    const round = sanitizeRound(item);
+    if (round) out.push(round);
+  }
+  return out;
+}
 
 function readPersisted(): PersistedSubmit {
   try {
@@ -37,6 +121,7 @@ function readPersisted(): PersistedSubmit {
       venueId: typeof v.venueId === 'string' && v.venueId ? v.venueId : null,
       lastExportAt: typeof v.lastExportAt === 'number' && Number.isFinite(v.lastExportAt) ? v.lastExportAt : null,
       deadline: typeof v.deadline === 'string' && v.deadline ? v.deadline : null,
+      rounds: sanitizeRounds(v.rounds),
     };
   } catch {
     return EMPTY;
@@ -49,16 +134,52 @@ export const useSubmitStore = create<SubmitState>((set) => ({
   venueId: initial.venueId,
   lastExportAt: initial.lastExportAt,
   deadline: initial.deadline,
+  rounds: initial.rounds,
 
   setVenueId: (id) => set({ venueId: id }),
   markExported: () => set({ lastExportAt: Date.now() }),
   setDeadline: (deadline) => set({ deadline }),
+
+  addRound: ({ venue, submittedAt, note }) =>
+    set((s) => ({
+      rounds: [
+        ...s.rounds,
+        {
+          id: createId(),
+          venue: venue.trim(),
+          submittedAt,
+          status: 'submitted',
+          note: note?.trim() ? note.trim() : undefined,
+        },
+      ],
+    })),
+
+  updateRoundStatus: (id, status, extra) =>
+    set((s) => ({
+      rounds: s.rounds.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              status,
+              respondedAt: extra?.respondedAt !== undefined ? extra.respondedAt : r.respondedAt,
+              note: extra?.note !== undefined ? extra.note : r.note,
+            }
+          : r,
+      ),
+    })),
+
+  removeRound: (id) => set((s) => ({ rounds: s.rounds.filter((r) => r.id !== id) })),
 }));
 
 useSubmitStore.subscribe((s) => {
   try {
     if (typeof localStorage !== 'undefined') {
-      const snap: PersistedSubmit = { venueId: s.venueId, lastExportAt: s.lastExportAt, deadline: s.deadline };
+      const snap: PersistedSubmit = {
+        venueId: s.venueId,
+        lastExportAt: s.lastExportAt,
+        deadline: s.deadline,
+        rounds: s.rounds,
+      };
       localStorage.setItem(SUBMIT_STORAGE_KEY, JSON.stringify(snap));
     }
   } catch {

@@ -5,12 +5,31 @@
  * 样式：复用全局 sf-btn / sf-chip / placeholder + 少量内联样式（不新增 css）。
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { Check, CornerDownRight, FileDown, MessageSquarePlus, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  Check,
+  CornerDownRight,
+  FileCode2,
+  FileDown,
+  FileJson,
+  FileUp,
+  MessageSquarePlus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { jumpTo, lastCursor, subscribeCursor } from '../editorJump';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { commentsToMarkdown, useCommentsStore, type ManuscriptComment } from '../state/commentsStore';
+import { useAnnotationStore } from '../state/annotationStore';
+import { confirmDialog } from '../dialogs';
+import {
+  applyReviewPackage,
+  buildReviewPackage,
+  reviewDownloadName,
+  validateReviewPackage,
+} from '../reviewPackage';
+import { downloadAnnotationReport } from '../components/AnnotationReport';
 
 // ---------------------------------------------------------------------------
 // 双语文案
@@ -47,6 +66,16 @@ interface Dict {
   reopen: string;
   del: string;
   exportMd: string;
+  exportPkg: string;
+  exportHtml: string;
+  importPkg: string;
+  importConfirmText: string;
+  importConfirmTitle: (n: number, m: number) => string;
+  badJson: string;
+  importFailed: (reason: string) => string;
+  importedMsg: (n: number, m: number, k: number) => string;
+  exportedPkgMsg: (n: number, m: number) => string;
+  exportedHtmlMsg: (n: number, m: number) => string;
   addedMsg: (file: string, line: number) => string;
   repliedMsg: string;
   deletedMsg: string;
@@ -83,6 +112,16 @@ const DICT: Record<Language, Dict> = {
     reopen: '重新打开',
     del: '删除',
     exportMd: '导出审阅意见 .md',
+    exportPkg: '导出批注包 (.json)',
+    exportHtml: '导出审阅报告 (HTML)',
+    importPkg: '导入批注包',
+    importConfirmText: '导入',
+    importConfirmTitle: (n, m) => `将导入 ${n} 条批注 / ${m} 条 PDF 标注，是否继续？`,
+    badJson: '不是有效的 JSON 文件',
+    importFailed: (reason) => `导入失败：${reason}`,
+    importedMsg: (n, m, k) => `已导入 ${n} 条批注 / ${m} 条标注（跳过重复 ${k}）`,
+    exportedPkgMsg: (n, m) => `已导出批注包：${n} 条批注 / ${m} 条标注`,
+    exportedHtmlMsg: (n, m) => `已导出审阅报告（${n} 条批注 / ${m} 条标注）`,
     addedMsg: (file, line) => `已添加批注：${file} ${line} 行`,
     repliedMsg: '回复已添加',
     deletedMsg: '批注已删除',
@@ -117,6 +156,16 @@ const DICT: Record<Language, Dict> = {
     reopen: 'Reopen',
     del: 'Delete',
     exportMd: 'Export review .md',
+    exportPkg: 'Export package (.json)',
+    exportHtml: 'Export report (HTML)',
+    importPkg: 'Import package',
+    importConfirmText: 'Import',
+    importConfirmTitle: (n, m) => `Import ${n} comments / ${m} PDF annotations?`,
+    badJson: 'Not a valid JSON file',
+    importFailed: (reason) => `Import failed: ${reason}`,
+    importedMsg: (n, m, k) => `Imported ${n} comments / ${m} annotations (${k} duplicates skipped)`,
+    exportedPkgMsg: (n, m) => `Package exported: ${n} comments / ${m} annotations`,
+    exportedHtmlMsg: (n, m) => `HTML report exported (${n} comments / ${m} annotations)`,
     addedMsg: (file, line) => `Comment added: ${file} line ${line}`,
     repliedMsg: 'Reply added',
     deletedMsg: 'Comment deleted',
@@ -168,6 +217,8 @@ export function CommentsPanel() {
   const toggleResolved = useCommentsStore((s) => s.toggleResolved);
   const removeComment = useCommentsStore((s) => s.removeComment);
   const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const projectName = useWorkspaceStore((s) => s.projectName);
+  const byFile = useAnnotationStore((s) => s.byFile);
 
   const [filter, setFilter] = useState<Filter>('open');
   const [composerOpen, setComposerOpen] = useState(false);
@@ -178,6 +229,7 @@ export function CommentsPanel() {
   const [replyAuthor, setReplyAuthor] = useState('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [status, setStatus] = useState('');
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!status) return;
@@ -245,6 +297,58 @@ export function CommentsPanel() {
     const md = commentsToMarkdown(comments, lang);
     downloadText(`review-comments-${dateStamp()}.md`, md, 'text/markdown;charset=utf-8');
     setStatus(t.exportedMsg(comments.length));
+  };
+
+  /** PDF 标注总数（annotationStore.byFile 全文件求和；与批注共同决定导出可用性） */
+  const annotationCount = useMemo(
+    () => Object.values(byFile).reduce((n, list) => n + (list?.length ?? 0), 0),
+    [byFile],
+  );
+  const hasReviewData = comments.length > 0 || annotationCount > 0;
+
+  /** 导出批注包：当前全部批注 + 全部 PDF 标注 → sf-review-{项目名}-{日期}.json（合作者可往返） */
+  const exportPackage = () => {
+    if (!hasReviewData) return;
+    const pkg = buildReviewPackage({ projectName, comments, annotations: byFile });
+    downloadText(
+      reviewDownloadName(projectName, 'json'),
+      JSON.stringify(pkg, null, 2),
+      'application/json;charset=utf-8',
+    );
+    setStatus(t.exportedPkgMsg(pkg.comments.length, annotationCount));
+  };
+
+  /** 导出自包含 HTML 审阅报告（导师不装软件，浏览器打开即可看 / Ctrl+P 打印为 PDF） */
+  const exportReport = () => {
+    if (!hasReviewData) return;
+    const pkg = buildReviewPackage({ projectName, comments, annotations: byFile });
+    downloadAnnotationReport(pkg);
+    setStatus(t.exportedHtmlMsg(pkg.comments.length, annotationCount));
+  };
+
+  /** 导入批注包：.json → validate（坏数据中文报错）→ 应用内 confirm（标题含条数摘要）→ apply（统计提示） */
+  const onImportFile = async (file: File) => {
+    let json: unknown;
+    try {
+      json = JSON.parse(await file.text());
+    } catch {
+      setStatus(t.importFailed(t.badJson));
+      return;
+    }
+    const res = validateReviewPackage(json);
+    if (!res.ok) {
+      setStatus(t.importFailed(res.error));
+      return;
+    }
+    const pkg = res.pkg;
+    const annCount = pkg.annotations.reduce((n, g) => n + g.items.length, 0);
+    const okToApply = await confirmDialog(
+      t.importConfirmTitle(pkg.comments.length, annCount),
+      t.importConfirmText,
+    );
+    if (!okToApply) return;
+    const stats = applyReviewPackage(pkg);
+    setStatus(t.importedMsg(stats.commentsAdded, stats.annotationsAdded, stats.annotationsSkipped));
   };
 
   const counts = useMemo(() => {
@@ -563,18 +667,64 @@ export function CommentsPanel() {
         ))
       )}
 
-      {/* 底部：导出审阅意见 */}
-      <button
-        type="button"
-        className="sf-btn"
-        data-export-md
-        disabled={comments.length === 0}
-        title={t.exportMd}
-        style={{ alignSelf: 'flex-start' }}
-        onClick={exportMd}
+      {/* 底部：导出审阅意见 .md / 批注包 .json / HTML 审阅报告 / 导入批注包（往返） */}
+      <div
+        role="toolbar"
+        aria-label={t.exportMd}
+        data-export-toolbar
+        style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}
       >
-        <FileDown size={12} /> {t.exportMd}
-      </button>
+        <button
+          type="button"
+          className="sf-btn"
+          data-export-md
+          disabled={comments.length === 0}
+          title={t.exportMd}
+          onClick={exportMd}
+        >
+          <FileDown size={12} /> {t.exportMd}
+        </button>
+        <button
+          type="button"
+          className="sf-btn"
+          data-export-json
+          disabled={!hasReviewData}
+          title={t.exportPkg}
+          onClick={exportPackage}
+        >
+          <FileJson size={12} /> {t.exportPkg}
+        </button>
+        <button
+          type="button"
+          className="sf-btn"
+          data-export-html
+          disabled={!hasReviewData}
+          title={t.exportHtml}
+          onClick={exportReport}
+        >
+          <FileCode2 size={12} /> {t.exportHtml}
+        </button>
+        <button
+          type="button"
+          className="sf-btn"
+          data-import-json
+          title={t.importPkg}
+          onClick={() => importInputRef.current?.click()}
+        >
+          <FileUp size={12} /> {t.importPkg}
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = ''; // 同一文件可重复选择
+            if (file) void onImportFile(file);
+          }}
+        />
+      </div>
     </div>
   );
 }

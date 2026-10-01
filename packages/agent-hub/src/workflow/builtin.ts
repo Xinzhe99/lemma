@@ -1,5 +1,8 @@
 /**
- * 内置工作流（W2/W3/W6/W7/W10/W11/W12）：YAML 单一事实来源，构建期以 ?raw 内联，运行期 parseWorkflowYaml 解析。
+ * 内置工作流（W2/W3/W6/W7/W10/W11/W12/W13/W14/W16，共 10 个）：YAML 单一事实来源，
+ * 构建期以 ?raw 内联，运行期 parseWorkflowYaml 解析。
+ * 注：W13（w13-beamer，Beamer 演示文稿）由命令 wf.beamer 触发（launchWorkflow('w13-beamer')）；
+ * W16（w16-promo，发表后宣传物料）由命令 wf.promo 触发（launchWorkflow('w16-promo')）。
  */
 import { parse as parseYaml } from 'yaml';
 import type { WorkflowDef, WorkflowStepDef } from '@scholarforge/shared';
@@ -10,6 +13,9 @@ import w7Source from './builtin/w7-rebuttal.yaml?raw';
 import w10Source from './builtin/w10-pre-submission.yaml?raw';
 import w11Source from './builtin/w11-cover-letter.yaml?raw';
 import w12Source from './builtin/w12-related-work.yaml?raw';
+import w13Source from './builtin/w13-beamer.yaml?raw';
+import w14Source from './builtin/w14-compress.yaml?raw';
+import w16Source from './builtin/w16-promo.yaml?raw';
 
 export const WORKFLOW_YAML_SOURCES: Record<string, string> = {
   'w2-section-draft': w2Source,
@@ -19,6 +25,9 @@ export const WORKFLOW_YAML_SOURCES: Record<string, string> = {
   'w10-pre-submission': w10Source,
   'w11-cover-letter': w11Source,
   'w12-related-work': w12Source,
+  'w13-beamer': w13Source,
+  'w14-compress': w14Source,
+  'w16-promo': w16Source,
 };
 
 /**

@@ -2,16 +2,20 @@
  * 拼写与学术用词检查：内置词表 + 纯函数检查 + CodeMirror 6 扩展。
  *
  * 三部分：
- *  1. 词表（手写内置，零外部依赖）：MISSPELLINGS（常见学术拼写错误 → 正确形）
- *     与 CONFUSABLES（易混词对：wrong=常见误用形，right=建议，hint=中文一句说明；
+ *  1. 词表（手写内置，零外部依赖）：MISSPELLINGS（常见学术拼写错误 → 正确形）、
+ *     CONFUSABLES（易混词对：wrong=常见误用形，right=建议，hint=中文一句说明；
  *     高频歧义词（their/its/then/less…）带上下文守卫 guard——suffix/prefix/always，
  *     只有邻接词满足守卫才标注，抑制正当用法的一片黄线噪音；
- *     无语境即可判错的条目（discuss about / researches 等）保持全标）；
+ *     无语境即可判错的条目（discuss about / researches 等）保持全标）
+ *     与 CHINGLISH（中式学术表达：词性误用/冠词/搭配/直译腔/套话/主谓一致，
+ *     wrong 支持整词短语字符串或正则，产出 kind='chinglish' 橙棕线；
+ *     主谓一致类仅给建议（issueKind='confusable' 黄线），不做语法分析）；
  *  2. checkText 纯函数：整词匹配（词边界）、大小写不敏感（保留原文 span、建议随原文大小写），
  *     跳过行内注释（% 之后，复用 outline.ts 的 stripLineComment）与 \命令
  *     （反斜杠后连续字母整体跳过，\cite/\ref 参数键名本身不会命中词表）；
- *  3. spellcheckExtension：StateField 全量扫描装饰（sf-spell / sf-spell-conf 波浪线，
- *     颜色走 var(--err)/var(--warn) 亮暗双主题变量带 fallback）+ hoverTooltip 悬浮建议。
+ *  3. spellcheckExtension：StateField 全量扫描装饰（sf-spell / sf-spell-conf / sf-spell-ch
+ *     波浪线，颜色走 var(--err)/var(--warn)/var(--ching) 主题变量带 fallback）
+ *     + hoverTooltip 悬浮建议。
  */
 
 import { EditorView, hoverTooltip, Decoration, type DecorationSet } from '@codemirror/view';
@@ -126,8 +130,12 @@ export const MISSPELLINGS: Record<string, string> = {
 
 /**
  * 易混词对：wrong=整词命中的常见误用形，right=建议替换，hint=中文提示（语境相关，需人工判断）。
- *
- * 上下文守卫（D8 修复：无语境全标会让每个正当 their/its/then/less 都画黄线，噪音淹没真信号）：
+ * 上下文守卫（D8 修复：无语境全标会让每个正当 their/its/then/less 都画黄线，噪音淹没真信号）
+ * 字段与判定语义见 GuardSpec。
+ */
+
+/**
+ * 上下文守卫的公共字段（CONFUSABLES 与 CHINGLISH 共用同一套判定逻辑）：
  *  - guard 缺省或 'always'：无语境条件，命中即标（短语自带语境、或无语境即可判错的条目）；
  *  - guard='suffix'：仅当命中后紧跟 follow 中任一词才标。follow 支持多词条（如 'of people'），
  *    实现为「其后至多 3 个字母词、空白归一」的前缀匹配；followNum=true 时后接数字亦算满足；
@@ -136,10 +144,7 @@ export const MISSPELLINGS: Record<string, string> = {
  * 守卫不满足 → 跳过该命中（不产生 issue，hover/装饰自然不出现）。
  * follow/precede 缺失或为空表时守卫一律不通过（fail-closed：宁可漏报，不再误报）。
  */
-export interface Confusable {
-  wrong: string;
-  right: string;
-  hint: string;
+export interface GuardSpec {
   /** 上下文守卫模式：'always'（缺省）=无条件标注；'suffix'=后接 follow 词才标；'prefix'=前接 precede 词才标 */
   guard?: 'suffix' | 'prefix' | 'always';
   /** guard='suffix' 的后接词表（小写；词条可含空格表示多词邻接，如 'of people'） */
@@ -148,6 +153,12 @@ export interface Confusable {
   precede?: string[];
   /** guard='suffix' 时：命中后（跳过空白）紧跟数字也算满足守卫（between 3 → 应用 among/改写） */
   followNum?: boolean;
+}
+
+export interface Confusable extends GuardSpec {
+  wrong: string;
+  right: string;
+  hint: string;
 }
 
 export const CONFUSABLES: Confusable[] = [
@@ -279,18 +290,209 @@ export const CONFUSABLES: Confusable[] = [
   { wrong: 'different than', right: 'different from', hint: '「与……不同」的规范搭配是 different from' },
 ];
 
+/**
+ * 中式学术表达（Chinglish）规则：wrong=整词/短语字符串（自动加词边界、空白容忍）
+ * 或正则（自带 \b 词边界，如冠词类 a important）；right=地道替换建议，hint=中文一句。
+ * 每条标注 kind: 'chinglish'（sf-spell-ch 橙棕波浪线，hover 显示 right + hint）。
+ *
+ * 收录原则（保守优先，宁缺毋滥）：
+ *  - 不重复收录 CONFUSABLES 已覆盖的条目（researches / informations / discuss about
+ *    已在易混词表，避免同 span 双报）；
+ *  - 冠词类只做无语境即可判错的确定性子集（a+元音 / an+辅音音素 / the most of）；
+ *    不做「according to + report/show」（需从句级分析区分「根据报告」与「报告显示」，
+ *    词邻接守卫无法可靠判定——明确不收录）；
+ *  - 「Although …, but …」双重连词需跨从句分析，同样不收录；
+ *  - 主谓一致类（the result show / this two）不做语法分析，两种改法写进 hint、
+ *    issueKind='confusable'（黄线建议线，与橙棕的「确定中式表达」区分）；
+ *  - 语境敏感条目（big data / research on / the same to）hint 注明需人工判断，
+ *    the same to 另加 suffix 守卫排除祝福回应 The same to you。
+ */
+export interface ChinglishRule extends GuardSpec {
+  /** 误用形：字符串（整词/短语，多空白容忍）或正则（须自带 \b 词边界） */
+  wrong: RegExp | string;
+  /** 地道替换建议（hover 展示，随原文大小写） */
+  right: string;
+  /** 中文一句提示 */
+  hint: string;
+  /** 规则类别标记：全部为 'chinglish'（产出 issue 的种类见 issueKind） */
+  kind: 'chinglish';
+  /** 产出 SpellIssue.kind：缺省 'chinglish'；主谓一致类只给建议 → 'confusable' 黄线 */
+  issueKind?: 'confusable';
+}
+
+export const CHINGLISH: ChinglishRule[] = [
+  // —— 词性误用：不可数名词加复数 ——
+  // （researches / informations 已在 CONFUSABLES，不重复收录）
+  { wrong: 'datas', right: 'data', hint: 'data 不可数且本身即复数形式（单数 datum），没有 datas', kind: 'chinglish' },
+  { wrong: 'equipments', right: 'equipment', hint: 'equipment 不可数；多台设备可写 pieces of equipment', kind: 'chinglish' },
+  { wrong: 'knowledges', right: 'knowledge', hint: 'knowledge 不可数，没有复数形式', kind: 'chinglish' },
+  { wrong: 'advices', right: 'advice', hint: 'advice 不可数；多条建议可写 suggestions / recommendations', kind: 'chinglish' },
+  { wrong: 'softwares', right: 'software', hint: 'software 不可数；指多个软件可写 tools / packages / applications', kind: 'chinglish' },
+  { wrong: 'feedbacks', right: 'feedback', hint: 'feedback 不可数，没有复数形式', kind: 'chinglish' },
+  { wrong: 'evidences', right: 'evidence', hint: 'evidence 不可数；多项证据可写 several lines of evidence', kind: 'chinglish' },
+  { wrong: 'literatures', right: 'literature', hint: 'literature 统称「文献」时不可数；具体某几篇用 studies / papers', kind: 'chinglish' },
+  { wrong: 'trainings', right: 'training', hint: 'training 不可数；多次训练可写 training runs / rounds of training', kind: 'chinglish' },
+
+  // —— 冠词（确定性子集：a+元音 / an+辅音音素 / the most of）——
+  {
+    wrong: /\ba\s+(?:important|effective|efficient|interesting|obvious|easy|accurate|appropriate|improved)\b/,
+    right: 'an important / an effective / an efficient',
+    hint: '元音音素开头的词前用 an：a important → an important',
+    kind: 'chinglish',
+  },
+  {
+    wrong: /\ban\s+(?:unique|universal|user|unit|one)\b/,
+    right: 'a unique / a universal / a user',
+    hint: '辅音音素开头的词前用 a：unique 读 /juː/，应为 a unique',
+    kind: 'chinglish',
+  },
+  {
+    wrong: 'the most of',
+    right: 'most of',
+    hint: '「大多数」是 most of the data；the most of 多余（make the most of 惯用语除外）',
+    // 守卫：仅后接可数/不可数名词短语时提示，排除 make the most of it/them 惯用语
+    guard: 'suffix',
+    follow: ['the data', 'the people', 'the users', 'the samples', 'the results', 'the students', 'the papers', 'the methods'],
+    kind: 'chinglish',
+  },
+
+  // —— 动词形态与搭配 ——
+  { wrong: 'can be able to', right: 'can / be able to', hint: 'can 与 be able to 语义重复，二者取其一', kind: 'chinglish' },
+  {
+    wrong: /\bwith the (?:rapid )?development of\b/,
+    right: 'as … advances / with advances in',
+    hint: '「随着……的发展」直译腔；更地道的写法是 as X advances 或 with advances in X',
+    kind: 'chinglish',
+  },
+  { wrong: 'more and more', right: 'increasingly', hint: 'more and more 偏口语直译，学术写作多用 increasingly / a growing number of', kind: 'chinglish' },
+  { wrong: 'nowadays', right: 'currently / in recent years', hint: 'nowadays 口语化；学术语境多用 currently 或 in recent years', kind: 'chinglish' },
+  { wrong: 'study on', right: 'study of', hint: '「对……的研究」惯用 study of；study on 较少见，题名中尤应避免', kind: 'chinglish' },
+  {
+    wrong: 'research on',
+    right: 'research into',
+    hint: '「对……的研究」直译常作 research on；更严谨的搭配是 research into 或直接 study of，需按语境人工判断',
+    kind: 'chinglish',
+  },
+  {
+    wrong: /\b(?:make|get|reach) a conclusion\b/,
+    right: 'draw a conclusion / conclude',
+    hint: '「得出结论」的地道搭配是 draw a conclusion，或直接用动词 conclude',
+    kind: 'chinglish',
+  },
+  {
+    wrong: /\bsolv(?:e|es|ed|ing) the problem of\b/,
+    right: 'address / tackle',
+    hint: 'solve the problem of 冗长直译；学术表达常直接 address / tackle + 对象',
+    kind: 'chinglish',
+  },
+  {
+    wrong: /\bplay(?:s|ed|ing)? an important role in\b/,
+    right: 'be central to / contribute substantially to',
+    hint: 'play an important role in 是高频套话，建议换成更具体的贡献表述',
+    kind: 'chinglish',
+  },
+  {
+    wrong: /\b(?:has|have) made great progress\b/,
+    right: 'advanced substantially',
+    hint: '「取得巨大进步」直译腔；可写 has / have advanced substantially',
+    kind: 'chinglish',
+  },
+  { wrong: 'under the help of', right: 'with the help of', hint: '「在……的帮助下」的地道搭配是 with the help of', kind: 'chinglish' },
+  { wrong: 'do a research', right: 'conduct research', hint: 'research 不可数不能加 a；「做研究」学术表达为 conduct / perform research', kind: 'chinglish' },
+
+  // —— 直译腔与套话 ——
+  {
+    wrong: /\bwe (?:can|could) see that\b/,
+    right: 'evidently / as shown',
+    hint: 'we can see that 是口语直译；学术写作用 evidently 或 as shown in Fig. / Table',
+    kind: 'chinglish',
+  },
+  {
+    wrong: 'it is well known that',
+    right: 'notably',
+    hint: '诉诸常识的套话，慎用；可改 notably，或给出引用 as established in [ref]',
+    kind: 'chinglish',
+  },
+  {
+    wrong: 'as we all know',
+    right: 'as is well established',
+    hint: '「众所周知」直译套话；学术写作应给出引用或改为 as established / as shown previously',
+    kind: 'chinglish',
+  },
+  { wrong: 'in a word', right: 'in short / in summary', hint: '「总之」逐字直译；地道表达是 in short / in summary / to summarize', kind: 'chinglish' },
+  { wrong: 'and so on', right: 'etc. / among others', hint: 'and so on 口语化；列举收尾可用 etc. 或 among others', kind: 'chinglish' },
+  {
+    wrong: 'most of people',
+    right: 'most people',
+    hint: 'most of 后须接 the 等限定词（most of the people），或直接用 most people',
+    kind: 'chinglish',
+  },
+  {
+    wrong: 'in modern society',
+    right: 'today / in contemporary society',
+    hint: '「在现代社会」中式开场白；建议具体化时代与语境，或直接用 today',
+    kind: 'chinglish',
+  },
+
+  // —— 学术语气 ——
+  { wrong: 'very important', right: 'critical / essential', hint: 'very important 弱而含糊；学术语气推荐 critical / essential / pivotal', kind: 'chinglish' },
+  { wrong: 'good performance', right: 'strong performance', hint: 'good 偏口语；描述结果多用 strong / robust performance', kind: 'chinglish' },
+  {
+    wrong: 'big data',
+    right: 'large-scale data',
+    hint: '「大数据」直译；泛指大规模数据集时学术写法是 large-scale data（big data 作为固定术语的语境除外，需人工判断）',
+    kind: 'chinglish',
+  },
+
+  // —— 搭配类（带守卫排除惯用语）——
+  {
+    wrong: 'the same to',
+    right: 'the same as',
+    hint: '「与……相同」的搭配是 the same as；the same to 仅用于祝福回应（The same to you），需按语境判断',
+    // 守卫：后接指示物才提示，排除 The same to you 惯用回应
+    guard: 'suffix',
+    follow: ['this', 'that', 'these', 'those', 'the', 'results', 'it'],
+    kind: 'chinglish',
+  },
+
+  // —— 主谓一致 / 限定词一致（不做语法分析：两种改法写进 hint，黄线建议）——
+  {
+    wrong: /\bthe result show\b/,
+    right: 'the results show / the result shows',
+    hint: '主谓一致：应写 the results show 或 the result shows，请按本意二选一',
+    kind: 'chinglish',
+    issueKind: 'confusable',
+  },
+  {
+    wrong: /\bthe experiment prove\b/,
+    right: 'the experiments prove / the experiment proves',
+    hint: '主谓一致：应写 the experiments prove 或 the experiment proves，请按本意二选一',
+    kind: 'chinglish',
+    issueKind: 'confusable',
+  },
+  {
+    wrong: /\bthis (?:two|three|four|several|many|both)\b/,
+    right: 'these two / these several / …',
+    hint: '限定词一致：复数数量前用 these（this two methods → these two methods）',
+    kind: 'chinglish',
+    issueKind: 'confusable',
+  },
+];
+
 // ---------------------------------------------------------------------------
 // 纯函数检查
 // ---------------------------------------------------------------------------
 
-/** 一处检查发现（from/to 为全文偏移，word 保留原文大小写） */
+/** 一处检查发现（from/to 为全文偏移，word 保留原文大小写）。
+ *  kind：'misspelling' 拼写（红线）/ 'confusable' 易混词（黄线）/
+ *  'chinglish' 中式表达（橙棕线）；主谓一致类中式条目降级为 'confusable' 黄线。 */
 export interface SpellIssue {
   from: number;
   to: number;
   word: string;
   suggestion: string;
   hint?: string;
-  kind: 'misspelling' | 'confusable';
+  kind: 'misspelling' | 'confusable' | 'chinglish';
 }
 
 function escapeRe(s: string): string {
@@ -390,7 +592,7 @@ function digitAfter(s: string, to: number): boolean {
  *    followNum=true 时后接数字也算；若另给 precede（affect）则前后须同时满足。
  * 守卫词表缺失或为空 → 不通过（fail-closed：宁可漏报，不再误报）。
  */
-function passesGuard(s: string, from: number, to: number, e: Confusable): boolean {
+function passesGuard(s: string, from: number, to: number, e: GuardSpec): boolean {
   const mode = e.guard ?? 'always';
   if (mode === 'always') return true;
   const precedeOk = (): boolean => (e.precede ?? []).length > 0 && (e.precede ?? []).includes(wordBefore(s, from));
@@ -431,10 +633,50 @@ function collect(
   }
 }
 
+// ---------------------------------------------------------------------------
+// 中式表达检查（CHINGLISH）
+// ---------------------------------------------------------------------------
+
+/** CHINGLISH 预编译匹配器（模块级常量；exec 前 lastIndex 归零，重入安全） */
+const CHINGLISH_MATCHERS: Array<{ rule: ChinglishRule; re: RegExp }> = CHINGLISH.map((rule) => {
+  const re =
+    typeof rule.wrong === 'string'
+      ? // 字串条目：整词匹配 + 短语内多空白容忍（与两张旧词表同一套归一化）
+        new RegExp(`\\b(?:${escapeRe(rule.wrong).replace(/\\?\s+/g, '\\s+')})\\b`, 'gi')
+      : // 正则条目：保留原 pattern（自带 \b 词边界），统一补 g/i 标志
+        new RegExp(rule.wrong.source, rule.wrong.flags.replace(/[gi]/g, '') + 'gi');
+  return { rule, re };
+});
+
+/** 中式表达命中收集：字符串/正则条目统一 exec 扫描，守卫条目按 GuardSpec 判定 */
+function collectChinglish(masked: string, base: number, issues: SpellIssue[]): void {
+  for (const { rule, re } of CHINGLISH_MATCHERS) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(masked)) !== null) {
+      const raw = m[0];
+      if (raw.length > 0 && passesGuard(masked, m.index, m.index + raw.length, rule)) {
+        const from = base + m.index;
+        issues.push({
+          from,
+          to: from + raw.length,
+          word: raw,
+          suggestion: matchCase(raw, rule.right),
+          hint: rule.hint,
+          kind: rule.issueKind ?? 'chinglish',
+        });
+      }
+      if (re.lastIndex === m.index) re.lastIndex++; // 防御零宽匹配死循环
+    }
+  }
+}
+
 /**
- * 检查整段文本：逐行剥离注释、掩蔽命令后整词匹配两张词表。
- * 易混词命中后按词条 guard 检查行内邻接上下文（小写、容忍多空白），守卫不满足则跳过（D8）。
- * 输出按 from 升序；交叠命中（词表冲突的防御路径）只保留先出现者。
+ * 检查整段文本：逐行剥离注释、掩蔽命令后整词匹配三张词表
+ * （MISSPELLINGS / CONFUSABLES / CHINGLISH）。
+ * 易混词与中式表达命中后按词条 guard 检查行内邻接上下文（小写、容忍多空白），
+ * 守卫不满足则跳过（D8）。输出按 from 升序；交叠命中（词表冲突的防御路径）只保留先出现者
+ * （同 span 下拼写/易混词先于中式表收集，researches 等双表词不会双报）。
  */
 export function checkText(text: string): SpellIssue[] {
   const issues: SpellIssue[] = [];
@@ -450,6 +692,7 @@ export function checkText(text: string): SpellIssue[] {
       const masked = maskCommands(code);
       collect(masked, offset, missRe, 'misspelling', issues);
       collect(masked, offset, confRe, 'confusable', issues);
+      collectChinglish(masked, offset, issues);
     }
     offset += line.length + 1;
   }
@@ -471,12 +714,25 @@ export function checkText(text: string): SpellIssue[] {
 
 const MISS_CLASS = 'sf-spell';
 const CONF_CLASS = 'sf-spell-conf';
+const CH_CLASS = 'sf-spell-ch';
+
+/** issue 种类 → 装饰类名（chinglish 橙棕线；主谓一致类已降级为 confusable 黄线） */
+function classForIssue(kind: SpellIssue['kind']): string {
+  if (kind === 'confusable') return CONF_CLASS;
+  if (kind === 'chinglish') return CH_CLASS;
+  return MISS_CLASS;
+}
+
+/** issue 种类 → hover 标签（中文，标明提示类别） */
+function labelForIssue(kind: SpellIssue['kind']): string {
+  if (kind === 'confusable') return '（用词）';
+  if (kind === 'chinglish') return '（中式表达）';
+  return '（拼写）';
+}
 
 function marksFor(text: string): DecorationSet {
   return Decoration.set(
-    checkText(text).map((iss) =>
-      Decoration.mark({ class: iss.kind === 'confusable' ? CONF_CLASS : MISS_CLASS }).range(iss.from, iss.to),
-    ),
+    checkText(text).map((iss) => Decoration.mark({ class: classForIssue(iss.kind) }).range(iss.from, iss.to)),
   );
 }
 
@@ -487,7 +743,7 @@ const spellField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-/** 波浪线样式：拼写=err 红、用词=warn 黄；颜色走主题 CSS 变量，fallback 兼容亮暗 */
+/** 波浪线样式：拼写=err 红、用词=warn 黄、中式表达=ching 橙棕；颜色走主题 CSS 变量，fallback 兼容亮暗 */
 const spellTheme = EditorView.baseTheme({
   [`.${MISS_CLASS}`]: {
     textDecoration: 'underline wavy var(--err, #d9534f)',
@@ -496,6 +752,11 @@ const spellTheme = EditorView.baseTheme({
   },
   [`.${CONF_CLASS}`]: {
     textDecoration: 'underline wavy var(--warn, #b8860b)',
+    textUnderlineOffset: '2px',
+    cursor: 'help',
+  },
+  [`.${CH_CLASS}`]: {
+    textDecoration: 'underline wavy var(--ching, #b06a2a)',
     textUnderlineOffset: '2px',
     cursor: 'help',
   },
@@ -531,7 +792,7 @@ function spellHover(): Extension {
         const right = document.createElement('strong');
         right.textContent = hit.suggestion;
         const tag = document.createElement('span');
-        tag.textContent = hit.kind === 'misspelling' ? '（拼写）' : '（用词）';
+        tag.textContent = labelForIssue(hit.kind);
         tag.style.opacity = '0.85';
         head.append(wrong, arrow, right, tag);
         dom.append(head);

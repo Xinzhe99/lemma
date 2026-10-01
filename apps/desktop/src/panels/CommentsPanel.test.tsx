@@ -8,6 +8,9 @@
  *  - 列表三态过滤（默认未解决）+ 计数 + 已解决降透明度（opacity）；
  *  - 条目头点击 jumpTo({file, line})；回复 / 标为已解决 / 删除交互；
  *  - 底部导出审阅意见 .md（文件名 review-comments-YYYYMMDD.md、内容分组、空批注禁用）；
+ *  - 导出批注包 .json / 审阅报告 HTML（空批注+空标注禁用；文件名 sf-review-…；内容/统计）；
+ *  - 导入批注包（合法包 → 应用内 confirm 含条数摘要 → 落库 + 统计提示；取消不落库；
+ *    坏 JSON / 坏 schema 中文提示；标注按 id 去重跳过计入 K）；
  *  - zh/en 组件内字典。
  */
 import { act } from 'react';
@@ -75,8 +78,24 @@ import { CommentsPanel } from './CommentsPanel';
 import * as editorJumpModule from '../editorJump';
 import { jumpTo } from '../editorJump';
 import { useCommentsStore } from '../state/commentsStore';
+import { useAnnotationStore } from '../state/annotationStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { buildReviewPackage } from '../reviewPackage';
+import type { Annotation } from '@scholarforge/shared';
+
+// jsdom 的 Blob/File 无 text()（导入流程组件内 file.text() 依赖）：经 FileReader 补齐
+if (typeof Blob !== 'undefined' && Blob.prototype.text === undefined) {
+  Blob.prototype.text = function (this: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(this);
+    });
+  };
+}
 
 /** 测试内模拟「编辑器 notifyCursor」：写入假 lastCursor 并通知订阅者 */
 const notifyCursor = (
@@ -160,8 +179,11 @@ function seedComment(over: {
 beforeEach(() => {
   localStorage.clear();
   useCommentsStore.setState({ comments: [] });
+  useAnnotationStore.setState({ byFile: {} });
+  useUiStore.setState({ textDialog: null });
   useSettingsStore.setState({ language: 'zh' });
   useWorkspaceStore.setState({
+    projectName: 'demo-paper',
     activeTab: 'main.tex',
     openTabs: ['main.tex'],
     files: { 'main.tex': '\\documentclass{article}' },
@@ -187,6 +209,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  useUiStore.getState().closeTextDialog();
   const r = root;
   if (r) act(() => r.unmount());
   container?.remove();
@@ -405,5 +428,229 @@ describe('CommentsPanel · zh/en 字典', () => {
     expect(q('[data-export-md]')!.textContent).toContain('Export review .md');
     expect(container!.textContent).toContain('Issue A');
     expect(container!.textContent).not.toContain('Issue B');
+  });
+});
+
+// ===========================================================================
+// 导出批注包 .json / 审阅报告 HTML / 导入批注包（协作闭环）
+// ===========================================================================
+
+/** 预置一条 PDF 标注进 annotationStore（缺省键 pdf:ref.pdf） */
+function seedAnnotation(over: Partial<Annotation> & { fileKey?: string } = {}): Annotation {
+  const a: Annotation = {
+    id: over.id ?? 'a-1',
+    paperId: over.paperId ?? 'p-1',
+    page: over.page ?? 3,
+    kind: over.kind ?? 'highlight',
+    semantic: over.semantic ?? 'method',
+    quotedText: over.quotedText ?? 'Baseline comparison missing.',
+    text: over.text ?? '建议补对比',
+    createdAt: over.createdAt ?? 1700000000000,
+  };
+  const fileKey = over.fileKey ?? 'pdf:ref.pdf';
+  useAnnotationStore.setState({
+    byFile: { ...useAnnotationStore.getState().byFile, [fileKey]: [a] },
+  });
+  return a;
+}
+
+function statusText(): string {
+  return (q('[role="status"]') as HTMLElement | null)?.textContent ?? '';
+}
+
+describe('CommentsPanel · 导出批注包 / 审阅报告', () => {
+  it('空批注 + 空标注：.json 与 HTML 导出按钮禁用（.md 按批注禁用）', () => {
+    renderPanel();
+    expect((q('[data-export-json]') as HTMLButtonElement).disabled).toBe(true);
+    expect((q('[data-export-html]') as HTMLButtonElement).disabled).toBe(true);
+    expect((q('[data-export-md]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('导出批注包：下载 sf-review-{projectName}-{YYYYMMDD}.json，内容含 schema/批注/标注与统计提示', async () => {
+    seedComment({ file: 'main.tex', line: 5, text: '论证不足' });
+    seedAnnotation({ id: 'ref', semantic: 'finding' });
+
+    renderPanel();
+    click(q('[data-export-json]')!);
+
+    expect(anchorDownloads).toHaveLength(1);
+    expect(anchorDownloads[0]).toMatch(/^sf-review-demo-paper-\d{8}\.json$/);
+    expect(capturedBlob).not.toBeNull();
+    const parsed = JSON.parse(await blobText(capturedBlob!)) as ReturnType<typeof buildReviewPackage>;
+    expect(parsed.schema).toBe('sf-review');
+    expect(parsed.version).toBe(1);
+    expect(parsed.projectName).toBe('demo-paper');
+    expect(parsed.comments).toHaveLength(1);
+    expect(parsed.comments[0]!.text).toBe('论证不足');
+    expect(parsed.annotations).toHaveLength(1);
+    expect(parsed.annotations[0]!.items[0]!.semantic).toBe('finding');
+    expect(statusText()).toBe('已导出批注包：1 条批注 / 1 条标注');
+  });
+
+  it('导出审阅报告 (HTML)：下载 sf-review-…-.html，自包含（doctype/两区标题/Ctrl+P 提示）', async () => {
+    seedComment({ file: 'main.tex', line: 5, text: '论证不足' });
+    seedAnnotation({ id: 'ref' });
+
+    renderPanel();
+    click(q('[data-export-html]')!);
+
+    expect(anchorDownloads).toHaveLength(1);
+    expect(anchorDownloads[0]).toMatch(/^sf-review-demo-paper-\d{8}\.html$/);
+    const html = await blobText(capturedBlob!);
+    expect(html.startsWith('<!DOCTYPE html>')).toBe(true);
+    expect(html).toContain('稿件批注');
+    expect(html).toContain('PDF 标注');
+    expect(html).toContain('Ctrl+P 打印为 PDF');
+    expect(statusText()).toBe('已导出审阅报告（1 条批注 / 1 条标注）');
+  });
+
+  it('仅有 PDF 标注（无批注）时 .json/HTML 可导出，包内 comments 为空数组', async () => {
+    seedAnnotation({ id: 'ref' });
+    renderPanel();
+
+    expect((q('[data-export-json]') as HTMLButtonElement).disabled).toBe(false);
+    expect((q('[data-export-html]') as HTMLButtonElement).disabled).toBe(false);
+    expect((q('[data-export-md]') as HTMLButtonElement).disabled).toBe(true); // .md 仅看批注
+
+    click(q('[data-export-json]')!);
+    const parsed = JSON.parse(await blobText(capturedBlob!)) as ReturnType<typeof buildReviewPackage>;
+    expect(parsed.comments).toHaveLength(0);
+    expect(parsed.annotations[0]!.items).toHaveLength(1);
+  });
+});
+
+describe('CommentsPanel · 导入批注包', () => {
+  /** 模拟选择导入文件（jsdom 无 DataTransfer，直接定义 files；等待 file.text() 出队） */
+  async function pickImportFile(name: string, text: string): Promise<void> {
+    const input = q<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('import file input not found');
+    const file = new File([text], name, { type: 'application/json' });
+    Object.defineProperty(input, 'files', {
+      value: { 0: file, length: 1, item: () => file },
+      configurable: true,
+    });
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 10));
+    });
+  }
+
+  /** 一份合法导入包（导师机导出形态）：1 条已解决批注 + 2 条标注 */
+  function advisorPackageJson(): string {
+    return JSON.stringify(
+      buildReviewPackage({
+        projectName: 'from-advisor',
+        comments: [
+          {
+            id: 'c-ext',
+            file: 'sections/intro.tex',
+            line: 9,
+            author: '李导师',
+            text: '引言动机不足',
+            resolved: true,
+            createdAt: 1700000000000,
+            replies: [{ author: '作者', text: '已补充', createdAt: 1700000001000 }],
+          },
+        ],
+        annotations: {
+          'pdf:ref.pdf': [
+            { id: 'a-ext-1', paperId: 'p-1', page: 2, kind: 'highlight', semantic: 'question', quotedText: 'Why?', text: '追问', createdAt: 1700000000000 },
+            { id: 'a-ext-2', paperId: 'p-1', page: 4, kind: 'note', text: '排版', createdAt: 1700000002000 },
+          ],
+        },
+      }),
+    );
+  }
+
+  it('合法包：应用内 confirm（标题含条数摘要）→ 确认后落库并提示统计', async () => {
+    renderPanel();
+    await pickImportFile('review.json', advisorPackageJson());
+
+    const req = useUiStore.getState().textDialog;
+    expect(req?.mode).toBe('confirm');
+    expect(req?.title).toBe('将导入 1 条批注 / 2 条 PDF 标注，是否继续？');
+    expect(req?.confirmText).toBe('导入');
+    expect(statusText()).toBe(''); // 确认前无结果提示
+
+    await act(async () => {
+      req!.resolve('导入');
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const comments = useCommentsStore.getState().comments;
+    expect(comments).toHaveLength(1);
+    expect(comments[0]!.file).toBe('sections/intro.tex');
+    expect(comments[0]!.line).toBe(9);
+    expect(comments[0]!.author).toBe('李导师');
+    expect(comments[0]!.resolved).toBe(true); // resolved 保留
+    expect(comments[0]!.replies[0]!.text).toBe('已补充');
+
+    const byFile = useAnnotationStore.getState().byFile;
+    expect(byFile['pdf:ref.pdf']).toHaveLength(2);
+    expect(statusText()).toBe('已导入 1 条批注 / 2 条标注（跳过重复 0）');
+  });
+
+  it('confirm 取消（resolve null）：不落库、无统计提示', async () => {
+    renderPanel();
+    await pickImportFile('review.json', advisorPackageJson());
+    await act(async () => {
+      useUiStore.getState().textDialog!.resolve(null);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(useCommentsStore.getState().comments).toHaveLength(0);
+    expect(useAnnotationStore.getState().byFile).toEqual({});
+    expect(statusText()).toBe('');
+  });
+
+  it('坏 JSON 文件：中文提示且不弹确认框', async () => {
+    renderPanel();
+    await pickImportFile('bad.json', '{not json');
+    expect(statusText()).toBe('导入失败：不是有效的 JSON 文件');
+    expect(useUiStore.getState().textDialog).toBeNull();
+  });
+
+  it('坏 schema：提示校验错误（含 schema 字样），不弹确认框、不落库', async () => {
+    renderPanel();
+    await pickImportFile('wrong.json', JSON.stringify({ schema: 'other', version: 1 }));
+    expect(statusText()).toBe('导入失败：schema 不符：期望 "sf-review"');
+    expect(useUiStore.getState().textDialog).toBeNull();
+    expect(useCommentsStore.getState().comments).toHaveLength(0);
+  });
+
+  it('标注按 id 去重：本机已有同 id 跳过计入 K，批注仍导入', async () => {
+    useAnnotationStore.setState({
+      byFile: { 'pdf:ref.pdf': [{ id: 'a-ext-1', paperId: 'p-1', page: 2, kind: 'highlight', createdAt: 1 }] },
+    });
+    renderPanel();
+    await pickImportFile('review.json', advisorPackageJson());
+    await act(async () => {
+      useUiStore.getState().textDialog!.resolve('导入');
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const byFile = useAnnotationStore.getState().byFile;
+    expect(byFile['pdf:ref.pdf']).toHaveLength(2); // 已有 1 + 新 1（a-ext-1 跳过）
+    expect(useCommentsStore.getState().comments).toHaveLength(1);
+    expect(statusText()).toBe('已导入 1 条批注 / 1 条标注（跳过重复 1）');
+  });
+
+  it('en 字典：导出/导入按钮与导入确认标题为英文', async () => {
+    useSettingsStore.setState({ language: 'en' });
+    seedComment({ text: 'Issue' });
+    renderPanel();
+
+    expect(q('[data-export-json]')!.textContent).toContain('Export package (.json)');
+    expect(q('[data-export-html]')!.textContent).toContain('Export report (HTML)');
+    expect(q('[data-import-json]')!.textContent).toContain('Import package');
+
+    await pickImportFile('review.json', advisorPackageJson());
+    const req = useUiStore.getState().textDialog;
+    expect(req?.title).toBe('Import 1 comments / 2 PDF annotations?');
+    expect(req?.confirmText).toBe('Import');
+    await act(async () => {
+      req!.resolve('Import');
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(statusText()).toBe('Imported 1 comments / 2 annotations (0 duplicates skipped)');
   });
 });

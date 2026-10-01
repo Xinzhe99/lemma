@@ -1,0 +1,61 @@
+id: w13-beamer
+name: 生成演示文稿
+description: 从稿件生成 Beamer slides 骨架（每节要点 + 关键图表引用）。
+inputs:
+  - audience
+  - duration
+steps:
+  - id: outline
+    name: 提炼大纲
+    prompt: |
+      演示设置——受众：{{audience}}；时长：{{duration}}。
+      请从稿件结构提炼 slides 大纲，作为下一步生成 Beamer 源码的依据：
+      1. 通读稿件，梳理 \section/\subsection 层级、各节核心论点、关键公式与图表（figure/table 及其 \label）清单。
+      2. 规划分页结构：标题页、目录页、每节 1–2 页要点页（每页 3–5 条要点，宁精勿堆）、结论页；按 {{duration}} 估算总页数（经验值约每分钟 1–1.5 页），超页时给出裁剪建议（先并节、再删细节、不动核心结论）。
+      3. 为每页标注建议引用的图表（如「本页建议放 label 为 framework 的 figure，以 \ref 引用」）；纯文字节若信息密度高，提示「建议补一张示意图」。
+      4. 按 {{audience}} 调整深浅：领域审稿人保留技术细节与公式推导；跨领域听众增加 1 页背景铺垫并压缩数学推导为结论式呈现。
+      输出：逐页大纲清单，每页一行记录——页序号｜页类型（标题/目录/要点/结论）｜页标题｜要点 3–5 条｜建议引用的图表 label。
+    allowedTools:
+      - project.context
+    modelTier: cheap
+
+  - id: write
+    name: 生成 Beamer 源码
+    prompt: |
+      基于上一步的逐页大纲，生成完整 Beamer LaTeX 源码：
+      1. 骨架：\documentclass{beamer} + \usetheme{Madrid}（另起一行注释给出 metropolis 主题的替代写法与取舍说明）；导言区从稿件提取 \title/\author/\date（双盲场合作者留 \author{} 占位）。
+      2. 逐页：\begin{frame}[标题]…\end{frame} 每页一个 frame，严格对应大纲页序；目录页用 \tableofcontents；要点用 itemize/itemize<2-> 逐条渐进（可选），每条不超过 1.5 行，禁止整段搬运稿件原文。
+      3. 图表引用：按大纲标注，在对应 frame 内以 \ref{原稿图表 label} 引用稿件图表（源文件同目录时可 \input 复用或给出 \includegraphics 占位注释），不得改动原稿 \label。
+      4. 数学与引用：关键公式原样保留稿件写法；必要处保留 \cite（沿用稿件既有 citekey）。
+      输出：完整可编译的 Beamer 源码，置于单个 ```latex 代码围栏内；围栏外只附一段不超过 3 行的生成说明（主题、页数、与大纲的对应关系）。
+    dependsOn:
+      - outline
+    modelTier: flagship
+
+  - id: confirm
+    name: 自查确认
+    prompt: |
+      请自查页数与受众匹配度，并停在检查点等待作者确认：
+      1. 页数核对：统计上一步源码的 frame 总数，对照演示设置（时长 {{duration}}，约每分钟 1–1.5 页）判断是否需要增删页；给出「保持/增加 X 页/删减 Y 页」的明确建议。
+      2. 受众核对：对照 {{audience}} 检查要点深浅——技术细节是否过重/过轻、背景铺垫是否足够、术语是否需要口头解释；列出建议调整的具体页。
+      3. 要点密度：逐页检查是否超过 5 条要点或单条超过 1.5 行，超限页给出精简后的要点清单。
+      4. 图表引用：核对 \ref 引用的 label 是否都来自稿件原图表清单，无编造。
+      输出上述自查清单（含待作者确认项与每项的建议处理），然后停在检查点（确认输入中写明修改意见，如「第 3 页拆成两页；背景页保留；结论页加一句未来工作」）。
+    dependsOn:
+      - write
+    checkpoint: true
+    modelTier: cheap
+
+  - id: apply
+    name: 落盘 slides
+    prompt: |
+      用户已在检查点确认（见 checkpointInput）。按确认意见修订后落盘：
+      1. 先调用 snapshot.create 为入口稿件创建快照（可随时回滚）。
+      2. 按确认意见修订源码（未提及的部分保持原样），调用 tex.edit 新建 slides.tex：以整文件 content 方式写入完整 Beamer 源码（会弹出 diff 审批卡，用户采纳后才生效；若工作区已存在 slides.tex 则同样经审批覆盖更新）。
+      3. 输出：说明写入的文件名、frame 页数、按确认意见所做的修订；末行固定提示「已生成 slides.tex，可用编译预览」。
+    dependsOn:
+      - confirm
+    allowedTools:
+      - tex.edit
+      - snapshot.create
+    modelTier: cheap

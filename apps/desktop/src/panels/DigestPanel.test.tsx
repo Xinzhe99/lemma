@@ -64,7 +64,15 @@ import { useSettingsStore } from '../state/settingsStore';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
+// 用本地时区的「今天」构造，避免 UTC+8 深夜时 toISOString 落到昨天导致「今天标记」测试跨日翻转
+const localIsoToday = (hoursAgo: number) => {
+  const d = new Date();
+  d.setHours(d.getHours() - hoursAgo, d.getMinutes(), d.getSeconds(), d.getMilliseconds());
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.000Z`;
+};
 const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+const isoTodayLocal = (hoursAgo: number) => localIsoToday(hoursAgo);
 
 const PAPER_TODAY: DigestPaper = {
   title: 'Video Diffusion Transformers',
@@ -74,7 +82,7 @@ const PAPER_TODAY: DigestPaper = {
     { family: 'Saharia', given: 'Chitwan' },
     { family: 'Extra', given: 'Author' },
   ],
-  publishedAt: iso(2 * HOUR),
+  publishedAt: isoTodayLocal(2),
   arxivId: '2610.01234v1',
   abstract: 'We introduce a video diffusion transformer for long-horizon generation.',
   categories: ['cs.CV', 'cs.LG'],

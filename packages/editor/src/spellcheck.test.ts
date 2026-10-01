@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { EditorView } from '@codemirror/view';
-import { checkText, CONFUSABLES, MISSPELLINGS, spellcheckExtension } from './spellcheck';
+import { checkText, CHINGLISH, CONFUSABLES, MISSPELLINGS, spellcheckExtension } from './spellcheck';
 
 let view: EditorView | null = null;
 afterEach(() => {
@@ -310,6 +310,15 @@ describe('spellcheckExtension：编辑器标注', () => {
     expect(view.dom.querySelectorAll('.sf-spell, .sf-spell-conf').length).toBe(0);
   });
 
+  it('enabled=false：中式表达同样无任何标注', () => {
+    view = new EditorView({
+      doc: 'many datas and very important',
+      parent: document.body,
+      extensions: [spellcheckExtension(false)],
+    });
+    expect(view.dom.querySelectorAll('.sf-spell, .sf-spell-conf, .sf-spell-ch').length).toBe(0);
+  });
+
   it('编辑后标注随文档更新', () => {
     view = new EditorView({
       doc: 'clean text',
@@ -319,5 +328,204 @@ describe('spellcheckExtension：编辑器标注', () => {
     expect(view.dom.querySelectorAll('.sf-spell').length).toBe(0);
     view.dispatch({ changes: { from: 0, insert: 'adress ' } });
     expect(view.dom.querySelectorAll('.sf-spell').length).toBe(1);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// 中式学术表达（CHINGLISH）
+// ---------------------------------------------------------------------------
+
+describe('CHINGLISH：词表自洽', () => {
+  it('≥ 28 条，wrong/right/hint 齐备、每条标注 kind: chinglish、hint 为中文', () => {
+    expect(CHINGLISH.length).toBeGreaterThanOrEqual(28);
+    for (const c of CHINGLISH) {
+      expect(c.kind).toBe('chinglish');
+      expect(c.right.length).toBeGreaterThan(0);
+      expect(c.hint.length).toBeGreaterThan(0);
+      expect(/[\u4e00-\u9fff]/.test(c.hint)).toBe(true); // 中文提示
+      if (typeof c.wrong === 'string') expect(c.wrong.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('字符串条目不与旧两表重复（researches/informations/discuss about 仅存于 CONFUSABLES）', () => {
+    const confWrongs = new Set(CONFUSABLES.map((c) => c.wrong.toLowerCase()));
+    const stringWrongs = CHINGLISH.filter((c) => typeof c.wrong === 'string').map((c) =>
+      (c.wrong as string).toLowerCase(),
+    );
+    expect(new Set(stringWrongs).size).toBe(stringWrongs.length); // 自身不重复
+    for (const w of stringWrongs) {
+      expect(confWrongs.has(w)).toBe(false);
+      expect(MISSPELLINGS[w]).toBeUndefined();
+    }
+    expect(confWrongs.has('researches')).toBe(true); // 旧表仍覆盖
+    expect(confWrongs.has('discuss about')).toBe(true);
+  });
+});
+
+describe('checkText：中式表达——词性误用与不误报', () => {
+  it('不可数名词复数命中：datas/equipments/knowledges，kind=chinglish 带中文 hint', () => {
+    const issues = checkText('Many datas are collected.');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ word: 'datas', suggestion: 'data', kind: 'chinglish' });
+    expect(issues[0]!.hint).toContain('不可数');
+    expect(words('new equipments arrived')).toEqual(['equipments']);
+    expect(words('two different knowledges')).toEqual(['knowledges']);
+  });
+
+  it('正确形不误报：data/equipment/knowledge/studies 均零命中', () => {
+    expect(checkText('The data and equipment are ready.')).toEqual([]);
+    expect(checkText('Many studies show this.')).toEqual([]);
+    expect(checkText('Prior knowledge helps.')).toEqual([]);
+  });
+
+  it('researches 仍由 CONFUSABLES 覆盖（kind=confusable，不双报）', () => {
+    const issues = checkText('many researches show this');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ word: 'researches', kind: 'confusable' });
+  });
+});
+
+describe('checkText：中式表达——冠词（确定性子集）', () => {
+  it('a important 命中（→ an …），an important 不误报', () => {
+    const issues = checkText('This is a important finding.');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ word: 'a important', kind: 'chinglish' });
+    expect(issues[0]!.suggestion.startsWith('an important')).toBe(true);
+    expect(checkText('This is an important finding.')).toEqual([]);
+    expect(checkText('an effective and efficient method')).toEqual([]);
+  });
+
+  it('an unique 命中（辅音音素 /juː/ 用 a），a unique 不误报', () => {
+    expect(words('an unique identifier')).toEqual(['an unique']);
+    expect(checkText('a unique identifier')).toEqual([]);
+  });
+
+  it('the most of the data 命中；most of / make the most of 惯用语不误报（守卫）', () => {
+    expect(words('The most of the samples are noisy.')).toEqual(['The most of']);
+    expect(checkText('Most of the samples are noisy.')).toEqual([]);
+    expect(checkText('We make the most of it.')).toEqual([]); // follow 不含 it → 守卫不通过
+  });
+});
+
+describe('checkText：中式表达——动词形态与搭配', () => {
+  it('can be able to / make a conclusion / solve the problem of 命中，地道形不误报', () => {
+    expect(words('The model can be able to generalize.')).toEqual(['can be able to']);
+    expect(words('We make a conclusion in Section 5.')).toEqual(['make a conclusion']);
+    expect(checkText('We draw a conclusion in Section 5.')).toEqual([]);
+    expect(words('This solves the problem of scaling.')).toEqual(['solves the problem of']);
+  });
+
+  it('with the development of / more and more / nowadays：建议随原文大小写', () => {
+    const cap = checkText('With the development of deep learning, more and more tools appear.')[0]!;
+    expect(cap).toMatchObject({ word: 'With the development of', kind: 'chinglish' });
+    expect(cap.suggestion.startsWith('As')).toBe(true);
+    const lower = checkText('Nowadays, this is common.')[0]!;
+    expect(lower).toMatchObject({ word: 'Nowadays', suggestion: 'Currently / in recent years' });
+    expect(checkText('increasingly common')).toEqual([]);
+  });
+
+  it('短语内多空白容忍（more   and   more 仍整短语命中）', () => {
+    expect(words('more   and   more samples')).toEqual(['more   and   more']);
+  });
+
+  it('套话类：play an important role in / has made great progress / we can see that / in a word', () => {
+    expect(words('Attention plays an important role in transformers.')).toEqual([
+      'plays an important role in',
+    ]);
+    expect(words('The field has made great progress.')).toEqual(['has made great progress']);
+    expect(words('we can see that the loss drops')).toEqual(['we can see that']);
+    expect(words('In a word, the method works.')).toEqual(['In a word']);
+  });
+});
+
+describe('checkText：中式表达——学术语气与词边界', () => {
+  it('very important / good performance / big data 命中，给地道替换', () => {
+    expect(checkText('This step is very important.')[0]).toMatchObject({
+      suggestion: 'critical / essential',
+      kind: 'chinglish',
+    });
+    expect(words('the model shows good performance')).toEqual(['good performance']);
+    expect(words('we analyze big data sets')).toEqual(['big data']);
+  });
+
+  it('词边界：big database / importantly 不误报', () => {
+    expect(checkText('A big database is used.')).toEqual([]);
+    expect(checkText('More importantly, it converges.')).toEqual([]);
+  });
+});
+
+describe('checkText：中式表达——主谓一致（hint 为主，黄线建议）', () => {
+  it('the result show → kind=confusable，hint 给出两种改法', () => {
+    const issues = checkText('the result show that accuracy improves');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ word: 'the result show', kind: 'confusable' });
+    expect(issues[0]!.hint).toContain('results show');
+    expect(issues[0]!.hint).toContain('result shows');
+    expect(issues[0]!.suggestion).toBe('the results show / the result shows');
+  });
+
+  it('this two → these（限定词一致，黄线）；正确形零命中', () => {
+    expect(checkText('this two methods differ')[0]).toMatchObject({ word: 'this two', kind: 'confusable' });
+    expect(checkText('these two methods differ')).toEqual([]);
+    expect(checkText('The results show a gain.')).toEqual([]);
+    expect(checkText('The experiment proves the claim.')).toEqual([]);
+  });
+});
+
+describe('checkText：中式表达——守卫与既有机制协同', () => {
+  it('the same to：后接指示物才提示，The same to you 惯用回应不误报', () => {
+    expect(words('the output is the same to the baseline')).toEqual(['the same to']);
+    expect(checkText('Happy new year! The same to you!')).toEqual([]);
+  });
+
+  it('与旧表交叠处只报一次：discuss about 仍单条 confusable', () => {
+    const issues = checkText('we discuss about the results');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ word: 'discuss about', kind: 'confusable' });
+  });
+
+  it('注释与 LaTeX 命令跳过同样生效：% 注释不标、\\cmd 参数内仍标', () => {
+    expect(checkText('% very important note')).toEqual([]);
+    const issues = checkText('\\textbf{very important}');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.from).toBe('\\textbf{'.length);
+  });
+
+  it('多命中按 from 升序，span 与 indexOf 对齐', () => {
+    const text = 'With the development of X, more and more users arrive.';
+    const issues = checkText(text);
+    expect(issues.map((i) => i.word.replace(/\s+/g, ' '))).toEqual([
+      'With the development of',
+      'more and more',
+    ]);
+    expect(issues[0]!.from).toBe(text.indexOf('With the development of'));
+    expect(issues[1]!.from).toBe(text.indexOf('more and more'));
+  });
+});
+
+describe('spellcheckExtension：中式表达标注', () => {
+  it('sf-spell-ch 橙棕线标注；主谓一致条目仍走 sf-spell-conf 黄线', () => {
+    view = new EditorView({
+      doc: 'many datas are used\nthe result show a gain',
+      parent: document.body,
+      extensions: [spellcheckExtension(true)],
+    });
+    const ch = view.dom.querySelectorAll('.sf-spell-ch');
+    const conf = view.dom.querySelectorAll('.sf-spell-conf');
+    expect(ch.length).toBe(1); // datas
+    expect(ch[0]!.textContent).toBe('datas');
+    expect(conf.length).toBe(1); // the result show（issueKind=confusable）
+    expect(conf[0]!.textContent).toBe('the result show');
+  });
+
+  it('enabled=true 时三类标注并存互不干扰', () => {
+    view = new EditorView({
+      doc: 'recieve the datas nowadays',
+      parent: document.body,
+      extensions: [spellcheckExtension(true)],
+    });
+    expect(view.dom.querySelectorAll('.sf-spell').length).toBe(1); // recieve
+    expect(view.dom.querySelectorAll('.sf-spell-ch').length).toBe(2); // datas + nowadays
   });
 });

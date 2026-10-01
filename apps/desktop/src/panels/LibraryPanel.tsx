@@ -12,6 +12,12 @@
  *   查重 → importHit 入库；集合归属以 `zotero:<集合名>` 形式追加进 tags（tag: 过滤器天然可用）；
  * - 「PDF 目录」对话框：webkitdirectory 多选文件夹 → matchPdfToPaper 预览（置信度/无匹配）
  *   →「关联全部」逐个读 ArrayBuffer → attachPdf（v0.8.0 起附件持久化 IndexedDB）。
+ *
+ * Bib 清理向导（纯函数层见 ../bibCleaner.ts）：
+ * - 「清理 Bib」按钮 → 对话框分组展示 refs.bib 的重复（error）/ 缺字段 / 不一致（warning）issue；
+ * - 唯一可执行动作「自动去重（保留更全条目）」→ applyBibFixes 预览（删行统计 + 前 3 组
+ *   被删 key）→ 应用内 confirm → snapshotFile 后 updateFile 写回项目 .bib；
+ *   缺失 / 不一致类仅提示不改（诚实边界）；文献库条目（libraryStore）不受影响。
  */
 
 import { useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react';
@@ -32,10 +38,12 @@ import {
   type PaperSearchHit,
 } from '@scholarforge/library';
 import type { Paper, ReadStatus } from '@scholarforge/shared';
+import { analyzeBib, applyBibFixes, diffLineStats, type BibIssue } from '../bibCleaner';
 import { confirmDialog } from '../dialogs';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore, type LibraryMode } from '../state/uiStore';
+import { useWorkspaceStore } from '../state/workspaceStore';
 import {
   collectionNamesFor,
   matchPdfToPaper,
@@ -125,6 +133,23 @@ interface Copy {
   exportBib: string;
   exportBibEmpty: string;
   exportBibDone: (n: number) => string;
+  // —— Bib 清理向导 ——
+  cleanButton: string;
+  cleanTitle: string;
+  /** 对话框内的目标文件说明 + 诚实边界提示（缺失/不一致仅提示不自动改） */
+  cleanTarget: (path: string) => string;
+  cleanErrors: (n: number) => string;
+  cleanWarnings: (n: number) => string;
+  cleanSuggestionLabel: string;
+  cleanNoBib: string;
+  cleanNoIssues: string;
+  cleanDedupe: string;
+  cleanPreviewStats: (entries: number, lines: number) => string;
+  cleanPreviewGroups: string;
+  cleanConfirm: string;
+  cleanConfirmDialog: (n: number) => string;
+  cleanDone: (path: string, n: number) => string;
+  cleanCancelled: string;
 }
 
 const COPY: Record<Language, Copy> = {
@@ -202,6 +227,23 @@ const COPY: Record<Language, Copy> = {
     exportBib: '导出全库 .bib',
     exportBibEmpty: '文献库为空，没有可导出的条目',
     exportBibDone: (n) => `已导出 ${n} 条文献到 .bib`,
+    cleanButton: '清理 Bib',
+    cleanTitle: '清理 Bib：重复 / 缺字段 / 不一致',
+    cleanTarget: (path) =>
+      `目标文件：${path} · 缺失 / 不一致类问题仅提示，不做自动修改；重复条目可一键去重`,
+    cleanErrors: (n) => `错误（重复条目，${n} 组）`,
+    cleanWarnings: (n) => `警告（缺字段 / 不一致，${n} 条）`,
+    cleanSuggestionLabel: '建议：',
+    cleanNoBib: '项目中没有 .bib 文件（先导入 BibTeX 或在文件树新建 refs.bib）',
+    cleanNoIssues: '未发现问题：这个 .bib 看起来很干净',
+    cleanDedupe: '自动去重（保留更全条目）',
+    cleanPreviewStats: (entries, lines) => `将删除 ${entries} 条重复条目（约 ${lines} 行）`,
+    cleanPreviewGroups: '涉及重复组（前 3 组）：',
+    cleanConfirm: '确认写入',
+    cleanConfirmDialog: (n) =>
+      `确认写入 .bib：删除 ${n} 条重复条目？写入前会自动创建快照，文献库条目不受影响。`,
+    cleanDone: (path, n) => `已更新 ${path}：删除 ${n} 条重复条目（文献库条目不受影响）`,
+    cleanCancelled: '已取消：.bib 未修改',
   },
   en: {
     modeList: 'Items',
@@ -278,6 +320,23 @@ const COPY: Record<Language, Copy> = {
     exportBib: 'Export library .bib',
     exportBibEmpty: 'Library is empty — nothing to export',
     exportBibDone: (n) => `Exported ${n} papers to .bib`,
+    cleanButton: 'Clean Bib',
+    cleanTitle: 'Clean Bib: duplicates / missing fields / inconsistencies',
+    cleanTarget: (path) =>
+      `Target file: ${path} · missing-field and inconsistency findings are informational only; duplicates can be merged in one click`,
+    cleanErrors: (n) => `Errors (duplicate groups: ${n})`,
+    cleanWarnings: (n) => `Warnings (missing fields / inconsistencies: ${n})`,
+    cleanSuggestionLabel: 'Suggestion: ',
+    cleanNoBib: 'No .bib file in this project (import BibTeX or create refs.bib first)',
+    cleanNoIssues: 'No issues found — this .bib looks clean',
+    cleanDedupe: 'Auto-dedupe (keep the fuller entry)',
+    cleanPreviewStats: (entries, lines) => `Will remove ${entries} duplicate entries (~${lines} lines)`,
+    cleanPreviewGroups: 'Affected duplicate groups (first 3):',
+    cleanConfirm: 'Write changes',
+    cleanConfirmDialog: (n) =>
+      `Update the .bib file and remove ${n} duplicate entries? A snapshot is taken first; library items are unaffected.`,
+    cleanDone: (path, n) => `Updated ${path}: removed ${n} duplicates (library items unaffected)`,
+    cleanCancelled: 'Cancelled — .bib unchanged',
   },
 };
 
@@ -296,6 +355,21 @@ function stamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/** 项目 .bib 定位：优先 refs.bib（演示项目与模板脚手架的约定名），否则取排序后首个 .bib */
+function findBibPath(files: Record<string, string>): string | null {
+  if ('refs.bib' in files) return 'refs.bib';
+  const bibs = Object.keys(files).filter((f) => f.toLowerCase().endsWith('.bib')).sort();
+  return bibs[0] ?? null;
+}
+
+/** 去重预览数据：新文本 / 被删 citekey / 行级统计 / 前 3 组重复（每组含全部 keys） */
+interface CleanPreview {
+  text: string;
+  removed: string[];
+  linesRemoved: number;
+  groups: string[][];
 }
 
 export function LibraryPanel() {
@@ -354,6 +428,15 @@ export function LibraryPanel() {
   const [pdfDirMsg, setPdfDirMsg] = useState<string | null>(null);
   const [pdfAttaching, setPdfAttaching] = useState(false);
   const pdfDirInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Bib 清理向导（同 RIS/Zotero：组件内部 state，不占 uiStore.libraryDialog）。
+  // 打开时从 workspaceStore 抓取 .bib 快照分析；写入走 getState 直调（一次性动作，
+  // 无需把工作区文件订阅进本面板的渲染路径）
+  const [cleanOpen, setCleanOpen] = useState(false);
+  const [cleanBibPath, setCleanBibPath] = useState<string | null>(null);
+  const [cleanIssues, setCleanIssues] = useState<BibIssue[]>([]);
+  const [cleanPreview, setCleanPreview] = useState<CleanPreview | null>(null);
+  const [cleanMsg, setCleanMsg] = useState<string | null>(null);
 
   // L1 详情展开 / L5 多选 / L2 打开反馈
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -579,6 +662,57 @@ export function LibraryPanel() {
     setPdfDirMsg(c.pdfAttachDone(ok, fail));
   };
 
+  // —— Bib 清理向导 ——
+
+  /** 打开向导：定位项目 .bib 并就地分析（无 .bib 时也开对话框，显示指引信息） */
+  const openBibCleaner = (): void => {
+    const files = useWorkspaceStore.getState().files;
+    const path = findBibPath(files);
+    setCleanBibPath(path);
+    setCleanIssues(path ? analyzeBib(files[path] ?? '') : []);
+    setCleanPreview(null);
+    setCleanMsg(null);
+    setCleanOpen(true);
+  };
+
+  /** 生成去重预览：applyBibFixes + 行级删行统计 + 前 3 组重复的 keys */
+  const previewDedupe = (): void => {
+    if (!cleanBibPath) return;
+    const bibText = useWorkspaceStore.getState().files[cleanBibPath] ?? '';
+    const { text, removed } = applyBibFixes(bibText, 'dedupe-keep-fuller');
+    const stats = diffLineStats(bibText, text);
+    setCleanPreview({
+      text,
+      removed,
+      linesRemoved: stats.removed,
+      groups: analyzeBib(bibText)
+        .filter((i) => i.kind === 'duplicate')
+        .slice(0, 3)
+        .map((i) => i.keys),
+    });
+    setCleanMsg(null);
+  };
+
+  /** 确认写入：应用内 confirm → snapshotFile 先建快照 → updateFile 写回 .bib。
+   *  文献库（libraryStore）不动——.bib 与库是两份数据，清理只作用于项目文件。 */
+  const confirmDedupe = async (): Promise<void> => {
+    if (!cleanBibPath || !cleanPreview) return;
+    const ok = await confirmDialog(
+      c.cleanConfirmDialog(cleanPreview.removed.length),
+      c.cleanConfirm,
+    );
+    if (!ok) {
+      setCleanMsg(c.cleanCancelled);
+      return;
+    }
+    const ws = useWorkspaceStore.getState();
+    ws.snapshotFile(cleanBibPath, `清理 Bib：自动去重（删 ${cleanPreview.removed.length} 条）`);
+    ws.updateFile(cleanBibPath, cleanPreview.text);
+    setCleanMsg(c.cleanDone(cleanBibPath, cleanPreview.removed.length));
+    setCleanIssues(analyzeBib(cleanPreview.text)); // 列表刷新为写入后的分析结果
+    setCleanPreview(null);
+  };
+
   return (
     <div className="sf-lib">
       <div className="sf-lib-mode">
@@ -625,6 +759,9 @@ export function LibraryPanel() {
               }}
             >
               {c.pdfDirButton}
+            </button>
+            <button className="sf-btn" onClick={openBibCleaner}>
+              {c.cleanButton}
             </button>
             <button
               className="sf-btn sf-export-bib"
@@ -1062,7 +1199,120 @@ export function LibraryPanel() {
           </div>
         </div>
       )}
+
+      {cleanOpen && (
+        <div className="sf-dialog-overlay" onMouseDown={() => setCleanOpen(false)}>
+          <div className="sf-dialog sf-lib-dialog" onMouseDown={(e) => e.stopPropagation()}>
+            <header className="sf-dialog-header">
+              <strong>{c.cleanTitle}</strong>
+            </header>
+            <div className="sf-dialog-body">
+              {cleanBibPath ? (
+                <>
+                  <p className="sf-lib-count">{c.cleanTarget(cleanBibPath)}</p>
+                  {cleanIssues.length === 0 && <p className="placeholder">{c.cleanNoIssues}</p>}
+                  {cleanIssues.some((i) => i.severity === 'error') && (
+                    <section>
+                      <p className="sf-lib-count">
+                        {c.cleanErrors(cleanIssues.filter((i) => i.severity === 'error').length)}
+                      </p>
+                      <ul className="sf-lib-results sf-lib-clean-list">
+                        {cleanIssues
+                          .filter((i) => i.severity === 'error')
+                          .map((issue, idx) => (
+                            <BibIssueItem key={`e${idx}`} issue={issue} copy={c} />
+                          ))}
+                      </ul>
+                    </section>
+                  )}
+                  {cleanIssues.some((i) => i.severity === 'warning') && (
+                    <section>
+                      <p className="sf-lib-count">
+                        {c.cleanWarnings(cleanIssues.filter((i) => i.severity === 'warning').length)}
+                      </p>
+                      <ul className="sf-lib-results sf-lib-clean-list">
+                        {cleanIssues
+                          .filter((i) => i.severity === 'warning')
+                          .map((issue, idx) => (
+                            <BibIssueItem key={`w${idx}`} issue={issue} copy={c} />
+                          ))}
+                      </ul>
+                    </section>
+                  )}
+                  {cleanPreview ? (
+                    <div className="sf-lib-batch" role="toolbar">
+                      <div>
+                        <span className="sf-lib-batch-count">
+                          {c.cleanPreviewStats(cleanPreview.removed.length, cleanPreview.linesRemoved)}
+                        </span>
+                        <p className="sf-lib-hit-meta">
+                          {c.cleanPreviewGroups}{' '}
+                          {cleanPreview.groups.map((keys) => keys.join(' / ')).join('；')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {cleanMsg && <p className="sf-cites-msg">{cleanMsg}</p>}
+                  <div className="sf-lib-dialog-actions">
+                    <button className="sf-btn" onClick={() => setCleanOpen(false)}>
+                      {c.dialogClose}
+                    </button>
+                    {cleanPreview ? (
+                      <button
+                        className="sf-btn sf-btn--primary"
+                        onClick={() => void confirmDedupe()}
+                      >
+                        {c.cleanConfirm}
+                      </button>
+                    ) : (
+                      <button
+                        className="sf-btn sf-btn--primary"
+                        onClick={previewDedupe}
+                        disabled={!cleanIssues.some((i) => i.kind === 'duplicate')}
+                      >
+                        {c.cleanDedupe}
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="placeholder">{c.cleanNoBib}</p>
+                  <div className="sf-lib-dialog-actions">
+                    <button className="sf-btn" onClick={() => setCleanOpen(false)}>
+                      {c.dialogClose}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bib 清理向导：单条 issue 展示（keys / message / suggestion）
+// ---------------------------------------------------------------------------
+
+function BibIssueItem({ issue, copy }: { issue: BibIssue; copy: Copy }) {
+  return (
+    <li className="sf-lib-chunk">
+      <div className="sf-lib-chunk-head">
+        {issue.keys.map((key) => (
+          <code key={key}>{key}</code>
+        ))}
+      </div>
+      <p className="sf-lib-hit-title">{issue.message}</p>
+      {issue.suggestion && (
+        <p className="sf-lib-hit-meta">
+          {copy.cleanSuggestionLabel}
+          {issue.suggestion}
+        </p>
+      )}
+    </li>
   );
 }
 
