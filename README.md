@@ -97,6 +97,15 @@ npm run dev        # 打开 http://localhost:5173
 
 > Web 版为模拟编译、AI 需配置模型服务；完整体验（真实编译 / SyncTeX / 晨报直连）建议桌面版。
 
+### 方式零：直接下载安装包（Windows，推荐）
+
+| 下载 | 说明 |
+|---|---|
+| [ScholarForge_0.9.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/ScholarForge_0.9.0_x64-setup.exe) | 安装包（2.8 MB，NSIS 向导式安装） |
+| [scholarforge-portable-0.9.0.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/scholarforge-portable-0.9.0.exe) | 绿色单文件版（4.8 MB，免安装双击即用） |
+
+全部版本见 [Releases](https://github.com/Xinzhe99/scholarforge/releases)。
+
 ### 方式二：桌面版（Windows）
 
 **前置**：[Rust](https://rustup.rs) + Node 20+；建议装有 Tectonic 或 TeX Live（缺失自动回退模拟编译）
