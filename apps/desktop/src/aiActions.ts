@@ -5,8 +5,8 @@
  */
 
 import {
-  EchoProvider,
   OpenAICompatibleProvider,
+  ScriptedDemoProvider,
   useAgentHubStore,
   type ChatProvider,
 } from '@scholarforge/agent-hub';
@@ -21,7 +21,7 @@ import { rejectPendingApproval } from './approval';
 import { buildPolishPrompt, extractLatexBody, rulePolish } from './polish';
 
 export const CITATION_RULE =
-  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n可用工具：library.search_fulltext（检索本地文献库）、project.context（项目上下文）、citation.validate（引用核验）、tex.last_errors（编译日志）、tex.edit（修改稿件，需用户审批 diff 后生效）、citation.add（添加参考文献，需审批）、snapshot.create（创建快照）、tex.compile（触发编译）。写级操作会弹出 diff 审批卡，用户裁决结果会回传给你；被拒绝时请勿重试同一修改。';
+  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n可用工具：library.search_fulltext（检索本地文献库）、project.context（项目上下文）、citation.validate（引用核验）、tex.last_errors（编译日志）、tex.edit（修改稿件，需用户审批 diff 后生效）、citation.add（添加参考文献，需审批）、snapshot.create（创建快照）、tex.compile（触发编译）。写级操作会弹出 diff 审批卡，用户裁决结果会回传给你；被拒绝时请勿重试同一修改。\n\n（演示模式说明：若当前未配置模型服务，会话与工作流各步骤的输出为内置示例数据——每份开头有「演示数据」声明——仅用于零配置体验流程，不代表模型真实能力；配置后即为真实生成。）';
 
 export interface ProviderChoice {
   provider: ChatProvider;
@@ -83,7 +83,12 @@ export function resolveProvider(): ProviderChoice {
       real: true,
     };
   }
-  return { provider: new EchoProvider(), model: 'echo', label: '回显模式（未配置模型服务）', real: false };
+  // 零配置回退：ScriptedDemoProvider 按消息关键词输出预写的高质量演示内容
+  // （W6/W7/W10/W12/W3 逐步脚本 + 通用说明），替代旧 EchoProvider 的纯回显。
+  // real 保持 false：工具调用不启用，演示只覆盖文本输出；AgentPanel 的
+  // providerLabel 取 provider.label，自然显示「演示模式（内置示例数据）」。
+  const demo = new ScriptedDemoProvider();
+  return { provider: demo, model: 'demo', label: demo.label, real: false };
 }
 
 /** 发送会话消息：组装上下文 → 流式回复（真实 provider 带工具多轮）→ 引用核查护栏 */

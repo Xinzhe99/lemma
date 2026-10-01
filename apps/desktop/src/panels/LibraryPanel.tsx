@@ -6,9 +6,15 @@
  * - L1 点击条目展开详情：全部作者、摘要全文、DOI/arXiv 外链、IEEE/APA/AMA 引用格式预览；
  * - L2 「打开 PDF」经 libraryStore.openPdf（uiStore.setPdfView）、「关联本地 PDF」走隐藏 file input（Ref 回调式）；
  * - L5 条目多选批量「标记已读 / 删除」，文案 zh/en 双语（useSettingsStore.language）。
+ *
+ * Zotero 生态迁移（纯函数层见 ../zotero.ts）：
+ * - 「Zotero JSON」对话框：粘贴 Better BibTeX JSON → parseZoteroJson → doi/arxivId/title
+ *   查重 → importHit 入库；集合归属以 `zotero:<集合名>` 形式追加进 tags（tag: 过滤器天然可用）；
+ * - 「PDF 目录」对话框：webkitdirectory 多选文件夹 → matchPdfToPaper 预览（置信度/无匹配）
+ *   →「关联全部」逐个读 ArrayBuffer → attachPdf（v0.8.0 起附件持久化 IndexedDB）。
  */
 
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react';
 import { BookOpen, Download, Paperclip, Trash2 } from 'lucide-react';
 import {
   applyFilter,
@@ -30,6 +36,15 @@ import { confirmDialog } from '../dialogs';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore, type LibraryMode } from '../state/uiStore';
+import {
+  collectionNamesFor,
+  matchPdfToPaper,
+  paperIdentity,
+  parseZoteroJson,
+  readFileArrayBuffer,
+  ZOTERO_TAG_PREFIX,
+  type PdfMatchResult,
+} from '../zotero';
 import './library.css';
 
 // ---------------------------------------------------------------------------
@@ -87,6 +102,22 @@ interface Copy {
   risTitle: string;
   risPlaceholder: string;
   risImportSummary: (added: number, errors: number) => string;
+  zoteroButton: string;
+  zoteroTitle: string;
+  zoteroPlaceholder: string;
+  /** Zotero JSON 导入结果：导入 N / 跳过重复 M / 解析错误 K */
+  zoteroImportSummary: (added: number, dupes: number, errors: number) => string;
+  pdfDirButton: string;
+  pdfDirTitle: string;
+  pdfDirHint: string;
+  pdfDirPick: string;
+  pdfDirEmpty: string;
+  pdfDirCount: (matched: number, total: number) => string;
+  pdfNoMatch: string;
+  pdfConfidence: (score: number) => string;
+  pdfAttachAll: string;
+  pdfAttaching: string;
+  pdfAttachDone: (ok: number, fail: number) => string;
   fetchTitle: string;
   fetchButton: string;
   fetching: string;
@@ -147,6 +178,23 @@ const COPY: Record<Language, Copy> = {
     risTitle: '导入 RIS',
     risPlaceholder: '粘贴 RIS 条目…\n\nTY  - JOUR\nTI  - …\nER  - ',
     risImportSummary: (added, errors) => `导入 ${added} 条 / 错误 ${errors} 条`,
+    zoteroButton: 'Zotero JSON',
+    zoteroTitle: '导入 Zotero JSON',
+    zoteroPlaceholder:
+      'Zotero 中右键集合 → Export → Better BibTeX JSON，粘贴到此…\n\n[{"itemType": "journalArticle", "title": "…"}]',
+    zoteroImportSummary: (added, dupes, errors) =>
+      `导入 ${added} 条 / 跳过重复 ${dupes} / 错误 ${errors}`,
+    pdfDirButton: 'PDF 目录',
+    pdfDirTitle: '批量关联 PDF 文件夹',
+    pdfDirHint: '选择本地 PDF 文件夹（如 Zotero 存储目录），按文件名与标题/citekey 匹配，预览确认后一键关联',
+    pdfDirPick: '选择 PDF 文件夹',
+    pdfDirEmpty: '所选文件夹中没有 PDF 文件',
+    pdfDirCount: (matched, total) => `匹配 ${matched} / 共 ${total} 个 PDF`,
+    pdfNoMatch: '无匹配',
+    pdfConfidence: (score) => `置信度 ${Math.round(score * 100)}%`,
+    pdfAttachAll: '关联全部',
+    pdfAttaching: '关联中…',
+    pdfAttachDone: (ok, fail) => (fail > 0 ? `关联成功 ${ok} 个 / 失败 ${fail} 个` : `关联成功 ${ok} 个`),
     fetchTitle: '按 DOI / arXiv ID 抓取元数据',
     fetchButton: '抓取',
     fetching: '抓取中…',
@@ -205,6 +253,24 @@ const COPY: Record<Language, Copy> = {
     risTitle: 'Import RIS',
     risPlaceholder: 'Paste RIS records…\n\nTY  - JOUR\nTI  - …\nER  - ',
     risImportSummary: (added, errors) => `Imported ${added} / ${errors} errors`,
+    zoteroButton: 'Zotero JSON',
+    zoteroTitle: 'Import Zotero JSON',
+    zoteroPlaceholder:
+      'In Zotero: right-click a collection → Export → Better BibTeX JSON, then paste here…\n\n[{"itemType": "journalArticle", "title": "…"}]',
+    zoteroImportSummary: (added, dupes, errors) =>
+      `Imported ${added} / skipped ${dupes} duplicates / ${errors} errors`,
+    pdfDirButton: 'PDF folder',
+    pdfDirTitle: 'Bulk-attach a PDF folder',
+    pdfDirHint:
+      'Pick a local PDF folder (e.g. your Zotero storage); files are matched against titles/citekeys, previewed, then attached in one click',
+    pdfDirPick: 'Choose PDF folder',
+    pdfDirEmpty: 'No PDF files found in the chosen folder',
+    pdfDirCount: (matched, total) => `${matched} matched / ${total} PDFs`,
+    pdfNoMatch: 'No match',
+    pdfConfidence: (score) => `confidence ${Math.round(score * 100)}%`,
+    pdfAttachAll: 'Attach all',
+    pdfAttaching: 'Attaching…',
+    pdfAttachDone: (ok, fail) => (fail > 0 ? `Attached ${ok} / failed ${fail}` : `Attached ${ok}`),
     fetchTitle: 'Fetch metadata by DOI / arXiv ID',
     fetchButton: 'Fetch',
     fetching: 'Fetching…',
@@ -216,6 +282,14 @@ const COPY: Record<Language, Copy> = {
 };
 
 const MODE_ORDER: LibraryMode[] = ['list', 'search', 'discover'];
+
+/** PDF 目录批量关联的预览行：文件（含相对路径）→ 匹配结果（null = 无匹配）。 */
+interface PdfCandidate {
+  file: File;
+  /** 相对路径（webkitRelativePath），缺省退回文件名 */
+  path: string;
+  match: PdfMatchResult | null;
+}
 
 /** 导出文件名时间戳（20260930-1416） */
 function stamp(): string {
@@ -268,6 +342,18 @@ export function LibraryPanel() {
   const [risOpen, setRisOpen] = useState(false);
   const [risText, setRisText] = useState('');
   const [risResult, setRisResult] = useState<string | null>(null);
+
+  // Zotero JSON 导入对话框（同 RIS：组件内部 state，集合结构经 zotero:<名> tag 保留）
+  const [zoteroOpen, setZoteroOpen] = useState(false);
+  const [zoteroText, setZoteroText] = useState('');
+  const [zoteroResult, setZoteroResult] = useState<string | null>(null);
+
+  // PDF 目录批量关联：预览候选（文件 → 匹配文献 + 置信度 / 无匹配）
+  const [pdfDirOpen, setPdfDirOpen] = useState(false);
+  const [pdfCandidates, setPdfCandidates] = useState<PdfCandidate[]>([]);
+  const [pdfDirMsg, setPdfDirMsg] = useState<string | null>(null);
+  const [pdfAttaching, setPdfAttaching] = useState(false);
+  const pdfDirInputRef = useRef<HTMLInputElement | null>(null);
 
   // L1 详情展开 / L5 多选 / L2 打开反馈
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -413,6 +499,86 @@ export function LibraryPanel() {
     if (added > 0) setRisText('');
   };
 
+  /**
+   * Zotero JSON 导入：parseZoteroJson → 逐条查重（doi/arxivId/title 与库内及本批次
+   * 比对，重复跳过计 dupes）→ importHit 入库（citekey 由 store 生成消歧）。
+   * 集合归属无 schema 可存：以 `zotero:<集合名>`（含祖先链名称）追加进 tags，
+   * 过滤器 tag: 前缀天然可用。
+   */
+  const importZotero = (): void => {
+    const parsed = parseZoteroJson(zoteroText);
+    let added = 0;
+    let dupes = 0;
+    // 查重键 = 库内既有条目 + 本批次已导入条目（importHit 连续 set 后闭包 papers 已过期）
+    const seen = new Set(papers.map(paperIdentity));
+    for (const zp of parsed.papers) {
+      const identity = paperIdentity(zp);
+      if (seen.has(identity)) {
+        dupes += 1;
+        continue;
+      }
+      seen.add(identity);
+      const collectionTags = collectionNamesFor(zp.collectionKeys, parsed.collections).map(
+        (name) => `${ZOTERO_TAG_PREFIX}${name}`,
+      );
+      importHit({
+        // importHit 不读 source；PaperSearchHit.source 类型仅限 'arxiv' | 'crossref'
+        source: 'crossref',
+        title: zp.title,
+        authors: zp.authors,
+        year: zp.year,
+        venue: zp.venue,
+        abstract: zp.abstract,
+        doi: zp.doi,
+        arxivId: zp.arxivId,
+        tags: [...new Set([...zp.tags, ...collectionTags])],
+      });
+      added += 1;
+    }
+    setZoteroResult(c.zoteroImportSummary(added, dupes, parsed.errors.length));
+    if (added > 0) setZoteroText('');
+  };
+
+  /** PDF 目录选择（webkitdirectory multiple）：收集全部 .pdf → 逐个匹配 → 预览列表。 */
+  const handlePdfDirPick = (event: ChangeEvent<HTMLInputElement>): void => {
+    const files = Array.from(event.target.files ?? []).filter((f) => /\.pdf$/i.test(f.name));
+    event.target.value = '';
+    if (files.length === 0) {
+      setPdfCandidates([]);
+      setPdfDirMsg(c.pdfDirEmpty);
+      return;
+    }
+    const candidates = files.map<PdfCandidate>((file) => ({
+      file,
+      path: file.webkitRelativePath || file.name,
+      match: matchPdfToPaper(file.name, papers),
+    }));
+    setPdfCandidates(candidates);
+    setPdfDirMsg(c.pdfDirCount(candidates.filter((cand) => cand.match !== null).length, candidates.length));
+  };
+
+  /** 「关联全部」：逐个读取 ArrayBuffer（readFileArrayBuffer）→ attachPdf 入库持久化。 */
+  const attachAllPdfs = async (): Promise<void> => {
+    setPdfAttaching(true);
+    let ok = 0;
+    let fail = 0;
+    try {
+      for (const cand of pdfCandidates) {
+        if (!cand.match) continue;
+        try {
+          const bytes = await readFileArrayBuffer(cand.file);
+          if (attachPdf(cand.match.paperId, bytes)) ok += 1;
+          else fail += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+    } finally {
+      setPdfAttaching(false);
+    }
+    setPdfDirMsg(c.pdfAttachDone(ok, fail));
+  };
+
   return (
     <div className="sf-lib">
       <div className="sf-lib-mode">
@@ -438,8 +604,27 @@ export function LibraryPanel() {
             <button className="sf-btn" onClick={() => setRisOpen(true)}>
               RIS
             </button>
+            <button
+              className="sf-btn"
+              onClick={() => {
+                setZoteroResult(null);
+                setZoteroOpen(true);
+              }}
+            >
+              {c.zoteroButton}
+            </button>
             <button className="sf-btn" onClick={() => setDialog('fetch')}>
               DOI/arXiv
+            </button>
+            <button
+              className="sf-btn"
+              onClick={() => {
+                setPdfCandidates([]);
+                setPdfDirMsg(null);
+                setPdfDirOpen(true);
+              }}
+            >
+              {c.pdfDirButton}
             </button>
             <button
               className="sf-btn sf-export-bib"
@@ -778,6 +963,101 @@ export function LibraryPanel() {
                   {c.dialogImport}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {zoteroOpen && (
+        <div className="sf-dialog-overlay" onMouseDown={() => setZoteroOpen(false)}>
+          <div className="sf-dialog sf-lib-dialog" onMouseDown={(e) => e.stopPropagation()}>
+            <header className="sf-dialog-header">
+              <strong>{c.zoteroTitle}</strong>
+            </header>
+            <div className="sf-dialog-body">
+              <textarea
+                className="sf-input sf-lib-textarea"
+                placeholder={c.zoteroPlaceholder}
+                value={zoteroText}
+                onChange={(e) => setZoteroText(e.target.value)}
+              />
+              {zoteroResult && <p className="sf-cites-msg">{zoteroResult}</p>}
+              <div className="sf-lib-dialog-actions">
+                <button className="sf-btn" onClick={() => setZoteroOpen(false)}>
+                  {c.dialogClose}
+                </button>
+                <button
+                  className="sf-btn sf-btn--primary"
+                  onClick={importZotero}
+                  disabled={!zoteroText.trim()}
+                >
+                  {c.dialogImport}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pdfDirOpen && (
+        <div className="sf-dialog-overlay" onMouseDown={() => setPdfDirOpen(false)}>
+          <div className="sf-dialog sf-lib-dialog" onMouseDown={(e) => e.stopPropagation()}>
+            <header className="sf-dialog-header">
+              <strong>{c.pdfDirTitle}</strong>
+            </header>
+            <div className="sf-dialog-body">
+              <p className="sf-lib-count">{c.pdfDirHint}</p>
+              <input
+                ref={(el) => {
+                  pdfDirInputRef.current = el;
+                }}
+                type="file"
+                multiple
+                accept="application/pdf"
+                style={{ display: 'none' }}
+                onChange={handlePdfDirPick}
+                {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
+              />
+              {pdfDirMsg && <p className="sf-cites-msg">{pdfDirMsg}</p>}
+              <div className="sf-lib-dialog-actions">
+                <button className="sf-btn" onClick={() => setPdfDirOpen(false)}>
+                  {c.dialogClose}
+                </button>
+                <button className="sf-btn" onClick={() => pdfDirInputRef.current?.click()}>
+                  {c.pdfDirPick}
+                </button>
+                <button
+                  className="sf-btn sf-btn--primary"
+                  onClick={() => void attachAllPdfs()}
+                  disabled={pdfAttaching || pdfCandidates.every((cand) => cand.match === null)}
+                >
+                  {pdfAttaching ? c.pdfAttaching : c.pdfAttachAll}
+                </button>
+              </div>
+              {pdfCandidates.length > 0 && (
+                <ul className="sf-lib-results sf-lib-pdfdir">
+                  {pdfCandidates.map((cand, index) => {
+                    const paper = cand.match
+                      ? papers.find((p) => p.id === cand.match!.paperId)
+                      : undefined;
+                    return (
+                      <li key={`${index}:${cand.path}`} className="sf-lib-chunk">
+                        <div className="sf-lib-chunk-head">
+                          <code>{cand.path}</code>
+                        </div>
+                        {cand.match && paper ? (
+                          <p className="sf-lib-pdfdir-match">
+                            <span className="sf-lib-hit-title">{paper.title}</span>
+                            <span className="sf-lib-score">{c.pdfConfidence(cand.match.score)}</span>
+                          </p>
+                        ) : (
+                          <p className="sf-lib-pdfdir-match placeholder">{c.pdfNoMatch}</p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
         </div>

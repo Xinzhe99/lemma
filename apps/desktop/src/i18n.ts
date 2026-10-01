@@ -138,6 +138,7 @@ const dict: MessageDict = {
   'cmd.writingStats': { zh: '写作统计（字数/目标/连续天数）', en: 'Writing statistics' },
   'cmd.spellcheck': { zh: '切换拼写与用词检查', en: 'Toggle spell & usage check' },
   'nav.comments': { zh: '批注', en: 'Comments' },
+  'nav.home': { zh: '首页', en: 'Home' },
   'cmd.settings': { zh: '打开设置', en: 'Open settings' },
   'cmd.focusTree': { zh: '聚焦文件树', en: 'Focus file tree' },
   'cmd.clearLog': { zh: '清空编译日志', en: 'Clear compile log' },

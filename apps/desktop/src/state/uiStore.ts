@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 
-export type SidebarTab = 'outline' | 'files' | 'citations' | 'library' | 'knowledge' | 'submit' | 'comments';
+export type SidebarTab = 'home' | 'outline' | 'files' | 'citations' | 'library' | 'knowledge' | 'submit' | 'comments';
 /** knowledge 页签内的子页签：术语（静态）/ 笔记（动态加载） */
 export type KnowledgeTab = 'glossary' | 'notes';
 export type LibraryDialog = null | 'bibtex' | 'fetch';
@@ -105,7 +105,7 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  sidebarTab: 'files',
+  sidebarTab: 'home',
   knowledgeTab: 'glossary',
   templateWizardOpen: false,
   libraryDialog: null,

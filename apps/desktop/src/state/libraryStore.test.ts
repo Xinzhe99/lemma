@@ -43,9 +43,17 @@ function resetStores(papers: Paper[]): void {
   useUiStore.setState({ pdfView: null, centerView: 'editor' });
 }
 
-/** 冲刷微任务队列（订阅的 setBigData 异步落盘为纯 promise 链，一个宏任务足够）。 */
-function flush(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+/** 冲刷异步队列：至少一个宏任务，然后轮询直至条件满足（FileReader/blob 转换可能跨宏任务相位）。 */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 25; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+async function flushUntil(cond: () => boolean, rounds = 25): Promise<void> {
+  for (let i = 0; i < rounds && !cond(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 }
 
 beforeEach(() => {

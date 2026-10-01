@@ -11,6 +11,7 @@ import {
   History,
   Library,
   ListTree,
+  Home,
   MessageSquare,
   MessagesSquare,
   Quote,
@@ -195,6 +196,7 @@ export function App() {
   }, [setSidebarTab]);
 
   const sidebarTabs: { id: typeof sidebarTab; label: string; icon: typeof ListTree }[] = [
+    { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'outline', label: t('nav.outline'), icon: ListTree },
     { id: 'files', label: t('nav.files'), icon: FileText },
     { id: 'citations', label: t('nav.citations'), icon: Quote },
@@ -250,7 +252,9 @@ export function App() {
     <aside className="sidebar">
       <div className="sidebar-title">{sidebarTitle}</div>
       <div className="sidebar-body" ref={sidebarRef} tabIndex={-1}>
-        {sidebarTab === 'files' ? (
+        {sidebarTab === 'home' ? (
+          <LazyPanel file="Dashboard" labelKey="nav.home" />
+        ) : sidebarTab === 'files' ? (
           <FileTree />
         ) : sidebarTab === 'outline' ? (
           <OutlinePanel />

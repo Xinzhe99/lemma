@@ -15,6 +15,13 @@ export {
 } from './providers/cli';
 export type { CliProviderOptions, ProcessRunner } from './providers/cli';
 export {
+  ScriptedDemoProvider,
+  pickDemoScript,
+  DEMO_DISCLAIMER,
+  DEMO_LIBRARY_CITEKEYS,
+} from './providers/demo';
+export type { ScriptedDemoProviderOptions } from './providers/demo';
+export {
   connectMcp,
   encodeRpc,
   decodeRpcLines,
