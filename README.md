@@ -1,118 +1,146 @@
+<div align="center">
+
 # ScholarForge
 
-> AI 原生的一站式科研写作工作站 —— "IDE for Papers"
+**AI 原生的一站式学术论文写作工作站 · IDE for Papers**
 
-设计文档见 [DESIGN.md](./DESIGN.md)。
+*Literature discovery → reading → LaTeX writing → compilation → AI review → submission, in one local-first app.*
 
-## 仓库结构（npm workspaces monorepo）
+[![CI](https://github.com/Xinzhe99/scholarforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Xinzhe99/scholarforge/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-1165%20passing-brightgreen)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-lightgrey)]()
+[![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
 
-```
-apps/desktop        # 桌面应用（Vite + React；Tauri 壳后续接入，见 src/platform）
-packages/shared     # 跨包共享领域类型
-packages/editor     # WS-A LaTeX 编辑器（CodeMirror 6）
-packages/compile    # WS-B 编译服务（引擎抽象 / log 解析 / SyncTeX / 模板）
-packages/library    # WS-C 文献库与 PDF 阅读器
-packages/agent-hub  # WS-D Agent 中枢（Provider 适配 / 工具注册 / 工作流引擎）
-packages/knowledge  # WS-E 知识底座（RAG / Context Pack / 术语与风格）
-```
+**[✨ 功能总览](#-功能总览) · [🚀 快速开始](#-快速开始) · [🤖 AI 工作流](#-ai-工作流) · [🏗 架构](#-架构) · [🗺 路线图](#-路线图)**
 
-## 开发
+</div>
+
+---
+
+![ScholarForge 写作视图](docs/screenshots/writing.png)
+
+---
+
+## 为什么做这个
+
+写一篇论文，今天的研究者要在 **8–12 个互不打通的工具**之间切换：Google Scholar 检索、Zotero 管理、Acrobat 阅读标注、Overleaf 写作、ChatGPT 润色、邮件里来回审稿意见……上下文在每一个边界断裂。
+
+更关键的是：AI 编码工具（Cursor / Codex / Claude Code）已经证明"agent 能动手"的价值，但论文工具里的 AI 还被关在"只能聊天"的盒子里——看不到你的文献库，跑不了你的编译，改不了你的引用。
+
+**ScholarForge 把这两件事缝合起来**：一个本地优先的桌面应用，AI Agent 作为一等公民深入每个环节——能读你的文献库、能编译你的论文、能核查你的引用、能模拟你的审稿人。而每一次 AI 修改都以 diff 呈现、由你审批。
+
+## ✨ 功能总览
+
+### 📝 写作环境（Overleaf 级 + 本地编译）
+
+| | |
+|---|---|
+| LaTeX 编辑器 | 语法高亮、代码折叠、`\cite` / `\ref` 智能补全（数据来自你的文献库）、BibTeX 专用高亮 |
+| 数学实时预览 | 悬停 `$...$` / `\[...\]` 即出 KaTeX 渲染浮层 |
+| 可视化工具 | 表格编辑器（图形网格 → tabular 代码）、插图向导（自动补 `graphicx`）、引用插入向导（语义推荐相关文献） |
+| 质量护栏 | LaTeX linter（环境配对/悬空引用/括号平衡）、拼写与学术用词检查（96 对错拼 + 26 组易混词，语境守卫防误报） |
+| 真实编译 | 自动探测本机 Tectonic / latexmk，产物直接在应用内预览 PDF；**SyncTeX 双向跳转**（点 PDF 回源码行 / 状态栏 ⇄ 按钮跳 PDF） |
+| 效率特性 | Ctrl+P 快速打开、Ctrl+Shift+F 全项目搜索、编辑器字号、专注模式、多项目管理、快照时间线 |
+
+![大纲与图表导航](docs/screenshots/outline.png)
+
+### 📚 文献管理（Zotero 级 + AI 检索）
+
+- **文献发现**：arXiv + Crossref 聚合检索一键入库；**arXiv 每日晨报**（订阅研究方向，打开即见近三日新论文）
+- **迁移导入**：BibTeX / RIS / DOI / arXiv ID / **Zotero Better BibTeX JSON**（集合结构保留为标签）；PDF 文件夹批量模糊关联
+- **PDF 阅读**：四色语义标注（方法/发现/质疑/引用）、书签大纲、连续滚动（虚拟化）、选中即问 AI
+- **知识底座**：全库混合检索（BM25 + 向量）、双链笔记卡片（标注一键转卡片）、术语表与一致性检查、写作风格档案
+
+### 🏠 首页指挥台
+
+打开应用第一眼即见"今天该做什么"：今日写作目标与连续天数、**稿件健康度评分**（lint / 拼写 / 术语 / 悬空引用四维聚合 0–100）、投稿倒计时、待处理批注、arXiv 晨报。
+
+![首页指挥台](docs/screenshots/dashboard.png)
+
+## 🤖 AI 工作流
+
+7 个内置工作流贯穿"写 → 审 → 辩 → 投"全流程。Agent 可调用论文域工具（检索文献库、读项目上下文、触发编译）；**写级操作（改稿 / 加引用）强制经 diff 审批卡，你裁决后才落盘**，并自动创建快照随时回滚。
+
+| 工作流 | 做什么 |
+|---|---|
+| **W6 三审稿人仿真** | 三个独立 persona（方法严格派 / 领域专家 / 统计复现）并行审稿 + Meta-Review 三档优先级 → 结构化审稿面板 |
+| **W7 Rebuttal 起草** | 逐条解析审稿意见 → direct-fix / partial / argue / cite 四类策略回复 → 经审批插入稿件 |
+| **W12 相关工作综述** | 从你的文献库检索分组 → Related Work 叙事草稿（引用全部本地可验证） |
+| **W3 学术润色** | 目标化润色 + diff 审批 + 自动快照 |
+| **W2 分节起草** | 注入 Context Pack 与相关文献起草章节 |
+| **W10 预提交自检** | 三态清单报告（问题行一键跳转、修复建议一键复制） |
+| **W11 Cover Letter** | 结合期刊定位起草投稿信 |
+
+**学术诚信护栏**：AI 回复中的每条引用与本地文献库核验，幻觉引用立即标红拦截；所有 AI 修改 latexdiff 留痕；全量备份不含 API key。
+
+**零配置也能体验**：内置演示模式（高质量示例数据、明确标注）——装完即看三审稿人仿真的完整形态；配好 key 后 30 秒切换为真实 AI（DeepSeek / GLM / Kimi 等 7 家预设 + 连接测试）。
+
+![三审稿人仿真](docs/screenshots/reviewer-sim.png)
+
+### 📤 投稿工作台
+
+15 个内置期刊/会议档案（页数 / 匿名规则 / AI 政策）、打包自检 6 项门控、一键导出 zip、Cover Letter、deadline 倒计时三档预警、期刊推荐。
+
+![投稿工作台](docs/screenshots/submit.png)
+
+## 🚀 快速开始
+
+### 方式一：Web 版（无需安装 Rust）
 
 ```bash
-npm install         # 根目录一次安装全部工作区依赖
-npm run dev         # 启动桌面应用（浏览器形态）
-npm test            # 全部包的单元测试
-npm run typecheck   # 全部包类型检查
-npm run build       # 构建应用
+git clone https://github.com/Xinzhe99/scholarforge.git
+cd scholarforge
+npm install
+npm run dev        # 打开 http://localhost:5173
 ```
 
-## v0.9.0 —— 用户留存轮（习惯闭环/首屏惊艳/零成本迁移）
+> Web 版为模拟编译、AI 需配置模型服务；完整体验（真实编译 / SyncTeX / 晨报直连）建议桌面版。
 
-- **首页指挥台**（默认页签）：今日写作目标/🔥连续天数、稿件健康度评分（lint/拼写/术语/悬空引用四维聚合 0-100 分）、投稿倒计时、待处理批注、arXiv 晨报——打开即知"今天该做什么"
-- **arXiv 每日晨报**：研究方向关键词订阅 → 近三日新论文按日期分组（今天标记）、摘要折叠、一键入库；浏览器受限时显示缓存（桌面版经 curl 通道正常拉取）
-- **离线惊艳演示（ScriptedDemoProvider）**：零配置下三审稿人仿真/Rebuttal/预提交自检/相关工作综述输出内置高质量结构化示例（明确标注演示数据，引用只用库内真实 citekey 过护栏）——新用户首屏即见产品灵魂，30 秒激活引导
-- **Zotero 生态迁移**：Better BibTeX JSON 导入（条目/集合结构/extra 内 arXiv 提取/机构作者，集合映射为 zotero: 标签）+ PDF 文件夹批量关联（标题/citekey 双维模糊匹配 + 置信度预览）
+### 方式二：桌面版（Windows）
 
-## v0.8.0 —— 从 demo 到成熟产品（真实数据/真实编译/分发）
+**前置**：[Rust](https://rustup.rs) + Node 20+；建议装有 Tectonic 或 TeX Live（缺失自动回退模拟编译）
 
-- **数据持久化升级**：PDF 附件存 IndexedDB（Dexie，重启不丢，启动自动回载）；大数据自动迁移（≥32KB localStorage 键搬运，先落盘后删键的安全语义）；配额永不炸
-- **模型服务激活器**：7 家预设（DeepSeek/GLM/Kimi/硅基流动/Qwen/OpenAI/自建）一键填充 + 「去获取 Key」直达 + 连接测试（延迟/模型可用性/中文错误诊断）；Agent 面板 30 秒快速激活卡（未配置时内嵌迷你表单）
-- **SyncTeX 真实格式适配**：用本机 TeX Live 2024 真实编译产物校准（换算常数 65781.76=65536×72.27/72，pdfjs 交叉验证误差 <0.05pt），完整解析真实记录流（Input/Magnification/Unit/嵌套 hbox-vbox/kern-glue），真实文件双向命中回归测试
-- **大项目性能**：120 文件合成项目基线（8 项全过，余量 30–600 倍）；修复深嵌套 \input 链的 O(n²) 拷贝与栈溢出（depth=2000 曾崩溃，现 7.7ms）；bib 解析 LRU 缓存；outline/lint/floats 单趟化
-- **真实安装包**：NSIS 安装器构建成功（ScholarForge_0.8.0_x64-setup.exe，2.95MB）+ 独立 release exe（4.98MB）
+```bash
+npm install
+cd apps/desktop
+npm run desktop:dev     # 开发运行（Tauri 窗口）
+npm run desktop:build   # 打安装包（NSIS setup.exe）
+```
 
-## v0.7.1 —— 缺陷修复轮（PM 审计驱动）
+### 配置 AI（30 秒）
 
-修复 15 项审计缺陷（3 P0/5 P1/7 P2）：批注按钮接线复活（光标桥响应式订阅）；Tauri 下 4 处原生对话框静默失效全部迁移应用内对话框；PDF 视图下跳转源码兜底接通；Ctrl+Shift+Z 不再劫持编辑器 Redo；专注模式 Esc 退出+布局真正收拢；Ctrl+Enter/H/, 快捷键实接线；W12/W2 工作流入命令面板；拼写易混词加语境守卫（their/then/its…不再误报）；PDF 连续模式补文本层（选中标注/即问/点击同步全通）；⇄PDF 用光标行；重开上次编译 PDF；Ctrl+S 文案纠偏；编译日志/润色提示双语化。
+设置 → 模型服务 → 选预设（DeepSeek / 智谱 GLM / Kimi / 硅基流动 / 通义 / OpenAI / 自建）→ 粘贴 API Key → 测试连接。未配置时全部工作流以演示模式运行。
 
-## 已实现（v0.7.0 —— 协作与研究习惯）
+## 🏗 架构
 
-- **稿件行级批注系统**：在 .tex 源码行上挂批注（作者/回复/已解决三态流转），点击跳转源码行，一键导出审阅意见 Markdown——导师-学生改稿闭环
-- **写作统计与目标**：每日字数自动统计（编辑即记录）、目标进度条（状态栏实时 chip）、连续达标天数、最近 7 天柱状图、项目统计（各文件字数/阅读时长）
-- **专注模式**（Ctrl+Shift+Z）：一键隐藏全部面板沉浸写作
-- **图表导航器**：大纲页签下「图表」视图——图/表/式/算法四类浮动体清单（题注+行号），点击跳转
-- **自定义模板**：把当前项目一键存为模板（上限 20），模板向导中直接复用
-- **拼写与学术用词检查**：96 对常见拼写错误 + 26 组易混词（their/there、affect/effect…），编辑器波浪线标注 + 悬浮修改建议（可命令面板开关）
+```
+apps/desktop            应用壳（Tauri 2 + React；Rust 桥：虚拟文件系统 / 密钥 / 进程调用）
+packages/shared         跨包领域类型
+packages/editor         LaTeX 编辑器（CodeMirror 6 · 补全/大纲/linter/数学预览/表格）
+packages/compile        编译服务（Tectonic/latexmk · log 解析 · 真实 SyncTeX · 模板）
+packages/library        文献库（BibTeX/RIS/Zotero 解析 · PDF 阅读器 · 引用格式）
+packages/agent-hub      Agent 中枢（OpenAI 兼容流式 · 工具调用 · 阻塞审批 · 工作流引擎）
+packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · 引用护栏）
+```
 
-## 已实现（v0.6.0 —— 完整研究工作流）
+**工程数据**：1165 个单元测试（113 文件）· GitHub Actions CI（web + cargo-check 双 job）· 全站中英双语 · 数据本地优先（IndexedDB，API key 永不入备份/外发）。
 
-- **引用插入向导**：从文献库搜索/多选插入 \cite（命令面板「插入引用」或标签栏「引用」按钮）；**智能推荐**基于当前段落语义检索自动推荐相关文献（混合检索，含回退策略）
-- **快照 diff 对比**：快照历史任意版本一键「对比当前」，增删行可视化后再决定是否恢复
-- **PDF 阅读器增强**：大纲（书签）导航 + 连续滚动模式（懒渲染虚拟化，视口同步页码）
-- **RIS 导入**：EndNote/Zotero 导出的 RIS 一键入库（自动补 citekey）
-- **全量备份/恢复**：文献/笔记/标注/项目/工作区一键导出 JSON（**API key 永不入备份**），恢复含数据摘要确认
-- **编辑器字号**：Ctrl+=/-/0 调节（10–24px，持久化）
-- **W12 相关工作综述工作流**（第 7 个内置）：库内检索分组 → 分组叙事草稿（引用全部本地可验证）→ 检查点 → 经 diff 审批插入稿件
-- **投稿 deadline 追踪**：目标 venue 设截止日期，倒计时三档预警（<3 天红色）
-- 修复：BibTeX/RIS 导入 citekey 消歧顺序错误（每次误加 -a 后缀）
+## 🗺 路线图
 
-## 已实现（v0.5.0 —— 大厂交付标准）
+- [x] v0.5 数学预览 · SyncTeX · 全项目搜索 · ErrorBoundary · CI
+- [x] v0.6 引用向导 · PDF 大纲与连续滚动 · 备份恢复 · W12 综述
+- [x] v0.7 批注系统 · 写作统计 · 专注模式 · 图表导航 · 拼写检查
+- [x] v0.8 数据持久化 · 模型激活器 · 真实 SyncTeX 校准 · 性能基线 · 安装包
+- [x] v0.9 首页指挥台 · arXiv 晨报 · 离线演示模式 · Zotero 迁移
+- [ ] 审阅包往返（导出/导入给合作者，导师不装软件也能改稿）
+- [ ] 实时多人文档协同（Yjs CRDT + 可选云房间）
+- [ ] CLI agent 桥（Codex / Claude Code 作为宿主引擎接入）
 
-- **数学公式实时预览**：悬停 `$...$`/`$$...$$`/`\(...\)`/`\[...\]` 即出 KaTeX 渲染浮层（缓存加速，错误回显原始 TeX）
-- **BibTeX 专用语法高亮**（条目/键/字段/值/注释分层）；**插图向导**（规范化路径 + 生成 includegraphics 代码 + 自动补 graphicx + 桌面形态真实写入图片）
-- **SyncTeX 双向同步**：真实编译产出同步数据，状态栏「⇄ PDF」源码定位 PDF；PDF 点击回跳源码行
-- **全项目搜索**（Ctrl+Shift+F）：跨文件实时搜索、大小写/整词开关、分组高亮、点击跳转；**W10 自检报告联动投稿工作台**（一键跳转 + 位置引用可点 + 复制修复建议）
-- **根级 ErrorBoundary**（崩溃不再白屏）；应用内对话框全面替代 window.prompt/confirm（Tauri WKWebView 兼容）
-- **发布工程**：GitHub Actions CI（web + cargo-check 双 job）、CHANGELOG、版本统一 0.5.0、Tauri bundle 启用（可打安装包）
+## 🤝 贡献
 
-## 已实现（v0.4 —— 生产可用性）
+欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm test`（与 CI 同款门禁）。完整设计文档见 [DESIGN.md](./DESIGN.md)，版本历史见 [CHANGELOG.md](./CHANGELOG.md)。
 
-- **真实编译与 PDF 应用内预览**：桌面形态自动探测 Tectonic / latexmk（用户机器 TeX Live 2024 即开即用），项目文件物化→编译→产物 base64 读回→自动打开 PDF 预览；首个 error 诊断自动跳转源码行；不可用时回退模拟引擎并说明
-- **可视化表格编辑器**：图形网格编辑→实时生成 tabular 代码（round-trip 解析/转义/注释容忍）→插入编辑器光标处（标签栏「表格」按钮或命令面板）
-- **多项目管理**：保存/切换/重命名/复制/删除多个论文项目（上限 20，损坏数据安全回退），顶栏项目名即入口；打开切换器时自动留当前项目崩溃恢复快照
+## 📄 许可
 
-## 已实现（v0.3 —— Codex 风格亮色界面 + 生产力特性）
-
-- 全新明亮主题（默认）：白底极简、黑色药丸主按钮、青绿强调、hairline 边框与柔和阴影；暗色主题完整保留可切换；编辑器/diff/Agent 面板全量跟随双主题
-- 编辑器状态栏：字数（CJK+拉丁混合统计）/行数/光标行列/自动保存状态（脏标记 + 写盘时间）
-- Ctrl+P 快速打开文件（模糊匹配）、Ctrl+/ 快捷键速查面板
-- LaTeX 质量检查：环境配对/花括号平衡/悬空 
-ef/未知 \cite/TODO 六条规则的实时问题列表（点击跳转行）
-- 知识导出：全库导出 BibTeX、PDF 标注一键导出 Markdown、批量转卡片
-
-## 已实现（v0.2）
-
-### 桌面形态（Tauri 2，本机构建通过）
-- `npm run desktop:dev` / `desktop:build`（apps/desktop）；Rust 桥实现本地虚拟文件系统、密钥存取与 `proc_run` 进程桥（详见 TAURI.md）
-- Tauri 环境自动切换真实 Tectonic 编译（不可用时回退模拟引擎并提示）；本机 TeX Live 可经 latexmk 接入
-
-### 浏览器/桌面通用
-
-- LaTeX 编辑器（语法高亮 / 大纲跳转 / \cite 补全 / diff 视图）
-- 编译流水线（MockEngine 演示；Tectonic/latexmk 引擎待 Tauri 桥接）+ 6 套模板（含中文 ctex）+ Overleaf zip 一键导入
-- 文献库：BibTeX / DOI / arXiv 导入，发现检索（arXiv+Crossref 聚合去重一键入库），智能过滤，BM25+向量混合知识检索（可配语义嵌入，失败自动回退本地）
-- PDF 阅读器：四色语义标注，按文件持久化
-- Agent 中枢：Context Pack 注入流式对话（真实 provider 可调用论文域工具，多轮回填）、引用幻觉核查护栏、5 个内置工作流（三审稿人仿真 → 结构化审稿面板 → Rebuttal 起草一键衔接）
-- AI 改稿审批闭环：润色/起草/选中文本润色 → diff 审批卡 → 采纳前强制快照 → 历史时间线一键恢复
-- 选中即问：编辑器与 PDF 阅读器选中文本浮动工具条（润色/解释/翻译/找文献）
-- 投稿工作台：15 个内置 venue 档案、投稿打包自检（6 项清单门控导出 zip）、一键 Cover Letter（W11）、期刊推荐（库内去向+scope 匹配）
-- 知识底座 UI：双链笔记卡片（标注一键转卡片、插入稿件）、术语表（跳转定义/导出 acronym 包/一致性检查）、风格档案四指标
-- 工作流体验：表单式启动器（无原生 prompt）、W10 结构化自检报告（导出 .md）、W7 按审稿人分段 rebuttal、运行历史留存（可回看）
-- 文献库闭环：条目详情（作者/摘要/DOI 外链/IEEE·APA·AMA 引用预览）、库内 PDF 关联打开（标注按文献键控恢复）、标注管理侧栏、批量操作
-- 全站中英双语（i18n 190+ 键 + 面板级字典）、全项目快照时间线、首启引导
-- Agent 写级工具（tex.edit/citation.add）：阻塞式人工审批，裁决结果回传模型继续生成；unified diff 应用器支持 W3 工作流输出
-
-## 平台说明
-
-应用通过 `apps/desktop/src/platform` 抽象本地能力（文件、进程、密钥）。当前提供
-Browser 实现（开发/演示用）；Tauri 实现在 Rust 工具链就绪后接入，业务代码不感知。
+[MIT](LICENSE) © 2026 ScholarForge Contributors
