@@ -1,5 +1,5 @@
 /** @scholarforge/editor —— WS-A：LaTeX 编辑器（CodeMirror 6） */
-export const EDITOR_PACKAGE_VERSION = '0.11.0';
+export const EDITOR_PACKAGE_VERSION = '0.12.0';
 
 // 语法支持
 export {

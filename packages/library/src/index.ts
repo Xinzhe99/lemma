@@ -1,5 +1,5 @@
 /** @scholarforge/library —— WS-C：文献库与 PDF 阅读器 */
-export const LIBRARY_PACKAGE_VERSION = '0.11.0';
+export const LIBRARY_PACKAGE_VERSION = '0.12.0';
 
 export type { LibraryStore } from './store';
 export { MemoryStore, DexieStore, LibraryDatabase, openDexieStore } from './store';
