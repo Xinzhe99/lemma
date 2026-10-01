@@ -1,6 +1,6 @@
 [package]
 name = "scholarforge"
-version = "0.8.0"
+version = "0.9.0"
 description = "ScholarForge — AI-native end-to-end scholarly writing workstation"
 edition = "2021"
 
