@@ -443,14 +443,22 @@ describe('计划模式 · runPlannedTask（规划轮）', () => {
     expect(session.status).toBe('idle');
   });
 
-  it('演示分支（未配置模型）：GENERIC_CHAT 无 JSON → 普通回答呈现，不产出计划卡', async () => {
+  it('演示分支（未配置模型）：规划请求路由到内置计划脚本 → 计划卡登记（buildPlanPrompt 固定含路由关键词）', async () => {
     seedProject();
     useSettingsStore.setState({ providers: [], activeProviderId: null });
 
     await runPlannedTask('帮我规划论文修改');
 
-    expect(useAgentPlansStore.getState().plans).toEqual({});
+    // 演示模式：计划脚本含 ```json 围栏 → parsePlan 命中，计划登记且全部 pending
+    const plans = useAgentPlansStore.getState().plans;
+    const exec = plans[lastAssistant().id]!;
+    expect(exec).toBeDefined();
+    expect(exec.plan.goal).toBe('为投稿准备最终检查');
+    expect(exec.plan.steps).toHaveLength(3);
+    expect(planPhase(exec)).toBe('awaiting');
+    // 消息保留演示横幅（诚实标注）与计划原文（含围栏）
     expect(lastAssistant().content).toContain('演示');
+    expect(lastAssistant().content).toContain('```json');
   });
 });
 

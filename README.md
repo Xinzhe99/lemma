@@ -76,6 +76,18 @@
 
 **零配置也能体验**：内置演示模式（高质量示例数据、明确标注）——装完即看三审稿人仿真的完整形态；配好 key 后 30 秒切换为真实 AI（DeepSeek / GLM / Kimi 等 7 家预设 + 连接测试）。
 
+### 🧠 Agent 能力（v1.1.0）
+
+| | |
+|---|---|
+| **计划模式** | 复杂任务先出计划：agent 产出步骤清单卡（目标 + 每步工具声明），**你批准后才逐步执行**——每步独立状态、可跳过失败步 / 重试 / 中止，写级步骤仍过 diff 审批门 |
+| **Chat 富渲染** | 表格 / 代码块 / 引用块完整渲染，`\citekey` 一键点击；斜杠命令注入 10 个内置工作流、@-mention 文献与文件；复制 / 重新生成 / 编辑重发 / ↑ 召回历史 |
+| **diff 审批 v2** | 并排 + 统一双视图、**按 hunk 勾选部分采纳**（字节精确重组）、「解释这组修改」异步说明动机 |
+| **编辑器 quick-fix** | 拼写 / 中式表达波浪线悬停即出候选按钮，点击一键替换；「忽略此词」会话静音 |
+| **Agent 记忆** | 从你的审批与部分采纳历史学习写作偏好，自动注入后续每次生成的 Context Pack；可查看 / 停用 |
+| **并行研究子代理** | 一个调研任务自动拆分多子话题并行检索，容错汇总 |
+| **用量与成本** | 本月调用 / token 成本估算（标注"估算非账单"）/ 月度预算进度 / 近 20 条事件 |
+
 ![三审稿人仿真](docs/screenshots/reviewer-sim.png)
 
 ### 📤 投稿工作台
@@ -101,9 +113,11 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_0.9.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/ScholarForge_0.9.0_x64-setup.exe) | Windows 安装包（2.8 MB，NSIS 向导式） |
-| [scholarforge-portable-0.9.0.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v0.9.0/scholarforge-portable-0.9.0.exe) | Windows 绿色版（4.8 MB，双击即用） |
-| macOS（.dmg） | 打 tag 后由 CI 自动产出（Apple Silicon / Intel） |
+| [ScholarForge_1.1.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.1.0/ScholarForge_1.1.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [ScholarForge_1.1.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.1.0/ScholarForge_1.1.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [ScholarForge_1.1.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.1.0/ScholarForge_1.1.0_x64.dmg) | macOS（Intel） |
+
+> 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
 
 全部版本见 [Releases](https://github.com/Xinzhe99/scholarforge/releases)。应用内建自动更新：闲时静默检查下载，重启即完成升级。
 

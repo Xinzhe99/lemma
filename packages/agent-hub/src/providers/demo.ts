@@ -544,7 +544,7 @@ const ROUTES: readonly DemoRoute[] = [
   { id: 'w14-compress', keywords: ['逐候选给出删减'], script: [
     '> ⚠️ 演示数据（内置示例，配置模型服务后为真实 AI 生成）',
     '',
-    '**逐候选删减方案**（约束已遵守：\cite / \ref / \label 一律未动，数字与结论未改变）：',
+    '**逐候选删减方案**（约束已遵守：\\cite / \\ref / \\label 一律未动，数字与结论未改变）：',
     '',
     '1. §2 第 2 段（-6 行）：删除与 §5 重复的局限性论述，保留一句引用',
     '2. §4.1 套话（-3 行）：It is worth noting that → Notably,',
@@ -583,9 +583,9 @@ const ROUTES: readonly DemoRoute[] = [
     '\\begin{document}',
     '\\begin{frame}{背景与动机}',
     '\\begin{itemize}',
-    '  \item 写作工具碎片化，上下文断裂',
-    '  \item AI 被关在聊天盒子里',
-    '  \item 我们提出 ScholarForge',
+    '  \\item 写作工具碎片化，上下文断裂',
+    '  \\item AI 被关在聊天盒子里',
+    '  \\item 我们提出 ScholarForge',
     '\\end{itemize}',
     '\\end{frame}',
     '% ……（完整 14 页骨架，每页要点不超过 1.5 行，图表用 \ref 引用原稿 label）',
@@ -677,10 +677,10 @@ const ROUTES: readonly DemoRoute[] = [
     '  {"id": "s3", "title": "生成检查报告", "detail": "汇总为结构化报告供确认"}',
     ']}',
     '```',
-  ].join('\\n') },
+  ].join('\n') },
   { id: 'plan-step', keywords: ['逐步骤说明'], script: [
     '本步骤已完成（演示）：引用核查完成，3 处悬空引用已定位。',
-  ].join('\\n') },
+  ].join('\n') },
 { id: 'w10-report', keywords: ['汇总前三步结果'], script: W10_REPORT },
   { id: 'w10-audit', keywords: ['逐项合规审查'], script: W10_AUDIT },
   { id: 'w10-compile-check', keywords: ['技术合规性'], script: W10_COMPILE },
@@ -738,7 +738,9 @@ export class ScriptedDemoProvider implements ChatProvider {
 
   async *complete(req: ChatRequest): AsyncGenerator<ChatEvent> {
     const lastUser = [...req.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
-    const text = `${DEMO_DISCLAIMER}\n\n${pickDemoScript(lastUser)}`;
+    // 部分脚本自带更具体的横幅（"AI 修复 / AI 规划"等）——已含"演示数据"则不重复前置
+    const script = pickDemoScript(lastUser);
+    const text = script.includes('演示数据') ? script : `${DEMO_DISCLAIMER}\n\n${script}`;
     // 按 Unicode 码点切块，避免拆散代理对（emoji）
     const chars = Array.from(text);
     let yielded = 0;
