@@ -18,8 +18,9 @@ import { useSettingsStore, type Language } from './state/settingsStore';
 import { getPlatform } from './platform/types';
 import { tauriProcRun, tauriReadBase64 } from './platform/tauri';
 import { ensureBuiltinTectonic, getReadyBuiltinTectonicPath, isBuiltinTectonicInfo } from './texSetup';
-import { jumpTo } from './editorJump';
-import { setSynctexIndex } from './synctexBridge';
+import { jumpTo, lastCursor } from './editorJump';
+import { setSynctexIndex, jumpSourceToPdf } from './synctexBridge';
+import { setCompileDiagnosticsList, lintLatex } from '@scholarforge/editor';
 
 const idleRunner = {
   async run(): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -88,6 +89,8 @@ interface CompileDict {
   pdfMissing: (pdfPath: string, err: string) => string;
   synctexOk: (synctexPath: string, bytes: number) => string;
   synctexFail: (synctexPath: string, err: string) => string;
+  autoCompileStart(): string;
+  autoCompileStart(): string;
 }
 
 export const L: Record<Language, CompileDict> = {
@@ -111,6 +114,7 @@ export const L: Record<Language, CompileDict> = {
     pdfMissing: (pdfPath, err) => `⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${err}）。请检查引擎输出目录设置。`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX 索引已注册（${synctexPath}，${bytes} 字节），PDF ↔ 源码同步可用`,
     synctexFail: (synctexPath, err) => `⚠ SyncTeX 索引不可用（${synctexPath} 读取失败：${err}），PDF ↔ 源码同步已停用。`,
+    autoCompileStart: () => '⟳ 自动编译（保存后触发，可在状态栏关闭）…',
   },
   en: {
     noEntry: '✗ No compilable .tex entry file found',
@@ -132,6 +136,7 @@ export const L: Record<Language, CompileDict> = {
     pdfMissing: (pdfPath, err) => `⚠ Compiled successfully but the PDF artifact was not found: reading ${pdfPath} failed (${err}). Check the engine output directory settings.`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX index registered (${synctexPath}, ${bytes} bytes); PDF ↔ source sync enabled`,
     synctexFail: (synctexPath, err) => `⚠ SyncTeX index unavailable (failed to read ${synctexPath}: ${err}); PDF ↔ source sync disabled.`,
+    autoCompileStart: () => '⟳ Auto compile (after save; toggle in status bar)…',
   },
 };
 
@@ -247,6 +252,44 @@ export function firstErrorJump(diagnostics: Diagnostic[]): { file: string; line:
   return d ? { file: d.file as string, line: d.line as number } : null;
 }
 
+/** 全项目 lint → 编译诊断形态（warning 级；模拟引擎的诚实替身） */
+function lintProjectDiagnostics(files: Record<string, string>, entry: string): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  for (const [path, content] of Object.entries(files)) {
+    if (!path.toLowerCase().endsWith('.tex')) continue;
+    for (const issue of lintLatex(content)) {
+      out.push({
+        severity: issue.severity === 'error' ? 'error' : 'warning',
+        message: issue.message,
+        file: path === entry ? path : path,
+        line: issue.line,
+      });
+    }
+    if (out.length >= 50) break; // 上限防巨型工程刷屏
+  }
+  return out;
+}
+
+/** 编译诊断三路分发：日志（既有）+ workspaceStore（状态）+ 编辑器注册表（gutter/行高亮） */
+function publishDiagnostics(diags: Diagnostic[]): void {
+  useWorkspaceStore.getState().setCompileDiagnostics(diags);
+  setCompileDiagnosticsList(diags);
+}
+
+/** 编译成功后的 PDF 跟随（D3）：预览开着且 SyncTeX 可用时，跳到光标所在页 */
+function followCursorInPdf(): void {
+  try {
+    const ui = useUiStore.getState();
+    if (!ui.pdfView) return;
+    const cur = lastCursor();
+    const file = cur.file || useWorkspaceStore.getState().activeTab || '';
+    if (!file) return;
+    jumpSourceToPdf(file, cur.line);
+  } catch {
+    /* 跟随失败不打扰编译结果 */
+  }
+}
+
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -297,7 +340,14 @@ export async function runMockCompile(): Promise<CompileActionResult> {
     idleRunner,
   );
   s.appendCompileLog(t.summary(result.engine, result.passes, result.durationMs, result.success));
-  logDiagnostics(entry, result.diagnostics);
+  // 模拟引擎不产出真实诊断：以 lint 结果充当（warning 级，诚实反映源码静态问题），
+  // 编辑器标注闭环在浏览器形态同样可演示
+  const diags: Diagnostic[] =
+    result.diagnostics.length > 0
+      ? result.diagnostics
+      : lintProjectDiagnostics(s.files, entry);
+  logDiagnostics(entry, diags);
+  publishDiagnostics(diags);
   setSynctexIndex(null); // 模拟引擎无真实产物：清除旧索引，停用 PDF ↔ 源码同步
   s.setCompileStatus(result.success ? 'ok' : 'fail');
   const jump = firstErrorJump(result.diagnostics);
@@ -320,7 +370,7 @@ export async function runMockCompile(): Promise<CompileActionResult> {
  * 返回 null 表示应回退模拟引擎（全链不可用（含下载失败）/ 物化或编译执行失败）；
  * 编译本身的失败（有诊断）是真实结果，不回退。
  */
-async function runRealCompile(entry: string): Promise<CompileActionResult | null> {
+async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise<CompileActionResult | null> {
   const s = useWorkspaceStore.getState();
   const t = pick(useSettingsStore.getState().language);
   s.setCompileStatus('running');
@@ -372,6 +422,7 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
 
   s.appendCompileLog(t.summary(label, result.passes, result.durationMs, result.success));
   logDiagnostics(entry, result.diagnostics);
+  publishDiagnostics(result.diagnostics);
 
   // 读回 PDF 产物并打开应用内预览（产物缺失只记录日志，不影响编译结果）；
   // 读回成功即存入 lastPdf 缓存（D14：预览关闭后 reopenLastPdf 可重看）
@@ -392,6 +443,7 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
       const bytes = await tauriReadBase64(synctexPath);
       setSynctexIndex(parseSynctex(bytes));
       s.appendCompileLog(t.synctexOk(synctexPath, bytes.length));
+      followCursorInPdf();
     } catch (e) {
       setSynctexIndex(null);
       s.appendCompileLog(t.synctexFail(synctexPath, errText(e)));
@@ -400,9 +452,12 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
     setSynctexIndex(null); // 编译失败：旧索引与最新源码不再一致，停用同步
   }
 
-  // 存在 error 级诊断时跳转到首个出错行（无 error 不打扰）
-  const jump = firstErrorJump(result.diagnostics);
-  if (jump) jumpTo(jump);
+  // 存在 error 级诊断时跳转到首个出错行（无 error 不打扰）；
+  // 自动编译不跳（打断输入位置），靠沟槽标注与日志引导
+  if (!opts?.auto) {
+    const jump = firstErrorJump(result.diagnostics);
+    if (jump) jumpTo(jump);
+  }
 
   s.setCompileStatus(result.success ? 'ok' : 'fail');
   return { ok: result.success, entry, passes: result.passes, diagnostics: result.diagnostics.length };
@@ -410,13 +465,68 @@ async function runRealCompile(entry: string): Promise<CompileActionResult | null
 
 /** 统一入口：Tauri 环境按探测链使用真实引擎（系统 tectonic → 系统 latexmk → 内置 tectonic，
  *  内置不存在时自动下载，下载失败回退模拟引擎）；浏览器直接模拟。 */
-export async function runCompile(): Promise<CompileActionResult> {
+/**
+ * 统一编译入口。opts.auto = 自动编译（保存触发）：抑制「跳到首个错误行」
+ * （自动跳转会打断正在输入的光标位置），诊断仍照常进编辑器标注。
+ */
+export async function runCompile(opts?: { auto?: boolean }): Promise<CompileActionResult> {
   if (getPlatform().kind === 'tauri') {
     const entry = resolveCompileEntry();
     if (entry) {
-      const real = await runRealCompile(entry);
+      const real = await runRealCompile(entry, opts);
       if (real) return real;
     }
   }
   return runMockCompile();
+}
+
+// ---------------------------------------------------------------------------
+// 保存后自动编译（v1.5.1 D2）：files 变化（真实编辑置 dirty）→ 防抖触发
+// ---------------------------------------------------------------------------
+
+/** 编辑静默期：停笔 1.5s 后编译一次（合并连续击键） */
+const AUTOCOMPILE_DEBOUNCE_MS = 1500;
+
+let autoCompileTimer: ReturnType<typeof setTimeout> | null = null;
+let lastFilesJson = '';
+
+/**
+ * 挂接自动编译（App 挂载时调用一次，返回卸载函数）。
+ * 触发条件（全部满足）：
+ *  - 设置 autoCompile 开启；
+ *  - 桌面形态（真实引擎；浏览器模拟编译无意义，不触发）；
+ *  - files 内容真实变化（dirty 由 updateFile 置位；加载项目/恢复不置位）；
+ *  - 当前无编译进行中（idle）且存在可解析入口；
+ * 自动编译为「静默」变体：不出错跳转（不打断输入位置），诊断照常进编辑器标注。
+ */
+export function attachAutoCompile(
+  compile: (opts?: { auto?: boolean }) => Promise<unknown> = runCompile,
+): () => void {
+  // 挂接即快照基线：之后任何 files 变化都视为编辑增量（加载项目不置 dirty，双保险）
+  lastFilesJson = JSON.stringify(useWorkspaceStore.getState().files);
+  const unsub = useWorkspaceStore.subscribe((s) => {
+    const json = JSON.stringify(s.files);
+    if (json === lastFilesJson) return; // 与文件无关的状态变更（dirty/日志等）
+    const isFirst = lastFilesJson === '';
+    lastFilesJson = json;
+    if (isFirst || !s.dirty) return; // 初次水合 / 非编辑产生的文件替换
+
+    if (autoCompileTimer) clearTimeout(autoCompileTimer);
+    autoCompileTimer = setTimeout(() => {
+      autoCompileTimer = null;
+      const st = useWorkspaceStore.getState();
+      const cfg = useSettingsStore.getState();
+      if (!cfg.autoCompile) return;
+      if (st.compileStatus === 'running') return; // 下次编辑会再触发
+      if (getPlatform().kind !== 'tauri') return;
+      if (!resolveCompileEntry()) return;
+      st.appendCompileLog(pick(cfg.language).autoCompileStart());
+      void compile({ auto: true });
+    }, AUTOCOMPILE_DEBOUNCE_MS);
+  });
+  return () => {
+    unsub();
+    if (autoCompileTimer) clearTimeout(autoCompileTimer);
+    autoCompileTimer = null;
+  };
 }

@@ -12,6 +12,7 @@ import {
   EditorView,
   LatexEditor,
   quickFixExtension,
+  compileDiagnosticsExtension,
   spellcheckExtension,
   thesaurusExtension,
 } from '@scholarforge/editor';
@@ -141,10 +142,17 @@ export function EditorArea() {
     [],
   );
   // quickFixExtension 追加在末位：多个 hover 源同点堆叠时位于最内层（最贴近文本，更具体）；
-  // 无外部依赖，无需进入 useMemo 依赖数组
+  // 编译诊断扩展绑定当前文件名（activeTab 变化需整体重配）
   const extraExtensions = useMemo(
-    () => [selectionTracker, cursorTracker, spellcheckExtension(spellcheckEnabled), thesaurusExtension(), quickFixExtension()],
-    [cursorTracker, spellcheckEnabled],
+    () => [
+      selectionTracker,
+      cursorTracker,
+      spellcheckExtension(spellcheckEnabled),
+      thesaurusExtension(),
+      quickFixExtension(),
+      compileDiagnosticsExtension(activeTab ?? ''),
+    ],
+    [cursorTracker, spellcheckEnabled, activeTab],
   );
 
   // —— 编辑器字号调节（挂载时读取 localStorage，快捷键经 Compartment 重设主题）——

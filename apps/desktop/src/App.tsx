@@ -49,6 +49,7 @@ import { GlossaryPanel } from './panels/GlossaryPanel';
 import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
 import { hydrateAgentSessions, attachAgentSessionPersist } from './state/agentSessionPersist';
+import { attachAutoCompile } from './compileAction';
 import { parseProjectZip } from '@scholarforge/compile';
 import { PdfReader } from '@scholarforge/library';
 import { jumpPdfToSource, onPdfGoto } from './synctexBridge'; // WS-2 编译同步闭环（App 窄 carve-out）
@@ -122,7 +123,12 @@ export function App() {
     // Agent 会话：启动恢复 + 变更防抖落盘（IndexedDB，重启不丢对话历史）
     void hydrateAgentSessions();
     const detach = attachAgentSessionPersist();
-    return detach;
+    // 保存后自动编译（桌面真实引擎；设置 autoCompile 可关）
+    const detachAutoCompile = attachAutoCompile();
+    return () => {
+      detach();
+      detachAutoCompile();
+    };
   }, []);
 
   // 新手引导（P0）：首屏判定 shouldShowTour() —— 未完成导览且不在 24h「稍后」窗口内则弹出全屏导览。

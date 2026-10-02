@@ -77,6 +77,9 @@ export interface SettingsState {
   /** CLI agent 桥配置 */
   cliAgent: CliAgentConfig;
   setCliAgent(patch: Partial<CliAgentConfig>): void;
+  /** 保存后自动编译（Overleaf 式闭环；仅桌面真实引擎，浏览器模拟不触发） */
+  autoCompile: boolean;
+  setAutoCompile(on: boolean): void;
   setTheme(theme: Theme): void;
   setLanguage(language: Language): void;
 }
@@ -91,6 +94,7 @@ interface PersistedSettings {
   language: Language;
   agentEngine: AgentEngine;
   cliAgent: CliAgentConfig;
+  autoCompile: boolean;
 }
 
 function readPersisted(): PersistedSettings | null {
@@ -108,6 +112,7 @@ function readPersisted(): PersistedSettings | null {
       language: v.language === 'en' ? 'en' : 'zh',
       agentEngine: v.agentEngine === 'api' || v.agentEngine === 'cli' ? v.agentEngine : 'auto',
       cliAgent: coerceCliAgent(v.cliAgent),
+      autoCompile: v.autoCompile !== false, // 默认开
     };
   } catch {
     return null;
@@ -123,6 +128,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',
+  autoCompile: initial?.autoCompile ?? true,
   cliAgent: initial?.cliAgent ?? { ...DEFAULT_CLI_AGENT },
 
   addProvider(input) {
@@ -164,6 +170,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set((s) => ({ cliAgent: { ...s.cliAgent, ...patch } }));
   },
 
+  setAutoCompile(autoCompile) {
+    set({ autoCompile });
+  },
+
   setTheme(theme) {
     set({ theme });
   },
@@ -184,6 +194,7 @@ useSettingsStore.subscribe((s) => {
         language: s.language,
         agentEngine: s.agentEngine,
         cliAgent: s.cliAgent,
+        autoCompile: s.autoCompile,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }

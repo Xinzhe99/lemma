@@ -94,8 +94,13 @@ describe('Tauri 真实编译：SyncTeX 索引注册（WS-2）', () => {
       const result = await runCompile();
       expect(result).toMatchObject({ ok: true, entry: 'main.tex', diagnostics: 0 });
       expect(hasSynctexIndex()).toBe(true);
+      // 编译成功已开启 PDF 预览 → 自动跟随（v1.5.1 D3）会先广播一次光标页跳转；
+      // 其后手动 jumpSourceToPdf 再广播一次，两者同页同 y
       expect(jumpSourceToPdf('main.tex', 12)).toBe(true);
-      expect(gotos).toEqual([{ page: 1, y: 8000 }]);
+      expect(gotos).toEqual([
+        { page: 1, y: 8000 },
+        { page: 1, y: 8000 },
+      ]);
       expect(useUiStore.getState().pdfView?.name).toBe('main.pdf');
       const log = useWorkspaceStore.getState().compileLog.join('\n');
       expect(log).toContain('main.synctex.gz');

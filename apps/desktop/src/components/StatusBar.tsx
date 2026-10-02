@@ -36,6 +36,26 @@ export function countWords(text: string): number {
   return cjk + (latin ? latin.length : 0);
 }
 
+/**
+ * LaTeX 感知字数（v1.5.1 D5）：剔除注释与命令骨架，只统计「读者可见」的文字——
+ *  - 去 % 注释（保留 \% 转义）；
+ *  - 结构/引用类命令（documentclass/usepackage/begin/end/item/label/ref/cite/
+ *    include/input/graphics 等）连同参数整体移除；
+ *  - 其余命令（	extbf{...} 等）去命令名保留参数文本；
+ *  - 数学（$...$ / \[...\]）不计字。
+ */
+const TEX_NOISE_CMD =
+  /\\(?:documentclass|usepackage|requirepackage|newcommand|renewcommand|providecommand|DeclareMathOperator|begin|end|item|label|ref|eqref|autoref|cref|cite[pt]?\*?|nocite|input|include|includegraphics|bibliography|bibliographystyle|graphicspath|setlength|setcounter|addtocounter|usebox|vspace|hspace|newpage|clearpage|footnotemark|thanks|hypersetup|title|author|date|maketitle|tableofcontents|listoffigures|listoftables|appendix)\s*(?:\[[^\]]*\])?\s*\{[^{}]*\}/g;
+
+export function countTexWords(text: string): number {
+  let out = text.replace(/(^|[^\\])%[^\n]*/g, (_m, pre: string) => pre);
+  out = out.replace(/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[^$\n]+\$/g, ' ');
+  out = out.replace(TEX_NOISE_CMD, ' ');
+  out = out.replace(/\\[A-Za-z@]+\*?/g, ' ');
+  out = out.replace(/[{}]/g, ' ');
+  return countWords(out);
+}
+
 // ---------------------------------------------------------------------------
 // 纯函数：相对时间（"3 秒前"）
 // ---------------------------------------------------------------------------
@@ -67,7 +87,10 @@ const STRINGS = {
     saved: '已保存',
     unsaved: '未保存',
     noFile: '未打开文件',
-    syncPdf: '⇄ PDF',
+
+    autoCompile: '自动编译',
+    autoCompileOnTitle: '保存后自动编译已开启（点击关闭）',
+    autoCompileOffTitle: '保存后自动编译已关闭（点击开启）',    syncPdf: '⇄ PDF',
     syncTitle: '跳转到光标行在 PDF 中的位置',
     syncDisabledTitle: '需要真实编译产出（真实编译后可用 PDF ↔ 源码同步）',
     syncNoPdf: '请先编译以生成 PDF 预览',
@@ -83,7 +106,10 @@ const STRINGS = {
     saved: 'Saved',
     unsaved: 'Unsaved',
     noFile: 'No file',
-    syncPdf: '⇄ PDF',
+
+    autoCompile: 'Auto compile',
+    autoCompileOnTitle: 'Auto compile after save is ON (click to turn off)',
+    autoCompileOffTitle: 'Auto compile after save is OFF (click to turn on)',    syncPdf: '⇄ PDF',
     syncTitle: 'Jump to where the cursor line appears in the PDF',
     syncDisabledTitle: 'Requires a real compile (PDF ↔ source sync unavailable)',
     syncNoPdf: 'Compile first to generate the PDF preview',
@@ -108,7 +134,10 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
   const L = STRINGS[language];
 
   const content = activeTab !== null ? (files[activeTab] ?? '') : '';
-  const words = useMemo(() => countWords(content), [content]);
+  const words = useMemo(
+    () => (activeTab && activeTab.toLowerCase().endsWith('.tex') ? countTexWords(content) : countWords(content)),
+    [content, activeTab],
+  );
   // 行数与 CodeMirror 一致：空文档计 1 行，行尾换行另起一行
   const lines = useMemo(() => (content === '' ? 1 : content.split('\n').length), [content]);
 
@@ -133,6 +162,8 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
   // WS-2：SyncTeX 索引可用性为模块级单例（非响应式），索引仅在真实编译产出后变化；
   // 借 compileStatus 订阅在编译结束时重渲染，重读取 hasSynctexIndex()。
   const compileStatus = useWorkspaceStore((s) => s.compileStatus);
+  const autoCompile = useSettingsStore((s) => s.autoCompile);
+  const setAutoCompile = useSettingsStore((s) => s.setAutoCompile);
   const syncAvailable = hasSynctexIndex();
 
   // 页数预算：compileStatus 为 ok 且日志解析出页数时显示 chip；
@@ -173,6 +204,14 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
         onClick={handleSyncToPdf}
       >
         {L.syncPdf}
+      </button>
+      <button
+        type="button"
+        className={`sf-statusbar-item${autoCompile ? ' ok' : ''}`}
+        title={autoCompile ? L.autoCompileOnTitle : L.autoCompileOffTitle}
+        onClick={() => setAutoCompile(!autoCompile)}
+      >
+        {autoCompile ? `⟳ ${L.autoCompile}` : `⏸ ${L.autoCompile}`}
       </button>
       <span className="sf-statusbar-spacer" />
       <span className="sf-statusbar-item">

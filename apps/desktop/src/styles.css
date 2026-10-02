@@ -2653,3 +2653,41 @@ kbd {
 .sf-approval-actions {
   margin-top: 2px;
 }
+
+/* —— 编译诊断标注（v1.5.1）：行左边条 + 沟槽标记（功能性用色，同 diff 语义） —— */
+.sf-diag-line--error {
+  background: color-mix(in srgb, var(--err) 9%, transparent);
+  box-shadow: inset 2px 0 0 var(--err);
+}
+.sf-diag-line--warning {
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+.sf-diag-line--info {
+  box-shadow: inset 2px 0 0 var(--fg-2);
+}
+.sf-diag-gutter {
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: help;
+}
+.sf-diag-gutter--error {
+  color: var(--err);
+}
+.sf-diag-gutter--warning {
+  color: var(--warn);
+}
+.sf-diag-gutter--info {
+  color: var(--fg-2);
+}
+.sf-diag-hover {
+  max-width: 420px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-0);
+  white-space: pre-wrap;
+}

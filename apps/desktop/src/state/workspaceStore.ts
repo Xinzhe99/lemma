@@ -49,6 +49,9 @@ export interface WorkspaceState extends WorkspaceSnapshot {
   appendCompileLog(line: string): void;
   clearCompileLog(): void;
   setCompileStatus(status: CompileStatus): void;
+  /** 最近一次编译的诊断（编辑器标注数据源；不持久化，重编译整体替换） */
+  compileDiagnostics: import('@scholarforge/shared').Diagnostic[];
+  setCompileDiagnostics(list: import('@scholarforge/shared').Diagnostic[]): void;
 }
 
 const WORKSPACE_FILE = 'workspace.json';
@@ -183,6 +186,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   snapshots: {},
   compileLog: [],
   compileStatus: 'idle',
+  compileDiagnostics: [],
   dirty: false,
   lastSavedAt: null,
 
@@ -306,6 +310,10 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
 
   setCompileStatus(status) {
     set({ compileStatus: status });
+  },
+
+  setCompileDiagnostics(list) {
+    set({ compileDiagnostics: list });
   },
 }));
 

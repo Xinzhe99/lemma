@@ -295,11 +295,18 @@ describe('digestStore · parseDigestAtom', () => {
   });
 
   it('groupDigestByDate 按日期降序分组，组内按时间降序', () => {
+    // 本地正午锚点（±2h 仍在同一天）：避免 0–5 点运行时「N 小时前」跨午夜翻转分组
+    const noonOffset = (daysAgo: number, hours: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      d.setHours(12 + hours, 0, 0, 0);
+      return d.toISOString();
+    };
     const items = [
-      paper('Old-Day-B', iso(2 * DAY + 2 * HOUR)),
-      paper('Today-A', iso(1 * HOUR)),
-      paper('Old-Day-A', iso(2 * DAY + 5 * HOUR)),
-      paper('Today-B', iso(5 * HOUR)),
+      paper('Old-Day-B', noonOffset(2, 2)),
+      paper('Today-A', noonOffset(0, 2)),
+      paper('Old-Day-A', noonOffset(2, -1)),
+      paper('Today-B', noonOffset(0, -1)),
     ];
     const groups = groupDigestByDate(items);
     expect(groups).toHaveLength(2);

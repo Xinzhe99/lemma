@@ -51,9 +51,9 @@ describe('computeHealth', () => {
     });
     expect(r.score).toBe(100);
     expect(r.issues.every((i) => i.count === 0)).toBe(true);
-    // countWords 口径：LaTeX 命令词也计（documentclass/article/begin/document×2/end），
-    // 即 8 命令词 + Hello world + hello world + 你好(2) = 12；.bib/.md 不计
-    expect(r.words).toBe(12);
+    // countTexWords 口径（v1.5.1 D5）：命令骨架不计，只有可见文字——
+    // Hello world + hello world + 你好(2) = 6；.bib/.md 不计
+    expect(r.words).toBe(6);
   });
 
   it('lint：未闭合环境计 error（×4 扣分），\\ref 悬空 warning 与 TODO hint 不算', () => {

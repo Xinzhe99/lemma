@@ -132,3 +132,14 @@ export {
   type LongSentence,
   type PassiveHit,
 } from './styleReport';
+
+// 编译诊断标注（v1.5.1）
+export {
+  compileDiagnosticsExtension,
+  setCompileDiagnosticsList,
+  getCompileDiagnosticsList,
+  normalizeDiagFile,
+  diagHitsForFile,
+  type CompileDiagnostic,
+  type DiagLineHit,
+} from './compileDiagnostics';

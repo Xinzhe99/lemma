@@ -10,7 +10,7 @@
 
 import { create } from 'zustand';
 import { useWorkspaceStore } from './workspaceStore';
-import { countWords } from '../components/StatusBar';
+import { countTexWords } from '../components/StatusBar';
 
 export const WRITING_STATS_STORAGE_KEY = 'sf-writing-stats';
 
@@ -83,7 +83,7 @@ export function computeStreak(history: Record<string, number>, goal: number, tod
 export function computeProjectWords(files: Record<string, string>): number {
   let total = 0;
   for (const [path, content] of Object.entries(files)) {
-    if (path.toLowerCase().endsWith('.tex')) total += countWords(content);
+    if (path.toLowerCase().endsWith('.tex')) total += countTexWords(content);
   }
   return total;
 }

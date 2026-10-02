@@ -42,7 +42,7 @@ vi.mock('zustand', async () => {
   return { create };
 });
 
-import { StatusBar, countWords, relativeTime } from './StatusBar';
+import { StatusBar, countTexWords, countWords, relativeTime } from './StatusBar';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useUiStore } from '../state/uiStore';
 import { useSubmitStore } from '../state/submitStore';
@@ -125,7 +125,7 @@ describe('StatusBar 渲染', () => {
     renderView();
     const text = container!.textContent ?? '';
     expect(text).toContain('main.tex');
-    expect(text).toContain(`字数 ${countWords(content)}`);
+    expect(text).toContain(`字数 ${countTexWords(content)}`);
     expect(text).toContain(`行数 ${content.split('\n').length}`);
     expect(text).toContain('行 3, 7');
     expect(text).toContain('✓ 已保存');
