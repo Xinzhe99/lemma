@@ -101,7 +101,7 @@
 .sf-ah-toolcard-badge {
   padding: 1px 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent, #10a37f) 12%, transparent);
+  background: var(--bg-3, #f0f0f2);
   color: var(--accent-dim, #0b815f);
   font-size: 11px;
 }
@@ -282,11 +282,11 @@
 }
 
 .sf-ah-flow-step--running {
-  background: color-mix(in srgb, var(--warn, #b8860b) 10%, transparent);
+  background: var(--bg-3, #f0f0f2);
 }
 
 .sf-ah-flow-step--failed {
-  background: color-mix(in srgb, var(--err, #d9534f) 10%, transparent);
+  background: var(--bg-3, #f0f0f2);
 }
 
 .sf-ah-dot {
@@ -406,7 +406,7 @@
   padding: 4px 10px;
   border-left: 3px solid var(--accent, #10a37f);
   border-radius: 0 6px 6px 0;
-  background: color-mix(in srgb, var(--accent, #10a37f) 5%, transparent);
+  background: transparent;
   color: var(--fg-1, #70707a);
 }
 
@@ -452,7 +452,7 @@
   cursor: pointer;
 }
 .sf-ah-md-insert-btn:hover {
-  background: color-mix(in srgb, var(--accent, #10a37f) 10%, var(--bg-2, #ffffff));
+  background: var(--bg-3, #f0f0f2);
   border-color: var(--accent, #10a37f);
 }
 
@@ -523,7 +523,7 @@
   margin: 0 1px;
   border: 1px solid color-mix(in srgb, var(--accent, #10a37f) 35%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent, #10a37f) 8%, transparent);
+  background: var(--bg-0, #ffffff);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11.5px;
   line-height: 1.6;
@@ -533,7 +533,7 @@
 }
 
 .sf-ah-md-cite:hover {
-  background: color-mix(in srgb, var(--accent, #10a37f) 16%, transparent);
+  background: var(--bg-3, #f0f0f2);
   border-color: var(--accent, #10a37f);
 }
 
@@ -701,11 +701,11 @@
 }
 
 .sf-ah-menu-badge--paper {
-  background: color-mix(in srgb, var(--violet, #8e6bd8) 14%, transparent);
+  background: var(--bg-3, #f0f0f2);
   color: var(--violet, #8e6bd8);
 }
 
 .sf-ah-menu-badge--file {
-  background: color-mix(in srgb, var(--accent, #10a37f) 12%, transparent);
+  background: var(--bg-3, #f0f0f2);
   color: var(--accent-dim, #0b815f);
 }

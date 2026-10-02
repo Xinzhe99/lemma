@@ -351,8 +351,8 @@ body {
 }
 
 .nav-btn.active {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg-0);
+  background: var(--bg-3);
 }
 
 .nav-spacer {
@@ -434,8 +434,8 @@ body {
 }
 
 .sf-tree-row.active {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg-0);
+  background: var(--bg-3);
 }
 
 .sf-tree-chevron {
@@ -1058,8 +1058,8 @@ kbd {
 }
 
 .sf-segment button.active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-dim);
+  background: var(--bg-3);
+  color: var(--fg-0);
 }
 
 /* 关于 */
@@ -1260,9 +1260,9 @@ kbd {
   background: var(--bg-3);
 }
 .sf-lib-mode button.active {
-  color: var(--accent-dim);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg-0);
+  border-color: color-mix(in srgb, var(--fg-2) 35%, var(--border));
+  background: var(--bg-3);
 }
 .sf-lib-toolbar {
   display: flex;
@@ -1383,9 +1383,13 @@ kbd {
 .sf-agent-provider {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
+}
+.sf-agent-provider > * {
+  white-space: nowrap;
 }
 
 /* —— 会话历史下拉（v1.2.0）：容器相对定位承载浮层 —— */
@@ -1417,10 +1421,10 @@ kbd {
   cursor: pointer;
 }
 .sf-session-item:hover {
-  background: var(--bg-2, rgba(127, 127, 127, 0.12));
+  background: var(--bg-2);
 }
 .sf-session-item.active {
-  background: rgba(127, 127, 127, 0.16);
+  background: var(--bg-3);
 }
 .sf-session-item.dim {
   color: var(--fg-2);
@@ -1539,8 +1543,8 @@ kbd {
   background: var(--bg-3);
 }
 .sf-wiz-item.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--fg-2) 45%, var(--border));
+  background: var(--bg-3);
 }
 .sf-wiz-item strong {
   font-size: 12px;
@@ -1625,10 +1629,10 @@ kbd {
 }
 .sf-agent-approval {
   margin-top: 8px;
-  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 8px;
-  background: color-mix(in srgb, var(--warn) 6%, transparent);
+  background: var(--bg-0);
   max-height: 45vh;
   overflow: auto;
 }
@@ -1837,8 +1841,8 @@ kbd {
 }
 .sf-review-card--meta {
   margin-top: 8px;
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-0));
+  border-color: var(--border);
+  background: var(--bg-2);
 }
 .sf-review-card--meta pre {
   margin: 0;
@@ -1881,8 +1885,8 @@ kbd {
 }
 
 .sf-subtabs button.active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-dim);
+  background: var(--bg-3);
+  color: var(--fg-0);
   font-weight: 600;
 }
 
@@ -1896,7 +1900,7 @@ kbd {
   padding: 14px;
   border: 1px dashed color-mix(in srgb, var(--warn) 45%, var(--border));
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warn) 7%, var(--bg-0));
+  background: var(--bg-0);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1950,9 +1954,9 @@ kbd {
 .sf-onboarding {
   margin: 8px;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-0));
+  background: var(--bg-0);
   flex: none;
 }
 
@@ -1998,7 +2002,7 @@ kbd {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--bg-3);
   color: var(--accent-dim);
 }
 

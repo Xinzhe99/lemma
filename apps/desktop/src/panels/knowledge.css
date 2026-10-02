@@ -35,7 +35,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.sf-knowledge-toolbar > .sf-lib-count {
+  flex: 1;
+  min-width: 0;
 }
 
 .sf-knowledge-toolbar-actions {
@@ -52,7 +58,7 @@
   margin: 0;
   font-size: 11px;
   color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  background: var(--bg-0);
   border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--border));
   border-radius: 6px;
   padding: 4px 8px;
@@ -279,7 +285,7 @@
   font: inherit;
   font-size: 11px;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--bg-0);
   border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
   border-radius: 999px;
   padding: 0 7px;
@@ -289,7 +295,7 @@
 }
 
 .sf-wikilink:hover {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: var(--bg-3);
 }
 
 .sf-wikilink--missing {
@@ -414,7 +420,7 @@
 .sf-glossary-abbr {
   font-size: 10px;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--bg-3);
   border-radius: 4px;
   padding: 1px 5px;
   flex: none;
