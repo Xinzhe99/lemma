@@ -347,7 +347,9 @@ describe('memoryStats / buildMemoryInjection', () => {
 // ---------------------------------------------------------------------------
 
 describe('Context Pack 注入点', () => {
-  it('buildContextPackMd 的「项目记忆」段包含记忆注入', async () => {
+  // 动态 import 整个 agentTools 注册表：全量并发（150+ 文件）下 worker 争用会超过
+  // 默认 5s（单跑 <1s）——给显式预算，避免套件规模增长后 CI 假红
+  it('buildContextPackMd 的「项目记忆」段包含记忆注入', { timeout: 20000 }, async () => {
     // 前面持久化用例调用了 vi.resetModules：此处对同一注册表做动态导入，
     // 保证 agentTools 与本用例操作的是同一个 agentMemory 实例
     vi.resetModules();

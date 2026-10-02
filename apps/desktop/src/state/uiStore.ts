@@ -71,6 +71,8 @@ interface UiState {
   usageDialogOpen: boolean;
   /** 提示词库（自定义高频指令管理，v1.2.0） */
   promptsLibOpen: boolean;
+  /** 风格分析报告（v1.3.0） */
+  styleReportOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -108,6 +110,7 @@ interface UiState {
   setExternalDiffOpen(open: boolean): void;
   setUsageDialogOpen(open: boolean): void;
   setPromptsLibOpen(open: boolean): void;
+  setStyleReportOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -142,6 +145,7 @@ export const useUiStore = create<UiState>((set) => ({
   externalDiffOpen: false,
   usageDialogOpen: false,
   promptsLibOpen: false,
+  styleReportOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -173,6 +177,7 @@ export const useUiStore = create<UiState>((set) => ({
   setExternalDiffOpen: (open) => set({ externalDiffOpen: open }),
   setUsageDialogOpen: (open) => set({ usageDialogOpen: open }),
   setPromptsLibOpen: (open) => set({ promptsLibOpen: open }),
+  setStyleReportOpen: (open) => set({ styleReportOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),

@@ -116,3 +116,19 @@ export { DiffView, type DiffViewProps } from './components/DiffView';
 
 // 宿主跳转（SyncTeX / 大纲定位）需要的底层句柄
 export { EditorView } from '@codemirror/view';
+
+// 学术风格分析（v1.3.0）
+export {
+  analyzeStyle,
+  prepareText,
+  splitSentences,
+  findPassiveHits,
+  findSentenceLine,
+  LONG_SENTENCE_WORDS,
+  LONG_PARAGRAPH_WORDS,
+  FK_TARGET_RANGE,
+  WEASEL_WORDS,
+  type StyleReport,
+  type LongSentence,
+  type PassiveHit,
+} from './styleReport';

@@ -25,6 +25,8 @@ import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useWritingStatsStore } from '../state/writingStats';
+import { scanTodos } from '../todoScanner';
+import { jumpTo } from '../editorJump';
 import { deadlineCountdown, useSubmitStore } from '../state/submitStore';
 import { useCommentsStore } from '../state/commentsStore';
 import { CURRENT_PROJECT_ID, useProjectsStore } from '../state/projectsStore';
@@ -57,6 +59,10 @@ interface DashDict {
   noUnresolved: string;
   goResolve: string;
   projects(n: number): string;
+  todoTitle: string;
+  todoCount(n: number): string;
+  todoNone: string;
+  todoJump: string;
 }
 
 const DICT: Record<Language, DashDict> = {
@@ -84,6 +90,10 @@ const DICT: Record<Language, DashDict> = {
     noUnresolved: '没有待处理的批注',
     goResolve: '去处理',
     projects: (n) => `共 ${n} 个项目`,
+    todoTitle: '稿件待办',
+    todoCount: (n) => `${n} 条 TODO/FIXME`,
+    todoNone: '稿件里没有 TODO 标记',
+    todoJump: '去处理',
   },
   en: {
     emptyTitle: 'Start your first project',
@@ -109,6 +119,10 @@ const DICT: Record<Language, DashDict> = {
     noUnresolved: 'No unresolved comments',
     goResolve: 'Resolve now',
     projects: (n) => `${n} project${n > 1 ? 's' : ''}`,
+    todoTitle: 'Manuscript todos',
+    todoCount: (n) => `${n} TODO/FIXME item${n > 1 ? 's' : ''}`,
+    todoNone: 'No TODO markers in the manuscript',
+    todoJump: 'Open',
   },
 };
 
@@ -191,6 +205,9 @@ export function Dashboard() {
     countdown === null ? undefined : countdown.days < 0 ? 'var(--err)' : countdown.days < 3 ? 'var(--warn)' : undefined;
 
   const unresolved = useMemo(() => comments.filter((c) => !c.resolved).length, [comments]);
+
+  // 稿件待办（v1.3.0）：扫描 % TODO/FIXME 与 	odo{}，仅在 files 变化时重算
+  const todos = useMemo(() => scanTodos(files), [files]);
   // 正式项目数（__current__ 崩溃恢复临时记录不计）
   const projectCount = useMemo(
     () => projects.filter((p) => p.id !== CURRENT_PROJECT_ID).length,
@@ -402,6 +419,48 @@ export function Dashboard() {
           <span className="sf-chip dim sf-dash-projects">{d.projects(projectCount)}</span>
         </div>
       </section>
+
+      {/* —— 稿件待办卡（v1.3.0）：TODO/FIXME 扫描 + 前五条点击跳源码行 —— */}
+      {hasProject && (
+        <section className="sf-dash-card sf-dash-todos" style={cardStyle}>
+          <h4 className="sf-dash-title" style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--fg-1)', letterSpacing: '0.5px' }}>
+            {d.todoTitle}
+          </h4>
+          {todos.length === 0 ? (
+            <p className="placeholder sf-dash-todos-none" style={{ margin: '2px 0' }}>
+              {d.todoNone}
+            </p>
+          ) : (
+            <>
+              <p className="sf-dash-todos-count" style={{ margin: '2px 0', fontWeight: 600 }}>
+                {d.todoCount(todos.length)}
+              </p>
+              <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'grid', gap: 4 }}>
+                {todos.slice(0, 5).map((t) => (
+                  <li key={`${t.file}:${t.line}`} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12.5 }}>
+                    <span className={`sf-chip ${t.kind === 'fixme' ? 'err' : t.kind === 'todonotes' ? 'warn' : 'dim'}`}>
+                      {t.kind === 'fixme' ? 'FIXME' : t.kind === 'todonotes' ? '	odo' : 'TODO'}
+                    </span>
+                    <button
+                      type="button"
+                      className="sf-link-btn sf-dash-todo-item"
+                      style={{ textAlign: 'left', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={`${t.file}:${t.line}`}
+                      onClick={() => jumpTo({ file: t.file, line: t.line })}
+                    >
+                      {t.text || `${t.file}:${t.line}`}
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>{t.file}:{t.line}</span>
+                  </li>
+                ))}
+              </ul>
+              {todos.length > 5 && (
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--fg-2)' }}>+{todos.length - 5}</p>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {/* —— arXiv 晨报块（整体复用 DigestPanel：自包含，空订阅自带引导） —— */}
       <section className="sf-dash-card sf-dash-digest" style={cardStyle}>

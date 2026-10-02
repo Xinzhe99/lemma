@@ -90,6 +90,7 @@
 | **会话持久化（v1.2.0）** | 对话历史落本地 IndexedDB——重启不丢；「历史会话」下拉切换 / 重命名 / 删除 |
 | **聊天代码块一键入稿（v1.2.0）** | agent 回复中的 LaTeX 围栏块带「插入到稿件」按钮，插入光标处并过 diff 审批 |
 | **自定义提示词库（v1.2.0）** | 高频指令沉淀为 `/` 呼出的个人资产，正文自动填入可改后发送 |
+| **风格分析与稿件待办（v1.3.0）** | 一键体检：长句/被动语态/模糊限定词/可读性（FK 年级），逐条点击跳源码行；`% TODO`/`	odo{}` 收进首页待办卡直达 |
 
 ![三审稿人仿真](docs/screenshots/reviewer-sim.png)
 
@@ -116,9 +117,9 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_1.2.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.2.0/ScholarForge_1.2.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [ScholarForge_1.2.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.2.0/ScholarForge_1.2.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [ScholarForge_1.2.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.2.0/ScholarForge_1.2.0_x64.dmg) | macOS（Intel） |
+| [ScholarForge_1.3.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.3.0/ScholarForge_1.3.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [ScholarForge_1.3.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.3.0/ScholarForge_1.3.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [ScholarForge_1.3.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.3.0/ScholarForge_1.3.0_x64.dmg) | macOS（Intel） |
 
 > 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
 
@@ -163,6 +164,7 @@ packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · �
 - [x] v1.0 审阅包往返（导出/导入给合作者，导师不装软件也能改稿）· Beamer · 投稿文书 · Bib 清理
 - [x] v1.1 计划模式 · Chat 富渲染 · diff 审批 v2 · quick-fix · Agent 记忆 · 并行研究 · 用量成本
 - [x] v1.2 会话持久化 · 聊天 LaTeX 块一键入稿 · 自定义提示词库
+- [x] v1.3 风格分析报告 · 稿件待办扫描
 - [ ] 实时多人文档协同（Yjs CRDT + 可选云房间）
 - [ ] CLI agent 桥（Codex / Claude Code 作为宿主引擎接入）
 

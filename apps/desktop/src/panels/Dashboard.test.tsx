@@ -55,6 +55,9 @@ vi.mock('../healthScore', async (importOriginal) => {
   return { ...actual, computeHealth: vi.fn(actual.computeHealth) };
 });
 
+const jumpToMock = vi.fn();
+vi.mock('../editorJump', () => ({ jumpTo: (...a: unknown[]) => jumpToMock(...a) }));
+
 import { Dashboard } from './Dashboard';
 import { computeHealth } from '../healthScore';
 import { useSettingsStore } from '../state/settingsStore';
@@ -418,5 +421,37 @@ describe('Dashboard', () => {
     });
     await act(async () => {});
     expect(vi.mocked(computeHealth).mock.calls.length).toBe(callsAfterMount + 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v1.3.0：稿件待办卡（TODO/FIXME/todonotes 扫描 + 点击跳源码行）
+// ---------------------------------------------------------------------------
+
+describe('Dashboard 稿件待办卡', () => {
+  it('有 TODO 时渲染计数与前五条，点击触发 jumpTo；空项目不渲染该卡', async () => {
+    useWorkspaceStore.setState({
+      files: {
+        'main.tex': 'intro\n% TODO: 补实验\n% FIXME: 术语\n\todo{加图}',
+        'other.tex': '% TODO: another',
+      },
+      activeTab: 'main.tex',
+    });
+    await mount();
+
+    const card = query('.sf-dash-todos');
+    expect(card).toBeTruthy();
+    expect(card?.querySelector('.sf-dash-todos-count')?.textContent).toContain('3');
+    const items = [...(card?.querySelectorAll('.sf-dash-todo-item') ?? [])];
+    expect(items).toHaveLength(3);
+    expect(items[0]?.textContent).toContain('补实验');
+    click(items[0]!);
+    expect(jumpToMock).toHaveBeenCalledWith({ file: 'main.tex', line: 2 });
+  });
+
+  it('无 TODO 时显示温和空态', async () => {
+    useWorkspaceStore.setState({ files: { 'main.tex': 'clean text' }, activeTab: 'main.tex' });
+    await mount();
+    expect(query('.sf-dash-todos')?.textContent).toContain('没有 TODO 标记');
   });
 });

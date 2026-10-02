@@ -290,6 +290,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setPromptsLibOpen(true),
     },
     {
+      id: 'edit.styleReport',
+      title: ctx.t('cmd.styleReport'),
+      hint: ctx.t('hint.view'),
+      run: () => useUiStore.getState().setStyleReportOpen(true),
+    },
+    {
       id: 'agent.plan',
       title: ctx.t('cmd.agentPlan'),
       hint: ctx.t('hint.agent'),

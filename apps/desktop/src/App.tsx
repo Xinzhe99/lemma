@@ -87,6 +87,7 @@ export function App() {
   const externalDiffOpen = useUiStore((s) => s.externalDiffOpen);
   const usageDialogOpen = useUiStore((s) => s.usageDialogOpen);
   const promptsLibOpen = useUiStore((s) => s.promptsLibOpen);
+  const styleReportOpen = useUiStore((s) => s.styleReportOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -566,6 +567,7 @@ export function App() {
 
       {usageDialogOpen && <LazyFeatureDialog file="UsagePanel" onClose={() => useUiStore.getState().setUsageDialogOpen(false)} />}
       {promptsLibOpen && <LazyFeatureDialog file="PromptLibraryDialog" onClose={() => useUiStore.getState().setPromptsLibOpen(false)} />}
+      {styleReportOpen && <LazyFeatureDialog file="StyleReportDialog" onClose={() => useUiStore.getState().setStyleReportOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -597,11 +599,12 @@ function LazyFeatureDialog({
     | 'ReviewsImportDialog'
     | 'ExternalDiffDialog'
     | 'UsagePanel'
-    | 'PromptLibraryDialog';
+    | 'PromptLibraryDialog'
+    | 'StyleReportDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,StyleReportDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);
