@@ -1,6 +1,6 @@
 {
   "name": "@scholarforge/desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "main": "src/main.tsx",
   "scripts": {
@@ -17,6 +17,7 @@
     "@scholarforge/knowledge": "*",
     "@scholarforge/library": "*",
     "@scholarforge/shared": "*",
+    "diff": "^7.0.0",
     "fflate": "^0.8.2",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",

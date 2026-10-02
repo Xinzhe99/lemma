@@ -58,7 +58,16 @@ export type { AgentSession, AgentSessionStatus, CompletedRun } from './store';
 
 // UI 组件
 export { ChatPanel, MessageList, ToolCallCard } from './ui/ChatPanel';
-export type { ChatPanelProps } from './ui/ChatPanel';
+export type {
+  ChatPanelProps,
+  MessageListProps,
+  SlashMenuItem,
+  MentionItem,
+  ChatLabels,
+} from './ui/ChatPanel';
+// 零依赖 markdown 渲染器（含引用 chip 护栏）
+export { renderMarkdown } from './ui/markdown';
+export type { MdCitationProps } from './ui/markdown';
 export { DiffApprovalCard, PatchView } from './ui/DiffApprovalCard';
 export type { DiffApprovalCardProps } from './ui/DiffApprovalCard';
 export { WorkflowRunView } from './ui/WorkflowRunView';
@@ -66,4 +75,4 @@ export type { WorkflowRunViewProps, WorkflowStepUiStatus } from './ui/WorkflowRu
 export { CostBadge, formatCost } from './ui/CostBadge';
 export type { CostBadgeProps } from './ui/CostBadge';
 
-export const AGENT_HUB_PACKAGE_VERSION = '1.0.0';
+export const AGENT_HUB_PACKAGE_VERSION = '1.1.0';

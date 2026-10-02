@@ -1,5 +1,5 @@
 /** @scholarforge/compile —— WS-B：编译服务 / log 解析 / SyncTeX / 模板 */
-export const COMPILE_PACKAGE_VERSION = '1.0.0';
+export const COMPILE_PACKAGE_VERSION = '1.1.0';
 
 // engine
 export type { CommandRunner, CompileInput, LatexEngine, MockEngineOptions } from './engine';

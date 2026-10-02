@@ -267,6 +267,34 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setHistoryOpen(true),
     },
     {
+      id: 'agent.research',
+      title: ctx.t('cmd.agentResearch'),
+      hint: ctx.t('hint.agent'),
+      run: () => {
+        void import('./dialogs').then(async ({ promptDialog }) => {
+          const task = await promptDialog(ctx.t('research.taskPrompt'));
+          if (task && task.trim()) void import('./researchAgents').then(({ runResearchAgents }) => runResearchAgents(task.trim()));
+        });
+      },
+    },
+    {
+      id: 'agent.usage',
+      title: ctx.t('cmd.agentUsage'),
+      hint: ctx.t('hint.view'),
+      run: () => useUiStore.getState().setUsageDialogOpen(true),
+    },
+    {
+      id: 'agent.plan',
+      title: ctx.t('cmd.agentPlan'),
+      hint: ctx.t('hint.agent'),
+      run: () => {
+        void import('./dialogs').then(async ({ promptDialog }) => {
+          const task = await promptDialog(ctx.t('plan.taskPrompt'));
+          if (task && task.trim()) void import('./aiActions').then(({ runPlannedTask }) => runPlannedTask(task.trim()));
+        });
+      },
+    },
+    {
       id: 'agent.newSession',
       title: ctx.t('cmd.newSession'),
       hint: ctx.t('hint.agent'),

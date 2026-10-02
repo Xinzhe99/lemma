@@ -667,6 +667,20 @@ const ROUTES: readonly DemoRoute[] = [
     '',
     '顺颂编安！'
   ].join('\n') },
+  { id: 'plan', keywords: ['输出执行计划'], script: [
+    '> ⚠️ 演示数据（内置示例，配置模型服务后为真实 AI 规划）',
+    '',
+    '```json',
+    '{"goal": "为投稿准备最终检查", "steps": [',
+    '  {"id": "s1", "title": "检查引用完整性", "detail": "扫描全文 cite 与 refs.bib 对账", "usesTools": ["citation.validate"]},',
+    '  {"id": "s2", "title": "格式与术语一致性", "detail": "术语表比对 + 章节编号检查"},',
+    '  {"id": "s3", "title": "生成检查报告", "detail": "汇总为结构化报告供确认"}',
+    ']}',
+    '```',
+  ].join('\\n') },
+  { id: 'plan-step', keywords: ['逐步骤说明'], script: [
+    '本步骤已完成（演示）：引用核查完成，3 处悬空引用已定位。',
+  ].join('\\n') },
 { id: 'w10-report', keywords: ['汇总前三步结果'], script: W10_REPORT },
   { id: 'w10-audit', keywords: ['逐项合规审查'], script: W10_AUDIT },
   { id: 'w10-compile-check', keywords: ['技术合规性'], script: W10_COMPILE },

@@ -84,6 +84,7 @@ export function App() {
   const citationPickerOpen = useUiStore((s) => s.citationPickerOpen);
   const reviewsImportOpen = useUiStore((s) => s.reviewsImportOpen);
   const externalDiffOpen = useUiStore((s) => s.externalDiffOpen);
+  const usageDialogOpen = useUiStore((s) => s.usageDialogOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -292,9 +293,19 @@ export function App() {
               >
                 {t('knowledge.notes')}
               </button>
+              <button
+                role="tab"
+                aria-selected={knowledgeTab === 'memory'}
+                className={knowledgeTab === 'memory' ? 'active' : ''}
+                onClick={() => setKnowledgeTab('memory')}
+              >
+                {t('knowledge.memory')}
+              </button>
             </div>
             {knowledgeTab === 'glossary' ? (
               <GlossaryPanel />
+            ) : knowledgeTab === 'memory' ? (
+              <LazyPanel file="MemoryPanel" labelKey="knowledge.memory" />
             ) : (
               <LazyPanel file="NotesPanel" labelKey="knowledge.notes" />
             )}
@@ -547,6 +558,8 @@ export function App() {
 
       {externalDiffOpen && <LazyFeatureDialog file="ExternalDiffDialog" onClose={() => useUiStore.getState().setExternalDiffOpen(false)} />}
 
+      {usageDialogOpen && <LazyFeatureDialog file="UsagePanel" onClose={() => useUiStore.getState().setUsageDialogOpen(false)} />}
+
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
       {tourOpen && <WelcomeTour onClose={() => setTourOpen(false)} />}
@@ -575,11 +588,12 @@ function LazyFeatureDialog({
     | 'BackupDialog'
     | 'StatsDialog'
     | 'ReviewsImportDialog'
-    | 'ExternalDiffDialog';
+    | 'ExternalDiffDialog'
+    | 'UsagePanel';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

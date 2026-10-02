@@ -1,5 +1,5 @@
 /** @scholarforge/editor —— WS-A：LaTeX 编辑器（CodeMirror 6） */
-export const EDITOR_PACKAGE_VERSION = '1.0.0';
+export const EDITOR_PACKAGE_VERSION = '1.1.0';
 
 // 语法支持
 export {
@@ -79,6 +79,20 @@ export {
   type Confusable,
   type ChinglishRule,
 } from './spellcheck';
+
+// 快速修复（spellcheck 命中的一键替换：候选解析纯函数 + hover 浮层扩展 + 会话级忽略集合）
+export {
+  buildFixOptions,
+  quickFixExtension,
+  quickFixPanelAt,
+  applyQuickFix,
+  ignoreWord,
+  getIgnoredWords,
+  clearIgnoredWords,
+  isWordIgnored,
+  type QuickFixIssue,
+  type QuickFixTarget,
+} from './quickFix';
 
 // 可视化表格：tabular 解析/生成（表格编辑器数据层）
 export {

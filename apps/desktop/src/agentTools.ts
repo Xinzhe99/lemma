@@ -19,6 +19,7 @@ import type { AgentMessage, ToolCallRequest, ToolDef } from '@scholarforge/share
 import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@scholarforge/knowledge';
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
+import { buildMemoryInjection } from './state/agentMemory';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from './projectDoc';
 import { requestToolApproval, type ApprovalFn } from './approval';
 import { resolveCompileEntry, runCompile } from './compileAction';
@@ -56,11 +57,16 @@ export async function buildContextPackMd(query: string): Promise<string> {
   const files = useWorkspaceStore.getState().files;
   const search = useLibraryStore.getState().searchKnowledge;
   const chunks = await search(query, 5);
+  // Agent 记忆注入点：审批历史学到的偏好 + 近期采纳统计（agentMemory store；空记忆时为 ''）
+  const memoryInjection = buildMemoryInjection();
   const pack = buildContextPack({
     outline: outlineMd(files),
     glossary: extractGlossary(combinedDoc(files)),
     relatedChunks: chunks,
-    projectMemory: ['演示项目约定：所有 AI 修改须经 diff 审批后落盘，引用必须本地可验证。'],
+    projectMemory: [
+      '演示项目约定：所有 AI 修改须经 diff 审批后落盘，引用必须本地可验证。',
+      ...(memoryInjection ? [memoryInjection] : []),
+    ],
   });
   return renderContextPackMd(pack);
 }

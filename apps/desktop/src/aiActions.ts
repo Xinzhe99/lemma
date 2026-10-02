@@ -1,7 +1,8 @@
 /**
  * AI 动作层：会话发送（Context Pack 注入 + 工具循环 + 引用核查护栏）、
  * 选区润色（走 diff 审批提案）、选中即问快捷动作、一键修编译错误
- * （读诊断 → 组装 prompt → 会话工具循环，tex.edit 落进阻塞审批卡）。
+ * （读诊断 → 组装 prompt → 会话工具循环，tex.edit 落进阻塞审批卡）、
+ * 计划模式（runPlannedTask 规划 → executePlan 逐步执行，见文末分区注释）。
  * AgentPanel 与编辑器选中工具条共用，避免循环依赖。
  */
 
@@ -21,6 +22,8 @@ import { resolveCompileEntry } from './compileAction';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from './agentTools';
 import { rejectPendingApproval } from './approval';
 import { buildPolishPrompt, extractLatexBody, rulePolish } from './polish';
+import { buildPlanPrompt, buildStepPrompt, parsePlan, type Plan } from './planMode';
+import { useAgentPlansStore } from './state/agentPlans';
 
 export const CITATION_RULE =
   '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n可用工具：library.search_fulltext（检索本地文献库）、project.context（项目上下文）、citation.validate（引用核验）、tex.last_errors（编译日志）、tex.edit（修改稿件，需用户审批 diff 后生效）、citation.add（添加参考文献，需审批）、snapshot.create（创建快照）、tex.compile（触发编译）。写级操作会弹出 diff 审批卡，用户裁决结果会回传给你；被拒绝时请勿重试同一修改。\n\n（演示模式说明：若当前未配置模型服务，会话与工作流各步骤的输出为内置示例数据——每份开头有「演示数据」声明——仅用于零配置体验流程，不代表模型真实能力；配置后即为真实生成。）';
@@ -434,4 +437,216 @@ export async function fixCompileErrors(): Promise<void> {
     active: ws.activeTab,
   });
   await sendChatMessage(prompt);
+}
+
+// ---------------------------------------------------------------------------
+// 计划模式（Plan Mode）：先规划后自主执行的多步能力。
+// 复用 Agent 会话通道（乐观消息 + appendDelta 流式 + finishSession），
+// 不另起独立模式；计划是「特殊 assistant 消息 + agentPlans store 的执行态」。
+// 流程：runPlannedTask（规划轮，纯文本不带工具）→ parsePlan → upsert 到
+// agentPlans（键 = 承载计划的 assistant 消息 id）→ 用户在 PlanCard 点
+// 【批准并执行】→ executePlan 逐步 buildStepPrompt + runAgentTurn（真实
+// provider 带 ENABLED_TOOLS：写级工具照常落阻塞 diff 审批卡，不绕过任何
+// 安全机制；演示模式不带工具）→ 每步结果写回 statuses/outputs →
+// 全部完结 appendDelta 汇总消息。UI 接线（AgentPanel/命令/演示路由）见报告。
+// ---------------------------------------------------------------------------
+
+/** 计划执行轮的 AbortController（abortPlan 停止当前计划；与 chatAbort 同步指向，
+ *  让 ChatPanel 的停止按钮在计划轮同样生效） */
+let planAbort: AbortController | null = null;
+
+/** 中止当前计划（规划轮或逐步执行轮） */
+export function abortPlan(): void {
+  planAbort?.abort();
+  planAbort = null;
+}
+
+/** 挂起中的 executePlan（按 msgId 去重：批准/重试连点不会并发驱动同一计划） */
+const executingPlans = new Set<string>();
+
+/** 找到包含指定消息的会话（计划挂在 assistant 消息上，执行态里不冗余存 sessionId） */
+function sessionOfMessage(msgId: string): string | null {
+  const s = useAgentHubStore
+    .getState()
+    .sessions.find((sess) => sess.messages.some((m) => m.id === msgId));
+  return s?.id ?? null;
+}
+
+/**
+ * 计划模式入口：用户提出复杂任务 → 规划轮产出计划 JSON。
+ * 规划轮为纯文本生成（tools 空：计划只规划不执行），回复流式呈现；
+ * parsePlan 命中 → 计划登记到 agentPlans（键 = 刚完成的 assistant 消息 id），
+ * 等待用户在 PlanCard 批准；未命中（模型给了普通回答/演示模式未收录路由）→
+ * 就此结束，普通回答已流式呈现，不产出计划卡。
+ */
+export async function runPlannedTask(userRequest: string): Promise<void> {
+  const store = () => useAgentHubStore.getState();
+  let sessionId = store().activeSessionId;
+  if (!sessionId) sessionId = store().newSession('host');
+  if (store().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return;
+
+  const contextMd = await buildContextPackMd(userRequest);
+  const system = contextMd + CITATION_RULE;
+  // 与 sendChatMessage 一致：历史取除最近一轮外的 user/assistant 消息
+  const history = (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .slice(0, -2);
+  store().sendMessage(sessionId, userRequest.trim());
+
+  const { provider, model } = resolveProvider();
+  const abort = new AbortController();
+  planAbort = abort;
+  chatAbort = abort;
+  let acc = '';
+  try {
+    acc = await runAgentTurn({
+      provider,
+      model,
+      system,
+      history,
+      user: buildPlanPrompt(userRequest, contextMd),
+      tools: [], // 规划轮只规划不执行
+      signal: abort.signal,
+      onDelta: (delta) => store().appendDelta(sessionId, delta),
+    });
+  } catch (e) {
+    store().appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    if (planAbort === abort) planAbort = null;
+    if (chatAbort === abort) chatAbort = null;
+    rejectPendingApproval('会话已中止或结束，本次修改未生效');
+  }
+
+  const plan = parsePlan(acc);
+  if (!plan) {
+    store().finishSession(sessionId, 'idle');
+    return; // 普通回答：原文已流式呈现，无计划卡
+  }
+
+  // msgId 取刚完成的 assistant 消息 id（从 store 读最后一条 assistant）
+  const session = store().sessions.find((s) => s.id === sessionId);
+  const assistantId = [...(session?.messages ?? [])].reverse().find((m) => m.role === 'assistant')?.id;
+  if (assistantId) useAgentPlansStore.getState().upsert(assistantId, plan);
+  store().finishSession(sessionId, 'idle');
+}
+
+/** 逐步执行的前步产出过滤：只取当前步骤之前、有产出的步骤（buildStepPrompt 内再裁预算） */
+function priorOutputsOf(plan: Plan, outputs: Record<string, string>, stepId: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const s of plan.steps) {
+    if (s.id === stepId) break;
+    if (outputs[s.id]) out[s.id] = outputs[s.id];
+  }
+  return out;
+}
+
+/**
+ * 执行（或续跑/重试）一份已批准的计划：从首个 pending/failed 步骤起逐步执行。
+ * 每步走 runAgentTurn（真实 provider 带 ENABLED_TOOLS → 写级自动进阻塞审批）；
+ * 单步失败 → failed 并停（用户可跳过续跑/重试/中止）；全部完结 → 会话追加汇总
+ * 消息「✅ 计划完成：goal（N 步）」。步骤正文不刷进会话（结果落在 PlanCard
+ * 清单），工具调用卡附着在计划消息上保留操作轨迹。
+ */
+export async function executePlan(msgId: string): Promise<void> {
+  if (executingPlans.has(msgId)) return; // 并发保护：批准/重试连点只驱动一次
+  const plansStore = useAgentPlansStore.getState();
+  const execution = plansStore.plans[msgId];
+  if (!execution) return;
+  const sessionId = sessionOfMessage(msgId);
+  if (!sessionId) return;
+  if (useAgentHubStore.getState().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return;
+
+  executingPlans.add(msgId);
+  const store = () => useAgentHubStore.getState();
+  store().finishSession(sessionId, 'streaming');
+
+  const system = (await buildContextPackMd(execution.plan.goal)) + CITATION_RULE;
+  const { provider, model, real } = resolveProvider();
+  const abort = new AbortController();
+  planAbort = abort;
+  chatAbort = abort;
+
+  let stopped = false; // 失败/中止后停轮（区别于正常完结）
+  let aborted = false;
+  try {
+    for (;;) {
+      const exec = useAgentPlansStore.getState().plans[msgId];
+      if (!exec) break; // 计划被清理（新会话等）
+      const step = exec.plan.steps.find((s) => (exec.statuses[s.id] ?? 'pending') === 'failed')
+        ?? exec.plan.steps.find((s) => (exec.statuses[s.id] ?? 'pending') === 'pending');
+      if (!step) break; // 全部 done/skipped：正常完结
+
+      useAgentPlansStore.getState().start(msgId, step.id);
+      try {
+        const acc = await runAgentTurn({
+          provider,
+          model,
+          system,
+          history: [],
+          user: buildStepPrompt(exec.plan, step, priorOutputsOf(exec.plan, exec.outputs, step.id), exec.statuses),
+          tools: real ? ENABLED_TOOLS : [],
+          signal: abort.signal,
+          // 步骤正文不进会话（落在 PlanCard）；工具调用卡附着在计划消息上
+          onToolCall: (call) => store().appendToolCall(sessionId, call),
+          onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
+        });
+        if (abort.signal.aborted) {
+          aborted = true;
+          useAgentPlansStore.getState().failStep(msgId, step.id, '已中止：用户停止了计划执行');
+          stopped = true;
+          break;
+        }
+        const output = acc.trim() || '（本步无文本产出）';
+        // 学术诚信护栏：步骤产出里的引用核查（告警并入本步产出，PlanCard 可见）
+        const validKeys = [
+          ...new Set([
+            ...useLibraryStore.getState().papers.map((p) => p.citekey),
+            ...bibCitekeys(useWorkspaceStore.getState().files),
+          ]),
+        ];
+        const check = validateCitations(acc, validKeys);
+        const finalOutput = check.ok
+          ? output
+          : `${output}\n\n⚠️ 引用核查：以下引用未在本地文献库或 refs.bib 中找到，请核实：${check.invalid.map((k) => `[${k}]`).join(' ')}`;
+        useAgentPlansStore.getState().finishStep(msgId, step.id, finalOutput);
+      } catch (e) {
+        useAgentPlansStore.getState().failStep(msgId, step.id, e instanceof Error ? e.message : String(e));
+        stopped = true;
+        break; // 单步失败 → 停轮，用户决定跳过/重试/中止
+      }
+    }
+  } finally {
+    executingPlans.delete(msgId);
+    if (planAbort === abort) planAbort = null;
+    if (chatAbort === abort) chatAbort = null;
+    // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
+    rejectPendingApproval('计划执行已结束或中止，未决修改未生效');
+  }
+
+  const exec = useAgentPlansStore.getState().plans[msgId];
+  if (stopped) {
+    if (aborted) store().appendDelta(sessionId, `\n\n⏹️ 计划已中止：${execution.plan.goal}`);
+  } else if (exec) {
+    const total = exec.plan.steps.length;
+    const skipped = exec.plan.steps.filter((s) => exec.statuses[s.id] === 'skipped').length;
+    store().appendDelta(
+      sessionId,
+      `\n\n✅ 计划完成：${exec.plan.goal}（${total} 步${skipped > 0 ? `，${skipped} 步跳过` : ''}）`,
+    );
+  }
+  store().finishSession(sessionId, 'idle');
+}
+
+/**
+ * 跳过失败步骤并续跑剩余步骤（PlanCard【跳过失败步】）。
+ * stepId 缺省取第一个 failed 步骤；无失败步骤时仅续跑（等同 executePlan）。
+ */
+export async function skipFailedStep(msgId: string, stepId?: string): Promise<void> {
+  const exec = useAgentPlansStore.getState().plans[msgId];
+  if (!exec) return;
+  const target =
+    (stepId && (exec.statuses[stepId] === 'failed' || exec.statuses[stepId] === 'running') ? stepId : null)
+    ?? exec.plan.steps.find((s) => exec.statuses[s.id] === 'failed')?.id;
+  if (target) useAgentPlansStore.getState().skipStep(msgId, target);
+  await executePlan(msgId);
 }

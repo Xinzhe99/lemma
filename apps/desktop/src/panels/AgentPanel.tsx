@@ -12,6 +12,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUILTIN_WORKFLOWS,
+  type ChatLabels,
+  type MentionItem,
+  type SlashMenuItem,
   ChatPanel,
   WorkflowRun,
   WorkflowRunView,
@@ -31,8 +34,12 @@ import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from '../agentTools';
 import { resolveToolApproval, rejectPendingApproval } from '../approval';
 import {
   abortChat,
+  abortPlan,
+  executePlan,
   resolveProvider,
+  runPlannedTask,
   sendChatMessage,
+  skipFailedStep,
   CITATION_RULE,
   polishSelection,
 } from '../aiActions';
@@ -40,6 +47,11 @@ import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } 
 import { PROVIDER_PRESETS, findPreset } from '../providers/presets';
 import { testProvider, type TestResult } from '../providers/connectionTest';
 import { ReviewPanel, RebuttalPanel } from './ReviewPanel';
+import { useAgentPlansStore } from '../state/agentPlans';
+import { PlanCard } from '../components/PlanCard';
+import { DiffApprovalCard2 } from '../components/DiffApprovalCard2';
+import { useLibraryStore } from '../state/libraryStore';
+import { recordApproval } from '../state/agentMemory';
 import { ChecklistReport } from './ChecklistReport';
 import { WorkflowLauncher } from '../components/WorkflowLauncher';
 import './agent-extra.css';
@@ -211,6 +223,9 @@ export function AgentPanel() {
   const session = sessions.find((s) => s.id === activeSessionId) ?? sessions[0] ?? null;
 
   const providerLabel = useMemo(() => resolveProvider().label, [providers, activeProviderId]);
+  const plans = useAgentPlansStore((s) => s.plans);
+  const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
+  const libraryPapers = useLibraryStore((s) => s.papers);
 
   // ------------------------------------------------------------------
   // 激活器：providers 为空时的快速配置卡（预设 + Key + 测试 + 保存并激活）。
@@ -374,6 +389,7 @@ export function AgentPanel() {
 
   const discardProposal = () => {
     const token = proposal?.token;
+    if (proposal) recordApproval(proposal, false);
     clearProposal();
     if (token) {
       resolveToolApproval(token, false);
@@ -615,27 +631,75 @@ export function AgentPanel() {
         </div>
         {note && <p className="sf-agent-note">{note}</p>}
         {proposal && (
-          <div className="sf-agent-approval">
-            <div className="sf-agent-run-head">
-              <strong>{proposal.label}</strong>
-              <span className="sf-chip dim">{proposal.via}</span>
-              <span className={`sf-chip ${proposal.token ? 'err' : 'warn'}`}>
-                {proposal.token ? t.agentChip : t.pendingChip}
-              </span>
-            </div>
-            <DiffView before={proposal.before} after={proposal.after} filename={proposal.file} />
-            <div className="sf-lib-dialog-actions">
-              <button className="sf-btn" onClick={discardProposal}>
-                {proposal.token ? t.discardToken : t.discard}
-              </button>
-              <button className="sf-btn sf-btn--primary" onClick={applyProposal}>
-                {proposal.token ? t.applyToken : t.apply}
-              </button>
-            </div>
-          </div>
+          <DiffApprovalCard2
+            proposal={proposal}
+            lang={language}
+            explanation={approvalExplanation}
+            onAccept={(after, accepted) => {
+              const ws = useWorkspaceStore.getState();
+              ws.snapshotFile(proposal.file, `${proposal.label}前的快照`);
+              ws.updateFile(proposal.file, after);
+              const token = proposal.token;
+              recordApproval(proposal, true, accepted === 'all' ? undefined : accepted.length);
+              clearProposal();
+              setApprovalExplanation(undefined);
+              if (token) {
+                resolveToolApproval(
+                  token,
+                  true,
+                  accepted === 'all' ? '用户已采纳全部修改' : `用户部分采纳（${accepted.length} hunk）`,
+                );
+              }
+              setNote(
+                token
+                  ? '已采纳并回传给模型（agent 将基于修改后的稿件继续）'
+                  : `已采纳「${proposal.label}」并自动创建快照（编辑器标签栏「历史」可恢复）`,
+              );
+            }}
+            onReject={() => discardProposal()}
+            onRequestExplanation={() => {
+              setApprovalExplanation('');
+              void import('../aiActions').then(async ({ resolveProvider }) => {
+                const { provider, model, real } = resolveProvider();
+                if (!real) {
+                  setApprovalExplanation('（演示模式）变更解释：本 diff 将冗余表达替换为更简洁的学术用语，未改动引用与数据。');
+                  return;
+                }
+                try {
+                  const { runAgentTurn } = await import('../agentTools');
+                  const reply = await runAgentTurn({
+                    provider, model, system: '你是学术写作助手。',
+                    history: [],
+                    user: `用不超过120字解释这组修改的理由，要点式：
+
+修改标签：${proposal.label}
+修改前片段：
+${proposal.before.slice(0, 800)}
+
+修改后片段：
+${proposal.after.slice(0, 800)}`,
+                  });
+                  setApprovalExplanation(reply || '（无解释返回）');
+                } catch (e) {
+                  setApprovalExplanation(`解释生成失败：${e instanceof Error ? e.message : String(e)}`);
+                }
+              });
+            }}
+          />
         )}
       </div>
 
+      {Object.entries(plans).slice(-1).map(([msgId, exec]) => (
+        <PlanCard
+          key={msgId}
+          msgId={msgId}
+          execution={exec}
+          onApprove={() => void executePlan(msgId)}
+          onSkip={(stepId) => void skipFailedStep(msgId, stepId)}
+          onRetry={() => void executePlan(msgId)}
+          onAbort={() => abortPlan()}
+        />
+      ))}
       <div className="sf-agent-chat">
         {session ? (
           <ChatPanel
@@ -643,6 +707,30 @@ export function AgentPanel() {
             onSend={(text) => send(text)}
             onStop={() => abortChat()}
             placeholder={t.chatPlaceholder}
+            onCitekeyClick={(key) => {
+              if (libraryPapers.some((p) => p.citekey === key)) useUiStore.getState().setSidebarTab('library');
+            }}
+            onSlashWorkflow={(id) => {
+              if (id === '__clear') {
+                if (session) useAgentHubStore.setState({
+                  sessions: useAgentHubStore.getState().sessions.map((s) =>
+                    s.id === session.id ? { ...s, messages: [], title: '新会话' } : s),
+                });
+                return;
+              }
+              useUiStore.getState().launchWorkflow(id);
+            }}
+            onRegenerate={() => {
+              if (!session) return;
+              const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
+              if (lastUser) void sendChatMessage(lastUser.content);
+            }}
+            onEditResend={(text) => send(text)}
+            slashItems={BUILTIN_WORKFLOWS.map((w) => ({ id: w.id, label: `/${w.name}`, hint: w.description }))}
+            mentionItems={[
+              ...libraryPapers.slice(0, 200).map((p) => ({ id: p.id, label: p.citekey, type: 'paper' as const })),
+              ...Object.keys(useWorkspaceStore.getState().files).map((f) => ({ id: f, label: f, type: 'file' as const })),
+            ]}
           />
         ) : (
           <p className="placeholder">{t.sessionInit}</p>

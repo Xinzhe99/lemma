@@ -350,3 +350,342 @@
   font-variant-numeric: tabular-nums;
   color: var(--fg-0, #1a1a1a);
 }
+
+/* ==================================================================
+ * Chat 面板体验升级：markdown 富渲染（sf-ah-md-*）/ 消息操作条 /
+ * 编辑重发 / slash 命令与 @ 引用菜单
+ * ================================================================== */
+
+/* ---- markdown 富渲染 ---- */
+.sf-ah-md {
+  min-width: 0;
+}
+
+.sf-ah-md > :first-child {
+  margin-top: 0;
+}
+
+.sf-ah-md > :last-child {
+  margin-bottom: 0;
+}
+
+.sf-ah-md-p {
+  margin: 6px 0;
+}
+
+.sf-ah-md-h {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.sf-ah-md-h1 {
+  font-size: 17px;
+}
+
+.sf-ah-md-h2 {
+  font-size: 15.5px;
+}
+
+.sf-ah-md-h3 {
+  font-size: 14px;
+}
+
+.sf-ah-md-h4 {
+  font-size: 13px;
+}
+
+.sf-ah-md-hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--border, #e9e9ec);
+}
+
+.sf-ah-md-quote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--accent, #10a37f);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--accent, #10a37f) 5%, transparent);
+  color: var(--fg-1, #70707a);
+}
+
+.sf-ah-md-list {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.sf-ah-md-list li {
+  margin: 2px 0;
+}
+
+.sf-ah-md-code {
+  margin: 8px 0;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-1, #f7f7f8);
+  overflow: hidden;
+}
+
+.sf-ah-md-code-lang {
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--border, #e9e9ec);
+  background: var(--bg-3, #f0f0f2);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  color: var(--fg-2, #a0a0aa);
+}
+
+.sf-ah-md-pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+  color: var(--fg-1, #70707a);
+}
+
+.sf-ah-md-code-inline {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-3, #f0f0f2);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--fg-0, #1a1a1a);
+}
+
+.sf-ah-md-tablewrap {
+  max-width: 100%;
+  margin: 8px 0;
+  overflow-x: auto;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: var(--radius, 8px);
+}
+
+.sf-ah-md-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.sf-ah-md-table th,
+.sf-ah-md-table td {
+  padding: 5px 12px;
+  border: 1px solid var(--border, #e9e9ec);
+}
+
+.sf-ah-md-table th {
+  background: var(--bg-3, #f0f0f2);
+  font-weight: 600;
+  color: var(--fg-0, #1a1a1a);
+}
+
+.sf-ah-md-table td {
+  color: var(--fg-1, #70707a);
+}
+
+.sf-ah-md a {
+  color: var(--accent-dim, #0b815f);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sf-ah-md del {
+  color: var(--fg-2, #a0a0aa);
+}
+
+/* 引用 chip：可点按钮 / 静态 span 两种形态 */
+.sf-ah-md-cite {
+  display: inline-block;
+  padding: 0 8px;
+  margin: 0 1px;
+  border: 1px solid color-mix(in srgb, var(--accent, #10a37f) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #10a37f) 8%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--accent-dim, #0b815f);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.sf-ah-md-cite:hover {
+  background: color-mix(in srgb, var(--accent, #10a37f) 16%, transparent);
+  border-color: var(--accent, #10a37f);
+}
+
+.sf-ah-md-cite--plain {
+  cursor: default;
+}
+
+/* ---- 消息行 + hover 操作条 ---- */
+.sf-ah-msg-row {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sf-ah-msg-row--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.sf-ah-msg-row--assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.sf-ah-msg-row--system {
+  align-self: center;
+  align-items: center;
+}
+
+.sf-ah-msg-row--tool {
+  align-self: stretch;
+  align-items: stretch;
+}
+
+.sf-ah-msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.sf-ah-msg-row:hover .sf-ah-msg-actions,
+.sf-ah-msg-actions:focus-within {
+  opacity: 1;
+}
+
+.sf-ah-act {
+  padding: 2px 8px;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: 6px;
+  background: var(--bg-2, #ffffff);
+  color: var(--fg-2, #a0a0aa);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.sf-ah-act:hover {
+  background: var(--bg-3, #f0f0f2);
+  border-color: var(--border-strong, #d9d9de);
+  color: var(--fg-0, #1a1a1a);
+}
+
+/* ---- 编辑重发 ---- */
+.sf-ah-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.sf-ah-edit textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent, #10a37f);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-2, #ffffff);
+  color: var(--fg-0, #1a1a1a);
+  font: inherit;
+  resize: vertical;
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(16, 163, 127, 0.25));
+}
+
+.sf-ah-edit textarea:focus {
+  outline: none;
+}
+
+.sf-ah-edit-hint {
+  font-size: 11px;
+  color: var(--fg-2, #a0a0aa);
+}
+
+/* ---- 输入区包装（slash / @ 菜单锚点） ---- */
+.sf-ah-input-wrap {
+  position: relative;
+}
+
+.sf-ah-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 12px;
+  right: 12px;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: 10px;
+  background: var(--bg-2, #ffffff);
+  box-shadow: var(--shadow-card, 0 4px 16px rgba(0, 0, 0, 0.12));
+  z-index: 30;
+}
+
+.sf-ah-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-0, #1a1a1a);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sf-ah-menu-item--active {
+  background: var(--bg-3, #f0f0f2);
+}
+
+.sf-ah-menu-label {
+  flex: none;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-ah-menu--slash .sf-ah-menu-label {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.sf-ah-menu-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--fg-2, #a0a0aa);
+}
+
+.sf-ah-menu-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+}
+
+.sf-ah-menu-badge--paper {
+  background: color-mix(in srgb, var(--violet, #8e6bd8) 14%, transparent);
+  color: var(--violet, #8e6bd8);
+}
+
+.sf-ah-menu-badge--file {
+  background: color-mix(in srgb, var(--accent, #10a37f) 12%, transparent);
+  color: var(--accent-dim, #0b815f);
+}

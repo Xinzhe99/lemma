@@ -2290,3 +2290,296 @@ kbd {
 .sf-focus .sf-panel:has(> .console) {
   display: none !important;
 }
+
+/* ==========================================================================
+   diff 审批卡 v2（DiffApprovalCard2）：并排 grid / hunk 头 checkbox / ±徽标 /
+   折叠解释。亮暗经主题变量（增绿删红语义沿用编辑器 DiffView）。
+   ========================================================================== */
+
+.sf-approval-card {
+  --sf-ap-add-fg: #157347;
+  --sf-ap-add-bg: color-mix(in srgb, var(--ok) 13%, transparent);
+  --sf-ap-del-fg: #b03a36;
+  --sf-ap-del-bg: color-mix(in srgb, var(--err) 11%, transparent);
+  --sf-ap-ctx-fg: var(--fg-1);
+  --sf-ap-no-fg: var(--fg-2);
+  --sf-ap-diff-bg: var(--bg-1);
+  --sf-ap-diff-border: var(--border);
+  --sf-ap-hunk-bg: color-mix(in srgb, var(--fg-2) 7%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 暗色：对齐编辑器 DiffView 的取色 */
+[data-theme='dark'] .sf-approval-card {
+  --sf-ap-add-fg: #7ee2a8;
+  --sf-ap-del-fg: #ff7a85;
+  --sf-ap-ctx-fg: #9aa3b8;
+  --sf-ap-no-fg: #4a5160;
+  --sf-ap-diff-bg: #14161d;
+  --sf-ap-diff-border: #262a36;
+  --sf-ap-hunk-bg: rgba(255, 255, 255, 0.04);
+}
+
+/* 审计信息行：file（等宽截断）/ 行数统计 / ±徽标 */
+.sf-approval-audit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--fg-1);
+}
+
+.sf-approval-file {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-1);
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-approval-linestat {
+  white-space: nowrap;
+}
+
+.sf-approval-badges {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.sf-approval-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+}
+
+.sf-approval-badge--add {
+  color: var(--sf-ap-add-fg);
+  background: var(--sf-ap-add-bg);
+}
+
+.sf-approval-badge--del {
+  color: var(--sf-ap-del-fg);
+  background: var(--sf-ap-del-bg);
+}
+
+.sf-approval-badge--dim {
+  color: var(--fg-2);
+  border-color: var(--border);
+}
+
+/* 变更解释：折叠展示 / 请求入口 */
+.sf-approval-explain {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.sf-approval-explain > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--fg-0);
+  user-select: none;
+}
+
+.sf-approval-explain-body {
+  margin: 6px 0 2px;
+  color: var(--fg-1);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sf-approval-explain-ask {
+  display: flex;
+}
+
+.sf-approval-why {
+  font-size: 11px;
+}
+
+/* 视图切换：分段控件 */
+.sf-approval-toolbar {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  width: max-content;
+}
+
+.sf-approval-seg {
+  all: unset;
+  cursor: pointer;
+  padding: 3px 12px;
+  font-size: 11px;
+  color: var(--fg-1);
+  background: var(--bg-0);
+}
+
+.sf-approval-seg + .sf-approval-seg {
+  border-left: 1px solid var(--border);
+}
+
+.sf-approval-seg:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+
+.sf-approval-seg[aria-pressed='true'] {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+}
+
+/* diff 主体：等宽、限高滚动 */
+.sf-approval-diff {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  background: var(--sf-ap-diff-bg);
+  border: 1px solid var(--sf-ap-diff-border);
+  border-radius: var(--radius);
+  overflow: auto;
+  max-height: 38vh;
+  color: var(--fg-0);
+}
+
+/* 统一视图：行号双列 + 文本 */
+.sf-approval-row {
+  display: grid;
+  grid-template-columns: 3.2em 3.2em 1fr;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 1.55em;
+}
+
+.sf-approval-row[data-kind='add'] {
+  color: var(--sf-ap-add-fg);
+  background: var(--sf-ap-add-bg);
+}
+
+.sf-approval-row[data-kind='del'] {
+  color: var(--sf-ap-del-fg);
+  background: var(--sf-ap-del-bg);
+}
+
+.sf-approval-row[data-kind='ctx'] {
+  color: var(--sf-ap-ctx-fg);
+}
+
+.sf-approval-no {
+  flex: none;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--sf-ap-no-fg);
+  user-select: none;
+}
+
+.sf-approval-text {
+  padding-right: 10px;
+}
+
+/* 并排视图：行号 | 左文 | 行号 | 右文，中缝分隔 */
+.sf-approval-pair {
+  display: grid;
+  grid-template-columns: 3.2em 1fr 3.2em 1fr;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 1.55em;
+}
+
+.sf-approval-pair > .sf-approval-no:nth-child(3) {
+  border-left: 1px solid var(--sf-ap-diff-border);
+}
+
+.sf-approval-cell {
+  padding-right: 10px;
+  min-width: 0;
+}
+
+.sf-approval-cell--del {
+  color: var(--sf-ap-del-fg);
+  background: var(--sf-ap-del-bg);
+}
+
+.sf-approval-cell--add {
+  color: var(--sf-ap-add-fg);
+  background: var(--sf-ap-add-bg);
+}
+
+.sf-approval-cell[data-kind='ctx'] {
+  color: var(--sf-ap-ctx-fg);
+}
+
+.sf-approval-cell--pad {
+  background: color-mix(in srgb, var(--fg-2) 5%, transparent);
+}
+
+/* hunk 头：checkbox + @@ 行号 + ±徽标；取消勾选整块压暗 */
+.sf-approval-hunk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  background: var(--sf-ap-hunk-bg);
+  border-block: 1px solid var(--sf-ap-diff-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sf-approval-hunk-head.is-off {
+  opacity: 0.45;
+}
+
+.sf-approval-hunk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.sf-approval-hunk-check input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.sf-approval-hunk-header {
+  font-size: 11px;
+  color: var(--fg-1);
+  user-select: none;
+}
+
+.sf-approval-hunk-head .sf-approval-badges {
+  margin-left: auto;
+}
+
+.sf-approval-hunk-head .sf-approval-badge {
+  padding: 1px 5px;
+}
+
+/* 空隙折叠标记 */
+.sf-approval-fold {
+  text-align: center;
+  font-size: 10px;
+  color: var(--fg-2);
+  padding: 2px 0;
+  user-select: none;
+  letter-spacing: 0.04em;
+}
+
+/* 处置按钮行 */
+.sf-approval-actions {
+  margin-top: 2px;
+}

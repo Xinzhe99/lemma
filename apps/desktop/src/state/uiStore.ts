@@ -7,7 +7,7 @@ import { create } from 'zustand';
 
 export type SidebarTab = 'home' | 'outline' | 'files' | 'citations' | 'library' | 'knowledge' | 'submit' | 'comments';
 /** knowledge 页签内的子页签：术语（静态）/ 笔记（动态加载） */
-export type KnowledgeTab = 'glossary' | 'notes';
+export type KnowledgeTab = 'glossary' | 'notes' | 'memory';
 export type LibraryDialog = null | 'bibtex' | 'fetch';
 export type LibraryMode = 'list' | 'search' | 'discover';
 export type AgentAction = 'polish' | 'draft' | null;
@@ -67,6 +67,8 @@ interface UiState {
   reviewsImportOpen: boolean;
   /** 外部版本对比（导师改稿 vs 当前稿） */
   externalDiffOpen: boolean;
+  /** Agent 用量与成本面板 */
+  usageDialogOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -102,6 +104,7 @@ interface UiState {
   setCitationPickerOpen(open: boolean): void;
   setReviewsImportOpen(open: boolean): void;
   setExternalDiffOpen(open: boolean): void;
+  setUsageDialogOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -134,6 +137,7 @@ export const useUiStore = create<UiState>((set) => ({
   citationPickerOpen: false,
   reviewsImportOpen: false,
   externalDiffOpen: false,
+  usageDialogOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -163,6 +167,7 @@ export const useUiStore = create<UiState>((set) => ({
   setCitationPickerOpen: (open) => set({ citationPickerOpen: open }),
   setReviewsImportOpen: (open) => set({ reviewsImportOpen: open }),
   setExternalDiffOpen: (open) => set({ externalDiffOpen: open }),
+  setUsageDialogOpen: (open) => set({ usageDialogOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),

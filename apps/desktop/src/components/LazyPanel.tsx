@@ -9,9 +9,9 @@ import { Component, Suspense, lazy, type ComponentType, type ReactNode } from 'r
 import { useT } from '../i18n';
 
 /** 约定导出名与文件名一致（NotesPanel.tsx → export NotesPanel） */
-type LazyPanelFile = 'NotesPanel' | 'SubmitPanel' | 'CommentsPanel' | 'Dashboard';
+type LazyPanelFile = 'NotesPanel' | 'SubmitPanel' | 'CommentsPanel' | 'Dashboard' | 'MemoryPanel';
 
-const panelModules = import.meta.glob<Record<string, unknown>>('../panels/{NotesPanel,SubmitPanel,CommentsPanel,Dashboard}.tsx');
+const panelModules = import.meta.glob<Record<string, unknown>>('../panels/{NotesPanel,SubmitPanel,CommentsPanel,Dashboard,MemoryPanel}.tsx');
 
 const lazyCache = new Map<LazyPanelFile, React.LazyExoticComponent<ComponentType>>();
 
