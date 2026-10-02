@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Cpu, Globe2, Info, Palette, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useT } from '../i18n';
+import { isCliAgentAvailable, tauriCliRunner } from '../cliAgent';
 import { confirmDialog } from '../dialogs';
 import {
   useSettingsStore,
@@ -82,6 +83,15 @@ const ACTIVATION: Record<'zh' | 'en', ActivationDict> = {
   },
 };
 
+/** CLI 配置输入框样式（沿用 sf-input 视觉，但类名独立：SettingsDialog 零回归测试按类名断言） */
+const CLI_INPUT_STYLE: React.CSSProperties = {
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)',
+  padding: '4px 8px',
+  fontSize: 12.5,
+  background: 'var(--bg-0)',
+};
+
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
   const providers = useSettingsStore((s) => s.providers);
@@ -90,6 +100,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const language = useSettingsStore((s) => s.language);
   const embeddingModel = useSettingsStore((s) => s.embeddingModel);
   const setEmbeddingModel = useSettingsStore((s) => s.setEmbeddingModel);
+  const agentEngine = useSettingsStore((s) => s.agentEngine);
+  const setAgentEngine = useSettingsStore((s) => s.setAgentEngine);
+  const cliAgent = useSettingsStore((s) => s.cliAgent);
+  const setCliAgent = useSettingsStore((s) => s.setCliAgent);
   const addProvider = useSettingsStore((s) => s.addProvider);
   const updateProvider = useSettingsStore((s) => s.updateProvider);
   const removeProvider = useSettingsStore((s) => s.removeProvider);
@@ -98,6 +112,19 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const setLanguage = useSettingsStore((s) => s.setLanguage);
 
   const [tab, setTab] = useState<DialogTab>('providers');
+  const [cliTest, setCliTest] = useState<string | null>(null);
+  const cliAvailable = isCliAgentAvailable();
+
+  const probeCli = async (): Promise<void> => {
+    setCliTest('…');
+    try {
+      const r = await tauriCliRunner.run(cliAgent.command.trim(), ['--version']);
+      const ver = (r.stdout || r.stderr).trim().split('\n')[0]?.slice(0, 60) ?? '';
+      setCliTest(r.code === 0 ? t('settings.cliTestOk', { v: ver || 'ok' }) : t('settings.cliTestFail', { e: `exit ${r.code}` }));
+    } catch (e) {
+      setCliTest(t('settings.cliTestFail', { e: e instanceof Error ? e.message : String(e) }));
+    }
+  };
   const [form, setForm] = useState<ProviderForm | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -360,6 +387,68 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <p className="sf-embedding-hint">{t('settings.embeddingHint')}</p>
+
+              {/* —— Agent 引擎选择 + CLI agent 桥（v1.5.0） —— */}
+              <div className="sf-appearance-row sf-engine-row">
+                <span>{t('settings.engine')}</span>
+                <div className="sf-segment">
+                  {(['auto', 'api', 'cli'] as const).map((e) => (
+                    <button key={e} className={agentEngine === e ? 'active' : ''} onClick={() => setAgentEngine(e)}>
+                      {t(`settings.engine.${e}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sf-cli-block" style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10, display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Cpu size={12} />
+                  <strong style={{ fontSize: 12.5 }}>{t('settings.cliTitle')}</strong>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, marginLeft: 'auto' }}>
+                    <input
+                      type="checkbox"
+                      checked={cliAgent.enabled}
+                      disabled={!cliAvailable}
+                      onChange={(e) => setCliAgent({ enabled: e.target.checked })}
+                    />
+                    {t('settings.cliEnable')}
+                  </label>
+                </div>
+                {!cliAvailable && <p style={{ margin: 0, fontSize: 11, color: 'var(--warn)' }}>{t('settings.cliUnavailable')}</p>}
+                <div className="sf-cli-grid" style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8 }}>
+                  <label style={{ display: 'grid', gap: 4, fontSize: 11.5, color: 'var(--fg-2)' }}>
+                    <span>{t('settings.cliLabel')}</span>
+                    <input className="sf-cli-input" style={CLI_INPUT_STYLE} value={cliAgent.label} onChange={(e) => setCliAgent({ label: e.target.value })} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 4, fontSize: 11.5, color: 'var(--fg-2)' }}>
+                    <span>{t('settings.cliCommand')}</span>
+                    <input
+                      className="sf-cli-input"
+                      style={CLI_INPUT_STYLE}
+                      value={cliAgent.command}
+                      placeholder="codex"
+                      onChange={(e) => setCliAgent({ command: e.target.value })}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 4, fontSize: 11.5, color: 'var(--fg-2)', gridColumn: '1 / -1' }}>
+                    <span>{t('settings.cliTemplate')}</span>
+                    <input
+                      className="sf-cli-input"
+                      style={CLI_INPUT_STYLE}
+                      value={cliAgent.argsTemplate}
+                      placeholder="exec {prompt}"
+                      onChange={(e) => setCliAgent({ argsTemplate: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button className="sf-btn" disabled={!cliAvailable || !cliAgent.command.trim()} onClick={() => void probeCli()}>
+                    {t('settings.cliTest')}
+                  </button>
+                  {cliTest && <span style={{ fontSize: 11.5 }}>{cliTest}</span>}
+                </div>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-2)' }}>{t('settings.cliHint')}</p>
+              </div>
             </div>
           )}
 

@@ -19,6 +19,7 @@ import { useLibraryStore } from './state/libraryStore';
 import { useProposalStore } from './state/proposalStore';
 import { bibCitekeys } from './projectDoc';
 import { resolveCompileEntry } from './compileAction';
+import { CliAgentProvider, isCliAgentAvailable } from './cliAgent';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from './agentTools';
 import { rejectPendingApproval } from './approval';
 import { buildPolishPrompt, extractLatexBody, rulePolish } from './polish';
@@ -74,19 +75,27 @@ export function pick(lang: Language): PolishDict {
 export function resolveProvider(): ProviderChoice {
   const s = useSettingsStore.getState();
   const cfg = s.providers.find((p) => p.id === s.activeProviderId);
-  if (cfg && cfg.baseUrl.trim() && cfg.apiKey.trim()) {
+  const hasApi = !!cfg && cfg.baseUrl.trim().length > 0 && cfg.apiKey.trim().length > 0;
+  // CLI agent 桥（v1.5.0）：可用条件 = 已启用 + 命令非空 + 桌面形态；引擎选择 auto/api/cli
+  const cliReady = s.cliAgent.enabled && s.cliAgent.command.trim().length > 0 && isCliAgentAvailable();
+  if (hasApi && s.agentEngine !== 'cli') {
     return {
       provider: new OpenAICompatibleProvider({
-        id: cfg.id,
-        label: cfg.label,
-        baseUrl: cfg.baseUrl.trim(),
-        apiKey: cfg.apiKey.trim(),
+        id: cfg!.id,
+        label: cfg!.label,
+        baseUrl: cfg!.baseUrl.trim(),
+        apiKey: cfg!.apiKey.trim(),
         fetchFn: (url, init) => fetch(url, init),
       }),
-      model: cfg.model.trim() || 'default',
-      label: `${cfg.label} · ${cfg.model || 'default'}`,
+      model: cfg!.model.trim() || 'default',
+      label: `${cfg!.label} · ${cfg!.model || 'default'}`,
       real: true,
     };
+  }
+  // CLI agent 桥（显式选择 cli，或 auto 且无 API 配置）：一次性进程调用，无工具协议
+  if (cliReady && (s.agentEngine === 'cli' || !hasApi)) {
+    const cli = new CliAgentProvider(s.cliAgent);
+    return { provider: cli, model: s.cliAgent.command, label: cli.label, real: true };
   }
   // 零配置回退：ScriptedDemoProvider 按消息关键词输出预写的高质量演示内容
   // （W6/W7/W10/W12/W3 逐步脚本 + 通用说明），替代旧 EchoProvider 的纯回显。

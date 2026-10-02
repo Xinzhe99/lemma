@@ -73,6 +73,8 @@ interface UiState {
   promptsLibOpen: boolean;
   /** 风格分析报告（v1.3.0） */
   styleReportOpen: boolean;
+  /** 协作补丁对话框（v1.5.0） */
+  collabDialogOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -111,6 +113,7 @@ interface UiState {
   setUsageDialogOpen(open: boolean): void;
   setPromptsLibOpen(open: boolean): void;
   setStyleReportOpen(open: boolean): void;
+  setCollabDialogOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -146,6 +149,7 @@ export const useUiStore = create<UiState>((set) => ({
   usageDialogOpen: false,
   promptsLibOpen: false,
   styleReportOpen: false,
+  collabDialogOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -178,6 +182,7 @@ export const useUiStore = create<UiState>((set) => ({
   setUsageDialogOpen: (open) => set({ usageDialogOpen: open }),
   setPromptsLibOpen: (open) => set({ promptsLibOpen: open }),
   setStyleReportOpen: (open) => set({ styleReportOpen: open }),
+  setCollabDialogOpen: (open) => set({ collabDialogOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),

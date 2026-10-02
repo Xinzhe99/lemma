@@ -290,6 +290,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setPromptsLibOpen(true),
     },
     {
+      id: 'collab.merge',
+      title: ctx.t('cmd.collabMerge'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().setCollabDialogOpen(true),
+    },
+    {
       id: 'edit.styleReport',
       title: ctx.t('cmd.styleReport'),
       hint: ctx.t('hint.view'),

@@ -25,6 +25,40 @@ export interface ProviderConfig {
 
 export type ProviderInput = Omit<ProviderConfig, 'id'> & { id?: string };
 
+/** Agent 引擎选择：auto = 有 API 配置用 API、否则 CLI；显式指定则锁定 */
+export type AgentEngine = 'auto' | 'api' | 'cli';
+
+/** CLI agent 桥配置（v1.5.0：codex / claude / gemini 等本地 CLI 作为引擎） */
+export interface CliAgentConfig {
+  enabled: boolean;
+  label: string;
+  /** 可执行名或绝对路径（codex / claude / C:\Toolsgent.exe） */
+  command: string;
+  /** 参数模板，{prompt} 为提示词占位（exec "{prompt}" / -p {prompt}） */
+  argsTemplate: string;
+}
+
+export const DEFAULT_CLI_AGENT: CliAgentConfig = {
+  enabled: false,
+  label: 'CLI Agent',
+  command: 'codex',
+  argsTemplate: 'exec {prompt}',
+};
+
+function coerceCliAgent(v: unknown): CliAgentConfig {
+  if (!v || typeof v !== 'object') return { ...DEFAULT_CLI_AGENT };
+  const o = v as Record<string, unknown>;
+  return {
+    enabled: o.enabled === true,
+    label: typeof o.label === 'string' && o.label.trim() ? o.label.trim().slice(0, 40) : DEFAULT_CLI_AGENT.label,
+    command: typeof o.command === 'string' ? o.command.trim().slice(0, 200) : DEFAULT_CLI_AGENT.command,
+    argsTemplate:
+      typeof o.argsTemplate === 'string' && o.argsTemplate.includes('{prompt}')
+        ? o.argsTemplate
+        : DEFAULT_CLI_AGENT.argsTemplate,
+  };
+}
+
 export interface SettingsState {
   providers: ProviderConfig[];
   activeProviderId: string | null;
@@ -37,6 +71,12 @@ export interface SettingsState {
   removeProvider(id: string): void;
   setActive(id: string | null): void;
   setEmbeddingModel(model: string): void;
+  /** Agent 引擎选择（auto/api/cli） */
+  agentEngine: AgentEngine;
+  setAgentEngine(engine: AgentEngine): void;
+  /** CLI agent 桥配置 */
+  cliAgent: CliAgentConfig;
+  setCliAgent(patch: Partial<CliAgentConfig>): void;
   setTheme(theme: Theme): void;
   setLanguage(language: Language): void;
 }
@@ -49,6 +89,8 @@ interface PersistedSettings {
   embeddingModel: string;
   theme: Theme;
   language: Language;
+  agentEngine: AgentEngine;
+  cliAgent: CliAgentConfig;
 }
 
 function readPersisted(): PersistedSettings | null {
@@ -64,6 +106,8 @@ function readPersisted(): PersistedSettings | null {
       // 亮色为默认主题；仅显式持久化过 'dark' 才回落暗色
       theme: v.theme === 'dark' ? 'dark' : 'light',
       language: v.language === 'en' ? 'en' : 'zh',
+      agentEngine: v.agentEngine === 'api' || v.agentEngine === 'cli' ? v.agentEngine : 'auto',
+      cliAgent: coerceCliAgent(v.cliAgent),
     };
   } catch {
     return null;
@@ -78,6 +122,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   embeddingModel: initial?.embeddingModel ?? '',
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
+  agentEngine: initial?.agentEngine ?? 'auto',
+  cliAgent: initial?.cliAgent ?? { ...DEFAULT_CLI_AGENT },
 
   addProvider(input) {
     set((s) => {
@@ -110,6 +156,14 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ embeddingModel: model });
   },
 
+  setAgentEngine(agentEngine) {
+    set({ agentEngine });
+  },
+
+  setCliAgent(patch) {
+    set((s) => ({ cliAgent: { ...s.cliAgent, ...patch } }));
+  },
+
   setTheme(theme) {
     set({ theme });
   },
@@ -128,6 +182,8 @@ useSettingsStore.subscribe((s) => {
         embeddingModel: s.embeddingModel,
         theme: s.theme,
         language: s.language,
+        agentEngine: s.agentEngine,
+        cliAgent: s.cliAgent,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }
