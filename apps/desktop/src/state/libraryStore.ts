@@ -14,6 +14,7 @@ import {
   type Paper,
   type ReadStatus,
   type RetrievedChunk,
+  type TextChunk,
 } from '@scholarforge/shared';
 import {
   parseBibtex,
@@ -25,7 +26,7 @@ import {
 } from '@scholarforge/library';
 import {
   chunkPaper,
-  HashEmbeddingProvider,
+  TfidfEmbeddingProvider,
   HybridRetriever,
   OpenAICompatEmbeddings,
   type EmbeddingProvider,
@@ -104,7 +105,7 @@ const persisted = readPersisted();
 // 知识索引（模块级，随 papers / 嵌入配置变更重建）
 // ---------------------------------------------------------------------------
 
-let embedder: EmbeddingProvider = new HashEmbeddingProvider(256);
+let embedder: EmbeddingProvider = new TfidfEmbeddingProvider(256);
 let embedderMode: 'hash' | 'api' | 'api-fallback' = 'hash';
 let retriever = new HybridRetriever();
 let paperById = new Map<string, Paper>();
@@ -123,7 +124,7 @@ function chooseEmbedder(): void {
     });
     embedderMode = 'api';
   } else {
-    embedder = new HashEmbeddingProvider(256);
+    embedder = new TfidfEmbeddingProvider(256);
     embedderMode = 'hash';
   }
 }
@@ -134,7 +135,7 @@ async function embedWithFallback(texts: string[]): Promise<number[][]> {
     return await embedder.embed(texts);
   } catch (e) {
     if (embedderMode === 'api') {
-      embedder = new HashEmbeddingProvider(256);
+      embedder = new TfidfEmbeddingProvider(256);
       embedderMode = 'api-fallback';
       console.warn('语义嵌入服务调用失败，已回退本地哈希嵌入：', e);
       return embedder.embed(texts);
@@ -143,16 +144,27 @@ async function embedWithFallback(texts: string[]): Promise<number[][]> {
   }
 }
 
+/** API 单次请求的嵌入批大小（防超长请求；本地 provider 无所谓） */
+const EMBED_BATCH = 64;
+
 async function rebuildIndex(papers: Paper[]): Promise<number> {
   const next = new HybridRetriever();
   const byId = new Map(papers.map((p) => [p.id, p]));
-  let count = 0;
+  // 先收集全库 chunk：df 统计必须覆盖整库（而非单篇），停用词抑制才成立
+  const allChunks: TextChunk[] = [];
   for (const paper of papers) {
-    const chunks = chunkPaper(paper, paper.abstract);
-    if (chunks.length === 0) continue;
-    const vectors = await embedWithFallback(chunks.map((c) => c.text));
-    next.addChunks(chunks, vectors);
-    count += chunks.length;
+    allChunks.push(...chunkPaper(paper, paper.abstract));
+  }
+  let count = 0;
+  if (allChunks.length > 0) {
+    embedder.fit?.(allChunks.map((c) => c.text));
+    const vectors: number[][] = [];
+    for (let i = 0; i < allChunks.length; i += EMBED_BATCH) {
+      const batch = allChunks.slice(i, i + EMBED_BATCH).map((c) => c.text);
+      vectors.push(...(await embedWithFallback(batch)));
+    }
+    next.addChunks(allChunks, vectors);
+    count = allChunks.length;
   }
   retriever = next;
   paperById = byId;

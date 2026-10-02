@@ -11,7 +11,7 @@ export {
 } from './chunker';
 export type { ChunkPlainTextOptions } from './chunker';
 
-export { HashEmbeddingProvider, OpenAICompatEmbeddings } from './embeddings';
+export { HashEmbeddingProvider, TfidfEmbeddingProvider, OpenAICompatEmbeddings } from './embeddings';
 export type { EmbeddingProvider, OpenAICompatEmbeddingsOptions, FetchLike } from './embeddings';
 
 export { HybridRetriever, cosine, VECTOR_WEIGHT, TEXT_WEIGHT, BM25_K1, BM25_B } from './retriever';

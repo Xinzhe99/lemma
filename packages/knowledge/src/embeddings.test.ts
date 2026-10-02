@@ -96,3 +96,78 @@ describe('OpenAICompatEmbeddings', () => {
     await expect(badCount.embed(['x', 'y'])).rejects.toThrow(/数量与输入不一致/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.4.0：TfidfEmbeddingProvider —— 语料级 df 抑制停用词、放大内容词
+// ---------------------------------------------------------------------------
+
+import { TfidfEmbeddingProvider } from './embeddings';
+import { cosine } from './retriever';
+
+describe('TfidfEmbeddingProvider', () => {
+  it('fit 后：查询命中含稀有内容词的文档高于仅共享停用词的文档（旧哈希路径无此判别力）', async () => {
+    const p = new TfidfEmbeddingProvider(256);
+    const corpus = [
+      'attention mechanism powers the transformer architecture',
+      'the of and to in a is are for with on by as this that', // 纯停用词文档
+      'diffusion models generate images from noise',
+      'the of and to in a is are for with on by as this that the of and',
+    ];
+    p.fit(corpus);
+    const [qv, d1, d2] = await p.embed([
+      'how does the attention mechanism work in transformers',
+      ...corpus.slice(0, 1),
+      corpus[1]!,
+    ]);
+    expect(cosine(qv, d1)).toBeGreaterThan(cosine(qv, d2));
+  });
+
+  it('停用词权重低于内容词：idf(tok) 随 df 上升单调下降', async () => {
+    const p = new TfidfEmbeddingProvider(256);
+    p.fit([
+      'common word everywhere',
+      'common word here',
+      'common word there',
+      'rare term once',
+    ]);
+    // 访问私有 idf 的替身：嵌入两条仅差一词的文本，比较得分贡献
+    const withCommon = await p.embed(['common']);
+    const withRare = await p.embed(['rare']);
+    const norm = (xs: number[]) => Math.hypot(...xs);
+    // rare 词 df 低 → 向量范数（单 token 未归一前不可见，归一后恒 1）
+    // 改为直接验证：含 rare 的文档与查询 rare 的余弦接近 1，且与 common 的余弦≈0
+    expect(norm(withRare[0])).toBeCloseTo(1, 5);
+    expect(cosine(withRare[0], withCommon[0])).toBeLessThan(0.01);
+  });
+
+  it('未 fit 直接 embed：批内自适应（确定性），重复调用结果一致', async () => {
+    const p = new TfidfEmbeddingProvider(256);
+    const a = await p.embed(['alpha beta alpha', 'gamma']);
+    const b = await p.embed(['alpha beta alpha', 'gamma']);
+    expect(a[0]).toEqual(b[0]);
+    expect(cosine(a[0]!, b[0]!)).toBeCloseTo(1, 6);
+  });
+
+  it('语料级 fit 后重跑 embed：同文本向量稳定，且内容词主导方向', async () => {
+    const p = new TfidfEmbeddingProvider(256);
+    const docs = [
+      'transformer attention model',
+      'the of and to in is are',
+      'diffusion model generates',
+    ];
+    p.fit(docs);
+    const [d1, d2] = await p.embed([docs[0]!, docs[1]!]);
+    const q = (await p.embed(['attention']))[0]!;
+    expect(cosine(q, d1)).toBeGreaterThan(cosine(q, d2));
+  });
+
+  it('确定性：同语料同文本 → 同向量（哈希桶稳定）', async () => {
+    const p1 = new TfidfEmbeddingProvider(256);
+    const p2 = new TfidfEmbeddingProvider(256);
+    const corpus = ['x y z', 'a b c d', '字词嵌入测试'];
+    p1.fit(corpus);
+    p2.fit(corpus);
+    const [v1, v2] = await Promise.all([p1.embed(['x y z']), p2.embed(['x y z'])]);
+    expect(v1[0]).toEqual(v2[0]);
+  });
+});

@@ -301,3 +301,36 @@ describe('papers 持久化（IndexedDB kv 表，localStorage 配额解耦）', (
     expect(useLibraryStore.getState().papers.map((p) => p.id)).toEqual(['legacy']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.4.0：混合检索质量 sanity（TF-IDF 本地嵌入接入后）
+// ---------------------------------------------------------------------------
+
+describe('searchKnowledge（TF-IDF 接入后）', () => {
+  it('initLibrary 后索引就绪，相关查询命中种子文献的 chunk', async () => {
+    resetStores([
+      {
+        id: 'seed-vaswani2017attention',
+        citekey: 'vaswani2017attention',
+        title: 'Attention Is All You Need',
+        sections: [
+          {
+            id: 'sec-1',
+            heading: 'Model Architecture',
+            text: 'The Transformer relies entirely on attention mechanisms, dispensing with recurrence and convolutions entirely.',
+            pageStart: 1,
+          },
+        ],
+      } as never,
+    ]);
+    await initLibrary();
+    await flushUntil(() => useLibraryStore.getState().indexReady);
+
+    const s = useLibraryStore.getState();
+    expect(s.indexReady).toBe(true);
+    expect(s.indexMode).toBe('hash'); // 本地档（TF-IDF 仍归 hash 档，UI 文案区分）
+    const hits = await s.searchKnowledge('attention transformer architecture', 5);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0]!.citekey).toBe('vaswani2017attention');
+  });
+});

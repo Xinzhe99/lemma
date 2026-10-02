@@ -117,9 +117,9 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_1.3.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.3.0/ScholarForge_1.3.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [ScholarForge_1.3.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.3.0/ScholarForge_1.3.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [ScholarForge_1.3.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.3.0/ScholarForge_1.3.0_x64.dmg) | macOS（Intel） |
+| [ScholarForge_1.4.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.4.0/ScholarForge_1.4.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [ScholarForge_1.4.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.4.0/ScholarForge_1.4.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [ScholarForge_1.4.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.4.0/ScholarForge_1.4.0_x64.dmg) | macOS（Intel） |
 
 > 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
 
@@ -165,6 +165,7 @@ packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · �
 - [x] v1.1 计划模式 · Chat 富渲染 · diff 审批 v2 · quick-fix · Agent 记忆 · 并行研究 · 用量成本
 - [x] v1.2 会话持久化 · 聊天 LaTeX 块一键入稿 · 自定义提示词库
 - [x] v1.3 风格分析报告 · 稿件待办扫描
+- [x] v1.4 检索质量升级（TF-IDF 本地嵌入：停用词抑制、内容词放大）
 - [ ] 实时多人文档协同（Yjs CRDT + 可选云房间）
 - [ ] CLI agent 桥（Codex / Claude Code 作为宿主引擎接入）
 
