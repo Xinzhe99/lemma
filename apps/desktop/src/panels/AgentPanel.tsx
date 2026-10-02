@@ -25,7 +25,9 @@ import {
 import { createId, type WorkflowDef } from '@scholarforge/shared';
 import { DiffView } from '@scholarforge/editor';
 import { useSettingsStore, type Language } from '../state/settingsStore';
-import { promptDialog } from '../dialogs';
+import { promptDialog, confirmDialog } from '../dialogs';
+import { lastCursor } from '../editorJump';
+import { usePromptStore, promptsToSlashItems } from '../state/promptStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
@@ -123,6 +125,20 @@ const STRINGS = {
     activateTestOkNoModel: (ms: number) => `✓ 连接正常 · ${ms}ms`,
     activateTestFail: (err: string) => `✗ ${err}`,
     activateSave: '保存并激活',
+    // —— 会话历史（v1.2.0 持久化）——
+    sessionHistory: '历史会话',
+    sessionHistoryEmpty: '暂无历史会话',
+    msgCount: (n: number) => `${n} 条消息`,
+    renamePrompt: '会话标题',
+    confirmDeleteSession: (title: string) => `删除会话「${title}」？（不可恢复）`,
+    deleteSessionAction: '删除',
+    renameAction: '重命名',
+    activeNow: '当前',
+    // —— 聊天 latex 块一键入稿（v1.2.0 ②）——
+    insertLatexBtn: '插入到稿件 ↵',
+    insertProposalLabel: '插入聊天代码块（光标处）',
+    // —— 提示词库（v1.2.0 ③）——
+    promptLib: '提示词库',
   },
   en: {
     newSession: 'New session',
@@ -174,6 +190,20 @@ const STRINGS = {
     activateTestOkNoModel: (ms: number) => `✓ Connected · ${ms}ms`,
     activateTestFail: (err: string) => `✗ ${err}`,
     activateSave: 'Save & activate',
+    // —— Session history (v1.2.0 persistence) ——
+    sessionHistory: 'Sessions',
+    sessionHistoryEmpty: 'No saved sessions yet',
+    msgCount: (n: number) => `${n} messages`,
+    renamePrompt: 'Session title',
+    confirmDeleteSession: (title: string) => `Delete session "${title}"? (cannot be undone)`,
+    deleteSessionAction: 'Delete',
+    renameAction: 'Rename',
+    activeNow: 'current',
+    // —— Chat latex block insert (v1.2.0 ②) ——
+    insertLatexBtn: 'Insert to manuscript ↵',
+    insertProposalLabel: 'Insert chat code block (at cursor)',
+    // —— Prompt library (v1.2.0 ③) ——
+    promptLib: 'Prompts',
   },
 } as const;
 
@@ -217,6 +247,7 @@ export function AgentPanel() {
   const [showContext, setShowContext] = useState(false);
   const [contextPreview, setContextPreview] = useState('');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [sessionListOpen, setSessionListOpen] = useState(false);
 
   const checkpointResolve = useRef<((input: string) => void) | null>(null);
 
@@ -226,6 +257,7 @@ export function AgentPanel() {
   const plans = useAgentPlansStore((s) => s.plans);
   const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
   const libraryPapers = useLibraryStore((s) => s.papers);
+  const userPrompts = usePromptStore((s) => s.prompts);
 
   // ------------------------------------------------------------------
   // 激活器：providers 为空时的快速配置卡（预设 + Key + 测试 + 保存并激活）。
@@ -296,6 +328,36 @@ export function AgentPanel() {
   const activeTexFile = (): string | null => {
     const active = useWorkspaceStore.getState().activeTab;
     return active && active.endsWith('.tex') ? active : null;
+  };
+
+  /**
+   * 聊天 latex 围栏「插入到稿件」（v1.2.0 ②）：
+   * 插入点 = 编辑器光标所在行之前（光标桥在当前 .tex 内）；光标不可用时
+   * 回落到当前打开的 .tex 文件末尾。产物走 diff 审批卡（写级操作门控不变）。
+   */
+  const insertLatexBlock = (code: string) => {
+    const ws = useWorkspaceStore.getState();
+    const cur = lastCursor();
+    const file =
+      cur.file && cur.file.endsWith('.tex') && ws.files[cur.file] != null ? cur.file : activeTexFile();
+    if (!file) {
+      setNote(t.noTex);
+      return;
+    }
+    const before = ws.files[file] ?? '';
+    const lines = before.split('\n');
+    const atLine =
+      cur.file === file && cur.line >= 1 && cur.line <= lines.length ? cur.line - 1 : lines.length;
+    const blockLines = code.replace(/\r\n?/g, '\n').trim().split('\n');
+    const after = [...lines.slice(0, atLine), ...blockLines, ...lines.slice(atLine)].join('\n');
+    setProposal({
+      file,
+      before,
+      after,
+      kind: 'draft-section',
+      label: t.insertProposalLabel,
+      via: resolveProvider().model || 'chat',
+    });
   };
 
   const polishCurrentFile = async () => {
@@ -525,6 +587,26 @@ export function AgentPanel() {
     setShowContext((v) => !v);
   };
 
+  // —— 会话历史（v1.2.0）：切换 / 重命名 / 删除（持久化由 agentSessionPersist 桥自动落盘）——
+  const renameSession = async (id: string, currentTitle: string) => {
+    const title = await promptDialog(t.renamePrompt, currentTitle);
+    if (title && title.trim() && title.trim() !== currentTitle) {
+      useAgentHubStore.getState().renameSession(id, title);
+    }
+  };
+
+  const deleteSession = async (id: string, title: string) => {
+    if (!(await confirmDialog(t.confirmDeleteSession(title)))) return;
+    const plans = useAgentPlansStore.getState().plans;
+    for (const msgId of Object.keys(plans)) {
+      const belongs = useAgentHubStore
+        .getState()
+        .sessions.some((s) => s.id === id && s.messages.some((m) => m.id === msgId));
+      if (belongs) useAgentPlansStore.getState().clear(msgId); // 计划执行态随会话清理，防幽灵卡
+    }
+    useAgentHubStore.getState().deleteSession(id);
+  };
+
   return (
     <div className="sf-agent">
       <div className="sf-agent-provider">
@@ -541,6 +623,76 @@ export function AgentPanel() {
         >
           {t.newSession}
         </button>
+        <button className="sf-link-btn" onClick={() => useUiStore.getState().setPromptsLibOpen(true)}>
+          {t.promptLib}
+        </button>
+        <div className="sf-session-history">
+          <button
+            className="sf-link-btn"
+            onClick={() => {
+              setSessionListOpen((v) => !v);
+            }}
+          >
+            {t.sessionHistory}
+          </button>
+          {sessionListOpen && (
+            <div className="sf-session-menu">
+              {sessions.length === 0 ? (
+                <div className="sf-session-item dim">{t.sessionHistoryEmpty}</div>
+              ) : (
+                [...sessions]
+                  .reverse()
+                  .map((s) => (
+                    <div
+                      key={s.id}
+                      className={`sf-session-item${s.id === session?.id ? ' active' : ''}`}
+                      onClick={() => {
+                        useAgentHubStore.getState().setActiveSession(s.id);
+                        setSessionListOpen(false);
+                        setWorkflow(null);
+                      }}
+                    >
+                      <div className="sf-session-item-main">
+                        <div className="sf-session-item-title">
+                          {s.title || t.newSession}
+                          {s.id === session?.id && <span className="sf-chip dim">{t.activeNow}</span>}
+                        </div>
+                        <div className="sf-session-item-meta">
+                          {t.msgCount(s.messages.filter((m) => m.role === 'user' || m.role === 'assistant').length)}
+                          {s.messages.length > 0 &&
+                            ` · ${formatTime(s.messages[s.messages.length - 1]?.createdAt ?? Date.now())}`}
+                        </div>
+                      </div>
+                      <div className="sf-session-item-actions">
+                        <button
+                          className="sf-link-btn"
+                          title={t.renameAction}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSessionListOpen(false);
+                            void renameSession(s.id, s.title);
+                          }}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="sf-link-btn"
+                          title={t.deleteSessionAction}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSessionListOpen(false);
+                            void deleteSession(s.id, s.title || t.newSession);
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 激活器：无 provider 时的快速配置引导卡（保存后自动消失） */}
@@ -726,7 +878,12 @@ ${proposal.after.slice(0, 800)}`,
               if (lastUser) void sendChatMessage(lastUser.content);
             }}
             onEditResend={(text) => send(text)}
-            slashItems={BUILTIN_WORKFLOWS.map((w) => ({ id: w.id, label: `/${w.name}`, hint: w.description }))}
+            onInsertLatex={insertLatexBlock}
+            insertLatexLabel={t.insertLatexBtn}
+            slashItems={[
+              ...BUILTIN_WORKFLOWS.map((w) => ({ id: w.id, label: `/${w.name}`, hint: w.description })),
+              ...promptsToSlashItems(userPrompts),
+            ]}
             mentionItems={[
               ...libraryPapers.slice(0, 200).map((p) => ({ id: p.id, label: p.citekey, type: 'paper' as const })),
               ...Object.keys(useWorkspaceStore.getState().files).map((f) => ({ id: f, label: f, type: 'file' as const })),

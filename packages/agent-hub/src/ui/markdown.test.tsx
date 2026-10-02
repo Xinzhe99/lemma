@@ -179,3 +179,45 @@ describe('renderMarkdown 边界', () => {
     expect(root.firstElementChild?.textContent).toBe('只是一句话');
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.2.0 ②：latex 围栏「插入到稿件」按钮（actions 注入）
+// ---------------------------------------------------------------------------
+
+describe('renderMarkdown latex 插入按钮', () => {
+  const latexDoc = '草稿如下：\n\n```latex\n\section{Method}\nWe propose...\n```\n';
+
+  it('latex/tex 围栏 + onInsertLatex → 渲染按钮，点击回传块内正文', () => {
+    const onInsert = vi.fn();
+    const { container } = render(
+      <div>{renderMarkdown(latexDoc, undefined, { onInsertLatex: onInsert, insertLatexLabel: '插入' })}</div>,
+    );
+    const btn = container.querySelector<HTMLButtonElement>('.sf-ah-md-insert-btn');
+    expect(btn).not.toBeNull();
+    expect(btn!.textContent).toBe('插入');
+    fireEvent.click(btn!);
+    expect(onInsert).toHaveBeenCalledWith('\section{Method}\nWe propose...');
+  });
+
+  it('tex（无 la 前缀）同样渲染按钮；json 等其他语言不渲染', () => {
+    const onInsert = vi.fn();
+    const { container } = render(
+      <div>{renderMarkdown('```tex\nx\n```\n\n```json\n{"a":1}\n```', undefined, { onInsertLatex: onInsert })}</div>,
+    );
+    expect(container.querySelectorAll('.sf-ah-md-insert-btn')).toHaveLength(1);
+  });
+
+  it('未注入 onInsertLatex → 不渲染按钮（向后兼容）', () => {
+    const { container } = render(<div>{renderMarkdown(latexDoc)}</div>);
+    expect(container.querySelector('.sf-ah-md-insert-btn')).toBeNull();
+    expect(container.querySelector('.sf-ah-md-pre')?.textContent).toContain('\section{Method}');
+  });
+
+  it('引用块内嵌套的 latex 围栏同样携带按钮（actions 透传递归）', () => {
+    const onInsert = vi.fn();
+    const { container } = render(
+      <div>{renderMarkdown('> 建议：\n> ```latex\n> \section{X}\n> ```', undefined, { onInsertLatex: onInsert })}</div>,
+    );
+    expect(container.querySelectorAll('.sf-ah-md-insert-btn')).toHaveLength(1);
+  });
+});

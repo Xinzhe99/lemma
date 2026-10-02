@@ -247,3 +247,53 @@ describe('历史回填与收发回归', () => {
     expect(textarea.value).toBe('第二句');
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.2.0：③ 自定义提示词 insert 项 / ② latex 插入按钮透传
+// ---------------------------------------------------------------------------
+
+describe('自定义提示词（insert 项）与 latex 插入透传', () => {
+  it('选中 insert 项 → 正文填入输入框（可改后发送），不触发 onSlashWorkflow', () => {
+    const onSlashWorkflow = vi.fn();
+    const onSend = vi.fn();
+    const { container } = render(
+      <ChatPanel
+        session={makeSession()}
+        onSend={onSend}
+        onSlashWorkflow={onSlashWorkflow}
+        slashItems={[
+          { id: 'up:1', label: '/检查时态', hint: '…', insert: '请检查全文时态一致性' },
+        ]}
+      />,
+    );
+    const ta = container.querySelector('textarea')!;
+    fireEvent.change(ta, { target: { value: '/检查' } });
+    const items = container.querySelectorAll('.sf-ah-menu--slash .sf-ah-menu-item');
+    expect(items).toHaveLength(1);
+    fireEvent.click(items[0]!);
+    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('请检查全文时态一致性');
+    expect(onSlashWorkflow).not.toHaveBeenCalled();
+    // 修改后发送
+    fireEvent.change(container.querySelector('textarea')!, { target: { value: '请检查全文时态一致性，逐段给 diff' } });
+    fireEvent.keyDown(container.querySelector('textarea')!, { key: 'Enter' });
+    expect(onSend).toHaveBeenCalledWith('请检查全文时态一致性，逐段给 diff');
+  });
+
+  it('onInsertLatex 透传：assistant 消息中 latex 围栏渲染插入按钮并回调', () => {
+    const onInsertLatex = vi.fn();
+    const session = makeSession({
+      messages: [
+        { id: 'u1', role: 'user', content: 'q', createdAt: 1 },
+        { id: 'a1', role: 'assistant', content: '```latex\n\section{M}\n```', createdAt: 2 },
+      ],
+    });
+    const { container } = render(
+      <ChatPanel session={session} onInsertLatex={onInsertLatex} insertLatexLabel="插入到稿件" />,
+    );
+    const btn = container.querySelector<HTMLButtonElement>('.sf-ah-md-insert-btn');
+    expect(btn).not.toBeNull();
+    expect(btn!.textContent).toBe('插入到稿件');
+    fireEvent.click(btn!);
+    expect(onInsertLatex).toHaveBeenCalledWith('\section{M}');
+  });
+});

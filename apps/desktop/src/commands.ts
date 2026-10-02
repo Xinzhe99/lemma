@@ -284,6 +284,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setUsageDialogOpen(true),
     },
     {
+      id: 'agent.prompts',
+      title: ctx.t('cmd.agentPrompts'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().setPromptsLibOpen(true),
+    },
+    {
       id: 'agent.plan',
       title: ctx.t('cmd.agentPlan'),
       hint: ctx.t('hint.agent'),

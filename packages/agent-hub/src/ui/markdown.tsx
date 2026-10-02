@@ -18,6 +18,17 @@ export interface MdCitationProps {
   onCitekeyClick?: (key: string) => void;
 }
 
+/**
+ * 代码块动作（v1.2.0）：宿主注入「latex/tex 围栏一键入稿」回调——
+ * 点击后由宿主构造 EditProposal 走 diff 审批卡（写级操作仍经门控）。
+ */
+export interface MdActionsProps {
+  /** lang 为 latex/tex 的围栏代码块上的插入按钮；返回 false 表示宿主拒绝（如无打开的 .tex） */
+  onInsertLatex?: (code: string) => void;
+  /** 插入按钮文案（宿主本地化注入；缺省不渲染按钮以外的差异） */
+  insertLatexLabel?: string;
+}
+
 /* ------------------------- 行内：token 识别 ------------------------- */
 
 /** 去除空白与控制字符（防 "java\nscript:" 之类协议绕过） */
@@ -353,7 +364,12 @@ function parseListBlock(
 
 /* ------------------------- 块级：主循环 ------------------------- */
 
-function parseBlocks(lines: string[], cite: MdCitationProps | undefined, keyBase: string): ReactNode[] {
+function parseBlocks(
+  lines: string[],
+  cite: MdCitationProps | undefined,
+  keyBase: string,
+  actions?: MdActionsProps,
+): ReactNode[] {
   const out: ReactNode[] = [];
   let para: string[] = [];
   let n = 0;
@@ -391,9 +407,23 @@ function parseBlocks(lines: string[], cite: MdCitationProps | undefined, keyBase
         i += 1;
       }
       if (i < lines.length) i += 1;
+      const showInsert = actions?.onInsertLatex != null && /^(la)?tex$/i.test(lang.trim());
       out.push(
         <div key={nextKey()} className="sf-ah-md-code">
-          {lang ? <div className="sf-ah-md-code-lang">{lang}</div> : null}
+          {(lang || showInsert) && (
+            <div className="sf-ah-md-code-lang">
+              {lang || null}
+              {showInsert && (
+                <button
+                  type="button"
+                  className="sf-ah-md-insert-btn"
+                  onClick={() => actions?.onInsertLatex?.(body.join('\n'))}
+                >
+                  {actions?.insertLatexLabel ?? 'Insert'}
+                </button>
+              )}
+            </div>
+          )}
           <pre className="sf-ah-md-pre">
             <code>{body.join('\n')}</code>
           </pre>
@@ -475,7 +505,7 @@ function parseBlocks(lines: string[], cite: MdCitationProps | undefined, keyBase
       }
       out.push(
         <blockquote key={nextKey()} className="sf-ah-md-quote">
-          {parseBlocks(inner, cite, keyBase)}
+          {parseBlocks(inner, cite, keyBase, actions)}
         </blockquote>,
       );
       continue;
@@ -500,9 +530,13 @@ function parseBlocks(lines: string[], cite: MdCitationProps | undefined, keyBase
  * 把 markdown 文本渲染为 React 元素树（数组节点可直接作为 JSX children）。
  * 空输入返回 null；纯文本输入直通为单个段落。
  */
-export function renderMarkdown(text: string, cite?: MdCitationProps): ReactNode {
+export function renderMarkdown(
+  text: string,
+  cite?: MdCitationProps,
+  actions?: MdActionsProps,
+): ReactNode {
   if (!text) return null;
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
-  const blocks = parseBlocks(lines, cite, 'md');
+  const blocks = parseBlocks(lines, cite, 'md', actions);
   return blocks.length > 0 ? blocks : null;
 }

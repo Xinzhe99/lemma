@@ -150,6 +150,7 @@ const dict: MessageDict = {
   'cmd.agentPlan': { zh: '计划模式：先规划后逐步执行（复杂任务）', en: 'Plan mode: plan first, then execute step by step' },
   'cmd.agentResearch': { zh: '并行研究：拆分子任务多角度调研', en: 'Parallel research: split and investigate from multiple angles' },
   'cmd.agentUsage': { zh: 'Agent 用量与成本', en: 'Agent usage & cost' },
+  'cmd.agentPrompts': { zh: '提示词库（管理高频指令）', en: 'Prompt library (manage recurring instructions)' },
   'research.taskPrompt': { zh: '研究任务（将拆为多个子任务并行调研）', en: 'Research task (will be split into parallel sub-tasks)' },
   'plan.taskPrompt': { zh: '描述任务（agent 将先给出执行计划）', en: 'Describe the task (agent will plan first)' },
   'cmd.aiFix': { zh: 'AI 修复编译错误（诊断 → diff 审批）', en: 'AI fix compile errors (diagnostics → diff approval)' },

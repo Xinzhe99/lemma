@@ -48,6 +48,7 @@ import { CitationsPanel } from './panels/CitationsPanel';
 import { GlossaryPanel } from './panels/GlossaryPanel';
 import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
+import { hydrateAgentSessions, attachAgentSessionPersist } from './state/agentSessionPersist';
 import { parseProjectZip } from '@scholarforge/compile';
 import { PdfReader } from '@scholarforge/library';
 import { jumpPdfToSource, onPdfGoto } from './synctexBridge'; // WS-2 编译同步闭环（App 窄 carve-out）
@@ -85,6 +86,7 @@ export function App() {
   const reviewsImportOpen = useUiStore((s) => s.reviewsImportOpen);
   const externalDiffOpen = useUiStore((s) => s.externalDiffOpen);
   const usageDialogOpen = useUiStore((s) => s.usageDialogOpen);
+  const promptsLibOpen = useUiStore((s) => s.promptsLibOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -115,6 +117,10 @@ export function App() {
     void initWorkspace();
     void initLibrary();
     initUpdateCheck();
+    // Agent 会话：启动恢复 + 变更防抖落盘（IndexedDB，重启不丢对话历史）
+    void hydrateAgentSessions();
+    const detach = attachAgentSessionPersist();
+    return detach;
   }, []);
 
   // 新手引导（P0）：首屏判定 shouldShowTour() —— 未完成导览且不在 24h「稍后」窗口内则弹出全屏导览。
@@ -559,6 +565,7 @@ export function App() {
       {externalDiffOpen && <LazyFeatureDialog file="ExternalDiffDialog" onClose={() => useUiStore.getState().setExternalDiffOpen(false)} />}
 
       {usageDialogOpen && <LazyFeatureDialog file="UsagePanel" onClose={() => useUiStore.getState().setUsageDialogOpen(false)} />}
+      {promptsLibOpen && <LazyFeatureDialog file="PromptLibraryDialog" onClose={() => useUiStore.getState().setPromptsLibOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -589,11 +596,12 @@ function LazyFeatureDialog({
     | 'StatsDialog'
     | 'ReviewsImportDialog'
     | 'ExternalDiffDialog'
-    | 'UsagePanel';
+    | 'UsagePanel'
+    | 'PromptLibraryDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

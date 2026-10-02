@@ -83,6 +83,12 @@ interface AgentHubState {
   /** 新建会话并激活，返回会话 id */
   newSession(providerId: string): string;
   setActiveSession(sessionId: string): void;
+  /** 水合（宿主启动时从持久层恢复）：整体替换并截断到上限；activeId 不在列表时回落首个 */
+  hydrateSessions(sessions: AgentSession[], activeSessionId?: string | null): void;
+  /** 重命名会话标题 */
+  renameSession(sessionId: string, title: string): void;
+  /** 删除会话；删的是活跃会话时激活剩余最新一条（无剩余则置空） */
+  deleteSession(sessionId: string): void;
   /** 乐观插入 user 消息 + assistant 占位（状态置为 streaming），等待宿主回填 */
   sendMessage(sessionId: string, text: string): void;
   appendDelta(sessionId: string, text: string): void;
@@ -106,6 +112,57 @@ function patchSession(
   return sessions.map((s) => (s.id === sessionId ? patch(s) : s));
 }
 
+// ---------------------------------------------------------------------------
+// 会话持久化（v1.2.0）：纯函数层 —— 宿主负责落盘（IndexedDB），本包不依赖存储实现
+// ---------------------------------------------------------------------------
+
+/** 会话保留上限（新的在后；超出时从最旧的非活跃会话开始淘汰） */
+export const SESSIONS_LIMIT = 30;
+
+/**
+ * 持久化前的安全化快照：流式中的会话落盘为 idle（中断的流重启后不假装还在流），
+ * 深拷贝消息数组（落盘方可能异步持有该快照，避免与后续内存变更共享引用）。
+ */
+export function serializeSessionsForPersist(sessions: AgentSession[]): AgentSession[] {
+  return sessions.map((s) => ({
+    ...s,
+    status: s.status === 'streaming' ? ('idle' as const) : s.status,
+    messages: s.messages.map((m) => ({ ...m })),
+  }));
+}
+
+function isAgentMessage(v: unknown): v is AgentMessage {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' &&
+    (o.role === 'user' || o.role === 'assistant' || o.role === 'system' || o.role === 'tool') &&
+    typeof o.content === 'string' &&
+    typeof o.createdAt === 'number'
+  );
+}
+
+function isAgentSession(v: unknown): v is AgentSession {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' &&
+    typeof o.title === 'string' &&
+    Array.isArray(o.messages) &&
+    o.messages.every(isAgentMessage) &&
+    typeof o.providerId === 'string' &&
+    (o.status === 'idle' || o.status === 'streaming' || o.status === 'error')
+  );
+}
+
+/** 水合校验（宽容）：坏记录丢弃，恢复时 streaming 视为 error（流被重启打断），截断到上限 */
+export function parsePersistedSessions(raw: unknown): AgentSession[] {
+  const list = Array.isArray(raw) ? raw.filter(isAgentSession) : [];
+  return list
+    .slice(-SESSIONS_LIMIT)
+    .map((s) => ({ ...s, status: s.status === 'streaming' ? ('error' as const) : s.status }));
+}
+
 export const useAgentHubStore = create<AgentHubState>((set) => ({
   sessions: [],
   activeSessionId: null,
@@ -114,17 +171,49 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
 
   newSession: (providerId) => {
     const id = createId();
-    set((state) => ({
-      sessions: [
+    set((state) => {
+      let sessions = [
         ...state.sessions,
-        { id, title: '新会话', messages: [], providerId, status: 'idle' },
-      ],
-      activeSessionId: id,
-    }));
+        { id, title: '新会话', messages: [], providerId, status: 'idle' as const },
+      ];
+      // 上限淘汰：从最旧开始移除非本会话的记录（新会话恒保留）
+      while (sessions.length > SESSIONS_LIMIT) {
+        const idx = sessions.findIndex((s) => s.id !== id);
+        if (idx < 0) break;
+        sessions = sessions.filter((_, i) => i !== idx);
+      }
+      return { sessions, activeSessionId: id };
+    });
     return id;
   },
 
   setActiveSession: (sessionId) => set({ activeSessionId: sessionId }),
+
+  hydrateSessions: (sessions, activeSessionId) =>
+    set(() => {
+      const list = sessions.slice(-SESSIONS_LIMIT);
+      const active =
+        activeSessionId && list.some((s) => s.id === activeSessionId) ? activeSessionId : (list[0]?.id ?? null);
+      return { sessions: list, activeSessionId: active };
+    }),
+
+  renameSession: (sessionId, title) =>
+    set((state) => ({
+      sessions: patchSession(state.sessions, sessionId, (s) => ({
+        ...s,
+        title: title.trim() ? title.trim().slice(0, 60) : s.title,
+      })),
+    })),
+
+  deleteSession: (sessionId) =>
+    set((state) => {
+      const sessions = state.sessions.filter((s) => s.id !== sessionId);
+      const activeSessionId =
+        state.activeSessionId === sessionId
+          ? (sessions[sessions.length - 1]?.id ?? null)
+          : state.activeSessionId;
+      return { sessions, activeSessionId };
+    }),
 
   sendMessage: (sessionId, text) =>
     set((state) => ({

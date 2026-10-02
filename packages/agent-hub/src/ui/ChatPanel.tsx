@@ -17,6 +17,11 @@ export interface SlashMenuItem {
   id: string;
   label: string;
   hint?: string;
+  /**
+   * 自定义提示词正文（v1.2.0 ③）：非空时选中 = 填入输入框（用户可改后发送），
+   * 不触发 onSlashWorkflow。
+   */
+  insert?: string;
 }
 
 /** @ 引用菜单项（宿主注入：文献 / 文件） */
@@ -81,6 +86,10 @@ export interface ChatPanelProps {
   slashItems?: SlashMenuItem[];
   /** @ 引用菜单项注入（文献库 / 工作区文件） */
   mentionItems?: MentionItem[];
+  /** latex/tex 围栏代码块「插入到稿件」回调（宿主构造提案走 diff 审批） */
+  onInsertLatex?: (code: string) => void;
+  /** 插入按钮文案（宿主本地化注入） */
+  insertLatexLabel?: string;
   /** 文案注入（zh 默认，宿主可给 en） */
   labels?: ChatLabels;
 }
@@ -89,6 +98,9 @@ export interface MessageListProps {
   session: AgentSession;
   /** markdown 引用 chip 点击，透传 renderMarkdown */
   onCitekeyClick?: (key: string) => void;
+  /** latex 围栏插入动作（透传 renderMarkdown actions） */
+  onInsertLatex?: (code: string) => void;
+  insertLatexLabel?: string;
   /** 以下交互状态由 ChatPanel 持有下传（保持本组件无 hooks） */
   copiedId?: string | null;
   editingId?: string | null;
@@ -143,12 +155,24 @@ function lastMessageId(messages: AgentMessage[], role: 'user' | 'assistant'): st
 function MessageBody({
   message,
   onCitekeyClick,
+  onInsertLatex,
+  insertLatexLabel,
 }: {
   message: AgentMessage;
   onCitekeyClick?: (key: string) => void;
+  onInsertLatex?: (code: string) => void;
+  insertLatexLabel?: string;
 }): ReactNode {
   if (message.role === 'assistant') {
-    return <div className="sf-ah-md">{renderMarkdown(message.content, { onCitekeyClick })}</div>;
+    return (
+      <div className="sf-ah-md">
+        {renderMarkdown(
+          message.content,
+          { onCitekeyClick },
+          onInsertLatex ? { onInsertLatex, insertLatexLabel } : undefined,
+        )}
+      </div>
+    );
   }
   return <span>{message.content}</span>;
 }
@@ -190,7 +214,12 @@ export function MessageList(props: MessageListProps) {
                   <div className="sf-ah-edit-hint">{labels.editHint}</div>
                 </div>
               ) : (
-                <MessageBody message={m} onCitekeyClick={props.onCitekeyClick} />
+                <MessageBody
+                  message={m}
+                  onCitekeyClick={props.onCitekeyClick}
+                  onInsertLatex={props.onInsertLatex}
+                  insertLatexLabel={props.insertLatexLabel}
+                />
               )}
               {m.toolCalls?.map((call) => {
                 const result = session.messages.find(
@@ -259,6 +288,8 @@ export function ChatPanel(props: ChatPanelProps) {
     onEditResend,
     slashItems,
     mentionItems,
+    onInsertLatex,
+    insertLatexLabel,
     labels: labelOverrides,
   } = props;
   const labels = { ...DEFAULT_LABELS, ...labelOverrides };
@@ -310,6 +341,12 @@ export function ChatPanel(props: ChatPanelProps) {
     if (item.id === CLEAR_ITEM_ID) {
       onClearSession?.();
       setText('');
+      return;
+    }
+    // 用户自定义提示词（v1.2.0 ③）：insert 携带正文 → 直接填入输入框（可改后发送）
+    if (item.insert != null) {
+      setText(item.insert);
+      setMenuDismissed(true);
       return;
     }
     if (onSlashWorkflow) {
@@ -407,6 +444,8 @@ export function ChatPanel(props: ChatPanelProps) {
       <MessageList
         session={session}
         onCitekeyClick={onCitekeyClick}
+        onInsertLatex={onInsertLatex}
+        insertLatexLabel={insertLatexLabel}
         copiedId={copiedId}
         editingId={editingId}
         editDraft={editDraft}

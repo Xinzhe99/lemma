@@ -80,3 +80,101 @@ describe('useAgentHubStore', () => {
     expect(useAgentHubStore.getState().sessions).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.2.0 会话持久化：serialize/parse 纯函数 + hydrate/rename/delete/上限
+// ---------------------------------------------------------------------------
+
+import {
+  SESSIONS_LIMIT,
+  serializeSessionsForPersist,
+  parsePersistedSessions,
+  type AgentSession,
+} from './store';
+
+function mkSession(overrides: Partial<AgentSession> = {}): AgentSession {
+  return {
+    id: overrides.id ?? 's1',
+    title: overrides.title ?? '会话',
+    providerId: 'host',
+    status: overrides.status ?? 'idle',
+    messages:
+      overrides.messages ?? [
+        { id: 'm1', role: 'user', content: '你好', createdAt: 1 },
+        { id: 'm2', role: 'assistant', content: '你好！', createdAt: 2 },
+      ],
+  };
+}
+
+describe('会话持久化纯函数', () => {
+  it('serializeSessionsForPersist：streaming 落盘为 idle，消息深拷贝（不与内存共享引用）', () => {
+    const s = mkSession({ status: 'streaming' });
+    const out = serializeSessionsForPersist([s]);
+    expect(out[0].status).toBe('idle');
+    expect(s.status).toBe('streaming'); // 原对象不变
+    out[0].messages[0].content = 'mutated';
+    expect(s.messages[0].content).toBe('你好'); // 深拷贝隔离
+  });
+
+  it('parsePersistedSessions：坏记录丢弃、streaming 恢复为 error、截断到上限', () => {
+    const bad = { id: 1, title: 'x' }; // 缺字段
+    const good = mkSession({ id: 'good' });
+    const streaming = mkSession({ id: 'st', status: 'streaming' });
+    const many = Array.from({ length: SESSIONS_LIMIT + 5 }, (_, i) => mkSession({ id: `s${i}` }));
+    expect(parsePersistedSessions('not-array')).toEqual([]);
+    expect(parsePersistedSessions(null)).toEqual([]);
+    const parsed = parsePersistedSessions([bad, good, streaming]);
+    expect(parsed.map((p) => p.id)).toEqual(['good', 'st']);
+    expect(parsed[1].status).toBe('error');
+    const capped = parsePersistedSessions(many);
+    expect(capped).toHaveLength(SESSIONS_LIMIT);
+    expect(capped[capped.length - 1].id).toBe(`s${SESSIONS_LIMIT + 4}`); // 保留最新
+  });
+});
+
+describe('会话管理 actions（v1.2.0）', () => {
+  it('hydrateSessions：整体替换、activeId 缺失回落首个', () => {
+    useAgentHubStore.getState().newSession('host'); // 预置一条，应被水合替换
+    const a = mkSession({ id: 'a' });
+    const b = mkSession({ id: 'b' });
+    useAgentHubStore.getState().hydrateSessions([a, b], 'ghost');
+    expect(useAgentHubStore.getState().sessions.map((s) => s.id)).toEqual(['a', 'b']);
+    expect(useAgentHubStore.getState().activeSessionId).toBe('a');
+    useAgentHubStore.getState().hydrateSessions([a, b], 'b');
+    expect(useAgentHubStore.getState().activeSessionId).toBe('b');
+  });
+
+  it('renameSession：裁剪空白与长度；空标题不改', () => {
+    const a = mkSession({ id: 'a', title: '旧标题' });
+    useAgentHubStore.getState().hydrateSessions([a]);
+    useAgentHubStore.getState().renameSession('a', '  新标题  ');
+    expect(useAgentHubStore.getState().sessions[0].title).toBe('新标题');
+    useAgentHubStore.getState().renameSession('a', '   ');
+    expect(useAgentHubStore.getState().sessions[0].title).toBe('新标题');
+    const long = 'x'.repeat(100);
+    useAgentHubStore.getState().renameSession('a', long);
+    expect(useAgentHubStore.getState().sessions[0].title).toHaveLength(60);
+  });
+
+  it('deleteSession：删活跃会话 → 激活剩余最新；删尽 → activeId 置空', () => {
+    const a = mkSession({ id: 'a' });
+    const b = mkSession({ id: 'b' });
+    useAgentHubStore.getState().hydrateSessions([a, b], 'b');
+    useAgentHubStore.getState().deleteSession('b');
+    expect(useAgentHubStore.getState().sessions.map((s) => s.id)).toEqual(['a']);
+    expect(useAgentHubStore.getState().activeSessionId).toBe('a');
+    useAgentHubStore.getState().deleteSession('a');
+    expect(useAgentHubStore.getState().sessions).toEqual([]);
+    expect(useAgentHubStore.getState().activeSessionId).toBeNull();
+  });
+
+  it(`newSession 超过 SESSIONS_LIMIT（${SESSIONS_LIMIT}）时淘汰最旧非新会话`, () => {
+    const seed = Array.from({ length: SESSIONS_LIMIT }, (_, i) => mkSession({ id: `old${i}` }));
+    useAgentHubStore.getState().hydrateSessions(seed, 'old0');
+    const newId = useAgentHubStore.getState().newSession('host');
+    const sessions = useAgentHubStore.getState().sessions;
+    expect(sessions).toHaveLength(SESSIONS_LIMIT);
+    expect(sessions.some((s) => s.id === newId)).toBe(true);
+    expect(sessions.some((s) => s.id === 'old0')).toBe(false); // 最旧被淘汰
+  });
+});

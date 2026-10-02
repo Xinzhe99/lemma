@@ -1387,6 +1387,72 @@ kbd {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
+
+/* —— 会话历史下拉（v1.2.0）：容器相对定位承载浮层 —— */
+.sf-session-history {
+  position: relative;
+  display: inline-flex;
+}
+.sf-session-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 260px;
+  max-width: 340px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-1, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+}
+.sf-session-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sf-session-item:hover {
+  background: var(--bg-2, rgba(127, 127, 127, 0.12));
+}
+.sf-session-item.active {
+  background: rgba(127, 127, 127, 0.16);
+}
+.sf-session-item.dim {
+  color: var(--fg-2);
+  cursor: default;
+}
+.sf-session-item-main {
+  flex: 1;
+  min-width: 0;
+}
+.sf-session-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-session-item-meta {
+  font-size: 11px;
+  color: var(--fg-2);
+}
+.sf-session-item-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.sf-session-item:hover .sf-session-item-actions,
+.sf-session-item.active .sf-session-item-actions {
+  opacity: 1;
+}
 .sf-agent-context {
   border-bottom: 1px solid var(--border);
   font-size: 11px;

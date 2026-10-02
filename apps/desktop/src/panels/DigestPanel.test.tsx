@@ -64,15 +64,15 @@ import { useSettingsStore } from '../state/settingsStore';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-// 用本地时区的「今天」构造，避免 UTC+8 深夜时 toISOString 落到昨天导致「今天标记」测试跨日翻转
-const localIsoToday = (hoursAgo: number) => {
+// 「本地今天正午」的真实 UTC 瞬间：任意时区下 localDateKey 都落在今天（含 UTC+8 深夜运行场景）。
+// daysAgo=2 → 本地两天前正午（保证归入"两天前"分组）。
+const localNoonUtcIso = (daysAgo = 0) => {
   const d = new Date();
-  d.setHours(d.getHours() - hoursAgo, d.getMinutes(), d.getSeconds(), d.getMilliseconds());
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.000Z`;
+  d.setDate(d.getDate() - daysAgo);
+  d.setHours(12, 0, 0, 0);
+  return d.toISOString();
 };
 const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
-const isoTodayLocal = (hoursAgo: number) => localIsoToday(hoursAgo);
 
 const PAPER_TODAY: DigestPaper = {
   title: 'Video Diffusion Transformers',
@@ -82,7 +82,7 @@ const PAPER_TODAY: DigestPaper = {
     { family: 'Saharia', given: 'Chitwan' },
     { family: 'Extra', given: 'Author' },
   ],
-  publishedAt: isoTodayLocal(2),
+  publishedAt: localNoonUtcIso(0),
   arxivId: '2610.01234v1',
   abstract: 'We introduce a video diffusion transformer for long-horizon generation.',
   categories: ['cs.CV', 'cs.LG'],

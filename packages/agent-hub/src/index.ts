@@ -53,7 +53,14 @@ export {
 } from './workflow/builtin';
 
 // 会话状态
-export { useAgentHubStore, COMPLETED_RUNS_STORAGE_KEY, COMPLETED_RUNS_LIMIT } from './store';
+export {
+  useAgentHubStore,
+  COMPLETED_RUNS_STORAGE_KEY,
+  COMPLETED_RUNS_LIMIT,
+  SESSIONS_LIMIT,
+  serializeSessionsForPersist,
+  parsePersistedSessions,
+} from './store';
 export type { AgentSession, AgentSessionStatus, CompletedRun } from './store';
 
 // UI 组件

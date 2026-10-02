@@ -87,6 +87,9 @@
 | **Agent 记忆** | 从你的审批与部分采纳历史学习写作偏好，自动注入后续每次生成的 Context Pack；可查看 / 停用 |
 | **并行研究子代理** | 一个调研任务自动拆分多子话题并行检索，容错汇总 |
 | **用量与成本** | 本月调用 / token 成本估算（标注"估算非账单"）/ 月度预算进度 / 近 20 条事件 |
+| **会话持久化（v1.2.0）** | 对话历史落本地 IndexedDB——重启不丢；「历史会话」下拉切换 / 重命名 / 删除 |
+| **聊天代码块一键入稿（v1.2.0）** | agent 回复中的 LaTeX 围栏块带「插入到稿件」按钮，插入光标处并过 diff 审批 |
+| **自定义提示词库（v1.2.0）** | 高频指令沉淀为 `/` 呼出的个人资产，正文自动填入可改后发送 |
 
 ![三审稿人仿真](docs/screenshots/reviewer-sim.png)
 
@@ -113,9 +116,9 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_1.1.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.1.0/ScholarForge_1.1.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [ScholarForge_1.1.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.1.0/ScholarForge_1.1.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [ScholarForge_1.1.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.1.0/ScholarForge_1.1.0_x64.dmg) | macOS（Intel） |
+| [ScholarForge_1.2.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.2.0/ScholarForge_1.2.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [ScholarForge_1.2.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.2.0/ScholarForge_1.2.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [ScholarForge_1.2.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.2.0/ScholarForge_1.2.0_x64.dmg) | macOS（Intel） |
 
 > 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
 
@@ -157,7 +160,9 @@ packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · �
 - [x] v0.7 批注系统 · 写作统计 · 专注模式 · 图表导航 · 拼写检查
 - [x] v0.8 数据持久化 · 模型激活器 · 真实 SyncTeX 校准 · 性能基线 · 安装包
 - [x] v0.9 首页指挥台 · arXiv 晨报 · 离线演示模式 · Zotero 迁移
-- [ ] 审阅包往返（导出/导入给合作者，导师不装软件也能改稿）
+- [x] v1.0 审阅包往返（导出/导入给合作者，导师不装软件也能改稿）· Beamer · 投稿文书 · Bib 清理
+- [x] v1.1 计划模式 · Chat 富渲染 · diff 审批 v2 · quick-fix · Agent 记忆 · 并行研究 · 用量成本
+- [x] v1.2 会话持久化 · 聊天 LaTeX 块一键入稿 · 自定义提示词库
 - [ ] 实时多人文档协同（Yjs CRDT + 可选云房间）
 - [ ] CLI agent 桥（Codex / Claude Code 作为宿主引擎接入）
 
