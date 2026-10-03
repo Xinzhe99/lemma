@@ -86,6 +86,7 @@ export function UpdateBar() {
 
   // 已就绪：主行动条（一条细横幅，不弹窗）
   if (phase === 'downloaded') {
+    const autoInstalled = useUpdateStore.getState().autoInstalled;
     return (
       <div
         className="sf-updatebar sf-updatebar-ready"
@@ -93,20 +94,38 @@ export function UpdateBar() {
         style={shell('var(--accent)', 'var(--accent-dim)')}
       >
         <span style={{ color: '#ffffff', fontWeight: 550 }}>
-          {t('update.ready', { version: newVersion ?? '' })}
+          {autoInstalled
+            ? t('update.installed', { version: newVersion ?? '' })
+            : t('update.ready', { version: newVersion ?? '' })}
         </span>
-        <button
-          type="button"
-          style={primaryBtn}
-          disabled={restarting}
-          onClick={() => {
-            if (restarting) return;
-            setRestarting(true);
-            void applyAndRestart().finally(() => setRestarting(false));
-          }}
-        >
-          {restarting ? t('update.restarting') : t('update.restart')}
-        </button>
+        {!autoInstalled && (
+          <button
+            type="button"
+            style={primaryBtn}
+            disabled={restarting}
+            onClick={() => {
+              if (restarting) return;
+              setRestarting(true);
+              void applyAndRestart().finally(() => setRestarting(false));
+            }}
+          >
+            {restarting ? t('update.restarting') : t('update.restart')}
+          </button>
+        )}
+        {autoInstalled && (
+          <button
+            type="button"
+            style={primaryBtn}
+            disabled={restarting}
+            onClick={() => {
+              if (restarting) return;
+              setRestarting(true);
+              void applyAndRestart().finally(() => setRestarting(false));
+            }}
+          >
+            {restarting ? t('update.restarting') : t('update.restartNow')}
+          </button>
+        )}
         <button type="button" style={laterBtn} onClick={dismiss}>
           {t('update.later')}
         </button>

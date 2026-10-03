@@ -16,7 +16,7 @@
 import { create } from 'zustand';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { getPlatform } from '../platform/types';
-import { fetchUpdaterStatus, getAppVersion, relaunchApp } from '../updater/relaunch';
+import { fetchUpdaterStatus, getAppVersion, relaunchApp, isMacOSPlatform } from '../updater/relaunch';
 
 export type UpdatePhase =
   | 'unsupported' // 浏览器形态：不支持应用内更新
@@ -45,11 +45,13 @@ export interface UpdateState {
   silent: boolean;
   /** 用户点了【稍后】：phase 不变（保持 downloaded/error）但横幅隐藏（本会话）。 */
   dismissed: boolean;
+  /** macOS 下载完已自动 install（替换了 app bundle）：重启即生效，无需再点按钮（v2.2.0）。 */
+  autoInstalled: boolean;
   /** App 首屏后调用一次：Tauri 形态启动 8s 延迟检查 + 6h 周期检查；浏览器置 unsupported。 */
   initUpdateCheck(): void;
   /** 手动检查（命令面板入口）：失败显示错误横幅。 */
   checkNow(): Promise<void>;
-  /** 【立即重启】：install 已下载的更新并重启（不自动调用——仅用户触发）。 */
+  /** 【立即重启】：安装并重启（macOS 已 autoInstalled 则仅 relaunch）。 */
   applyAndRestart(): Promise<void>;
   /** 【稍后】：本会话隐藏横幅。 */
   dismiss(): void;
@@ -59,6 +61,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
   phase: 'idle',
   silent: true,
   dismissed: false,
+  autoInstalled: false,
 
   initUpdateCheck: () => {
     if (schedulerInited) return;
@@ -91,9 +94,12 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
       return;
     }
     try {
-      // Windows：install 启动安装器后本进程即退出（relaunch 不可达）；
-      // macOS/Linux：install 返回后需 relaunch 进入新版本。两平台同一代码路径。
-      await pending.install();
+      // macOS 且已 autoInstalled：bundle 已替换，只需 relaunch 进入新版本
+      if (!st.autoInstalled) {
+        // Windows：install 启动安装器后本进程即退出（relaunch 不可达）；
+        // macOS/Linux：install 返回后需 relaunch 进入新版本。两平台同一代码路径。
+        await pending.install();
+      }
       await relaunchApp();
     } catch (err) {
       set({ phase: 'error', silent: false, dismissed: false, error: `安装更新失败，请稍后重试（${errMsg(err)}）` });
@@ -150,7 +156,20 @@ async function runCheck(silent: boolean): Promise<void> {
         }
       }
     });
-    useUpdateStore.setState({ phase: 'downloaded', progress: 100, dismissed: false });
+    // Codex 体验（v2.2.0）：macOS 下载完立即 install（替换 app bundle，不杀进程）——
+    // 用户正常退出重开即拿到新版本，无需点【立即重启】。横幅改为"已安装，重启即完成"。
+    // Windows NSIS 的 install 会启动安装器并退出进程，不能自动调——保持手动确认。
+    if (isMacOSPlatform()) {
+      try {
+        await update.install();
+        useUpdateStore.setState({ phase: 'downloaded', progress: 100, dismissed: false, autoInstalled: true });
+      } catch {
+        // macOS 自动 install 失败：退回手动模式（用户点按钮时 install + relaunch）
+        useUpdateStore.setState({ phase: 'downloaded', progress: 100, dismissed: false, autoInstalled: false });
+      }
+    } else {
+      useUpdateStore.setState({ phase: 'downloaded', progress: 100, dismissed: false, autoInstalled: false });
+    }
   } catch (err) {
     pending = null;
     useUpdateStore.setState({ phase: 'error', error: humanizeError(err), silent });

@@ -21,6 +21,16 @@ interface TauriGlobal {
   __TAURI__?: { core?: { invoke?: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T> } };
 }
 
+/**
+ * 平台检测（v2.2.0）：macOS 上 install() 只替换 app bundle 不杀进程，
+ * 可以下载完立即调用（用户下次正常重启即生效——Codex 体验）；
+ * Windows NSIS 的 install() 会启动安装器并退出进程，须用户确认后才调。
+ */
+export function isMacOSPlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+}
+
 function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> | null {
   if (typeof window === 'undefined') return null;
   const fn = (window as unknown as TauriGlobal).__TAURI__?.core?.invoke;

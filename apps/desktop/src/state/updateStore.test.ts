@@ -20,6 +20,7 @@ vi.mock('../updater/relaunch', () => ({
   relaunchApp: vi.fn(),
   getAppVersion: vi.fn(),
   fetchUpdaterStatus: vi.fn(),
+  isMacOSPlatform: vi.fn(() => false), // 测试默认 Windows 路径（不自动 install）
 }));
 
 import { check } from '@tauri-apps/plugin-updater';

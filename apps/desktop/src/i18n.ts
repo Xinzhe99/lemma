@@ -160,6 +160,8 @@ const dict: MessageDict = {
     en: '✓ v{version} is ready — restart to finish updating',
   },
   'update.restart': { zh: '立即重启', en: 'Restart now' },
+  'update.installed': { zh: '✓ v{version} 已安装 — 重启应用即完成升级', en: '✓ v{version} installed — restart to finish' },
+  'update.restartNow': { zh: '立即重启', en: 'Restart now' },
   'update.later': { zh: '稍后', en: 'Later' },
   'update.restarting': { zh: '正在重启…', en: 'Restarting…' },
 

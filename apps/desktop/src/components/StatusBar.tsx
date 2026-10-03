@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
+import { useUpdateStore } from '../state/updateStore';
 import { useUiStore } from '../state/uiStore';
 import { useWritingStatsStore } from '../state/writingStats';
 import { useSubmitStore } from '../state/submitStore';
@@ -163,6 +164,10 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
   // 借 compileStatus 订阅在编译结束时重渲染，重读取 hasSynctexIndex()。
   const compileStatus = useWorkspaceStore((s) => s.compileStatus);
   const autoCompile = useSettingsStore((s) => s.autoCompile);
+  const updatePhase = useUpdateStore((s) => s.phase);
+  const updateVersion = useUpdateStore((s) => s.newVersion);
+  const updateAutoInstalled = useUpdateStore((s) => s.autoInstalled);
+  const applyUpdate = useUpdateStore((s) => s.applyAndRestart);
   const setAutoCompile = useSettingsStore((s) => s.setAutoCompile);
   const syncAvailable = hasSynctexIndex();
 
@@ -230,6 +235,17 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
         >
           {pageLimit === null ? `${pages} ${L.pagesUnit}` : `${pages} / ${pageLimit} ${L.pagesUnit}`}
         </span>
+      )}
+      {updatePhase === 'downloaded' && (
+        <button
+          type="button"
+          className="sf-statusbar-item"
+          style={{ color: 'var(--accent-dim)', cursor: 'pointer' }}
+          title={updateAutoInstalled ? 'v' + updateVersion + ' 已安装 — 点击重启完成' : 'v' + updateVersion + ' 已就绪 — 点击安装并重启'}
+          onClick={() => void applyUpdate()}
+        >
+          ⟳ v{updateVersion}
+        </button>
       )}
       <span className="sf-statusbar-item">
         {L.cursor} {cursor.line}, {cursor.col}
