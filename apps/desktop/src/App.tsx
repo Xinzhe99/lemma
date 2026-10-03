@@ -341,6 +341,9 @@ export function App() {
   // —— WS-2 编译同步闭环（App 窄 carve-out）：订阅 onPdfGoto 并镜像为 PdfReader 的 goto props ——
   const [pdfGotoPage, setPdfGotoPage] = useState<number | undefined>(undefined);
   const [pdfGotoTick, setPdfGotoTick] = useState(0);
+  // —— 分屏可拖拽（v2.4.0 ③）：比例 + 容器 ref ——
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  const splitRef = useRef<HTMLDivElement>(null);
   useEffect(
     () =>
       onPdfGoto((g) => {
@@ -434,7 +437,15 @@ export function App() {
           }
         />
       )}
-      <div className={`editor-area ${centerView === 'split' && pdfView ? 'sf-split' : ''}`}>
+      <div
+        className={`editor-area ${centerView === 'split' && pdfView ? 'sf-split' : ''}`}
+        style={
+          centerView === 'split' && pdfView
+            ? ({ '--sf-split': `${splitRatio * 100}%` } as React.CSSProperties)
+            : undefined
+        }
+        ref={splitRef}
+      >
         {pdfView && (centerView === 'pdf' || centerView === 'split') ? (
           <PdfReader
             key={pdfView.name}
@@ -466,6 +477,29 @@ export function App() {
             gotoTick={pdfGotoTick || undefined}
           />
         ) : null}
+        {centerView === 'split' && pdfView && (
+          <div
+            className="sf-split-handle"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const container = splitRef.current;
+              if (!container) return;
+              const startX = e.clientX;
+              const startRatio = splitRatio;
+              const rect = container.getBoundingClientRect();
+              const onMove = (ev: MouseEvent): void => {
+                const delta = (ev.clientX - startX) / rect.width;
+                setSplitRatio(Math.min(0.8, Math.max(0.2, startRatio + delta)));
+              };
+              const onUp = (): void => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+              };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          />
+        )}
         {(!pdfView || centerView === 'editor' || centerView === 'split') && <EditorArea />}
       </div>
     </section>

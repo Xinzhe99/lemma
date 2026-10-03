@@ -2699,15 +2699,28 @@ kbd {
   gap: 0;
   overflow: hidden;
 }
+/* 分屏：PDF 占 --sf-split 变量比例（默认 50%），编辑器占剩余 */
 .editor-area.sf-split > *:first-child {
-  flex: 1 1 50%;
+  flex: none;
+  width: var(--sf-split, 50%);
   min-width: 220px;
   overflow: hidden;
 }
+.editor-area.sf-split > .sf-split-handle {
+  flex: none;
+  width: 4px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.15s;
+  z-index: 10;
+}
+.editor-area.sf-split > .sf-split-handle:hover {
+  background: var(--accent);
+}
 .editor-area.sf-split > .sf-editor-host {
-  flex: 1 1 50%;
+  flex: 1;
   min-width: 220px;
-  border-left: 1px solid var(--border);
+  overflow: hidden;
 }
 
 /* —— 长句内联提示（v2.3.0）：淡虚线下划线，不打断写作流 —— */

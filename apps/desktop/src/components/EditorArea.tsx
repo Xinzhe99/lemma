@@ -18,6 +18,8 @@ import {
   thesaurusExtension,
   citationHoverExtension,
   sentenceQualityExtension,
+  envAutoCloseExtension,
+  textFormatKeymap,
   type CitationCard,
 } from '@lemma/editor';
 // 字号调节用的 CodeMirror 底层件（@lemma/editor 同源依赖，非新增包）
@@ -196,6 +198,8 @@ export function EditorArea() {
       spellcheckExtension(spellcheckEnabled),
       thesaurusExtension(),
       sentenceQualityExtension(),
+      envAutoCloseExtension(),
+      textFormatKeymap(),
       citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),
