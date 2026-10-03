@@ -51,7 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   mockGetPlatform.mockReturnValue(tauriStub);
-  useSettingsStore.setState({ autoCompile: true, providers: [], activeProviderId: null });
+  useSettingsStore.setState({ autoCompile: true, livePreview: false, providers: [], activeProviderId: null });
   seed({ 'main.tex': 'a\nb\n' });
   // attach 内部快照基线
   const compileSpy = vi.fn();

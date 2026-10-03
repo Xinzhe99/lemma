@@ -21,6 +21,7 @@ import { ensureBuiltinTectonic, getReadyBuiltinTectonicPath, isBuiltinTectonicIn
 import { jumpTo, lastCursor } from './editorJump';
 import { setSynctexIndex, jumpSourceToPdf } from './synctexBridge';
 import { setCompileDiagnosticsList, lintLatex } from '@scholarforge/editor';
+import { ENGINE_PROBE_COMMANDS, selectEngine, engineArgs, ENGINE_INFO, type EngineKind } from './engineMatrix';
 
 const idleRunner = {
   async run(): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -178,7 +179,7 @@ export interface ExecOutcome {
  * 若注入了内置 tectonic 路径（数据目录已就绪/自动下载成功）则选内置，否则返回 null（回退模拟引擎）。
  * builtinTectonicPath 为新增探测注入点：非空字符串即视为可用（Rust 侧落盘前已校验过）。
  */
-export type RealEngineKind = 'tectonic' | 'latexmk' | 'builtin-tectonic';
+export type RealEngineKind = EngineKind;
 
 export function detectEngine(probes: {
   tectonic: ExecOutcome;
@@ -376,11 +377,18 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
   s.setCompileStatus('running');
 
   // 前两级系统探测；内置引擎已就绪（本会话早前下载过）时作为第三级注入
-  let engineKind = detectEngine({
-    tectonic: await probeEngine('tectonic'),
-    latexmk: await probeEngine('latexmk'),
-    builtinTectonicPath: getReadyBuiltinTectonicPath(),
-  });
+  // 全矩阵探测（v2.0.0）：tectonic/lualatex/xelatex/pdflatex/latexmk + 内置
+  const probes: Partial<Record<EngineKind, { ok: boolean }>> = {};
+  for (const { kind, cmd } of ENGINE_PROBE_COMMANDS) {
+    const r = await probeEngine(cmd);
+    probes[kind] = { ok: r.ok };
+  }
+  const pref = useSettingsStore.getState().enginePreference ?? 'auto';
+  let sel = selectEngine(probes, pref, !!getReadyBuiltinTectonicPath());
+  let engineKind: EngineKind | null = sel?.kind ?? null;
+  if (sel?.fellBack) {
+    s.appendCompileLog(`⚠ 偏好引擎 ${pref} 不可用，回落 ${ENGINE_INFO[sel.kind].label}`);
+  }
   let builtinPath = engineKind === 'builtin-tectonic' ? getReadyBuiltinTectonicPath() : null;
   if (!engineKind) {
     // 全链兜底：触发内置 Tectonic 自动下载（数据目录已有则 Rust 侧直接返回 cached）。
@@ -431,7 +439,13 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
     try {
       const bytes = await tauriReadBase64(pdfPath);
       lastPdf = { name: pdfPath, data: toArrayBuffer(bytes) };
-      useUiStore.getState().setPdfView(lastPdf);
+      const ui = useUiStore.getState();
+      if (!ui.pdfView) {
+        ui.setPdfView(lastPdf);
+      } else {
+        // 已开预览：仅更新数据（不切视图，不闪屏）
+        useUiStore.setState({ pdfView: lastPdf });
+      }
       s.appendCompileLog(t.pdfOpened(pdfPath, bytes.length));
     } catch (e) {
       s.appendCompileLog(t.pdfMissing(pdfPath, errText(e)));
@@ -486,6 +500,8 @@ export async function runCompile(opts?: { auto?: boolean }): Promise<CompileActi
 
 /** 编辑静默期：停笔 1.5s 后编译一次（合并连续击键） */
 const AUTOCOMPILE_DEBOUNCE_MS = 1500;
+/** 实时预览防抖 */
+const LIVE_PREVIEW_DEBOUNCE_MS = 500;
 
 let autoCompileTimer: ReturnType<typeof setTimeout> | null = null;
 let lastFilesJson = '';
@@ -522,7 +538,7 @@ export function attachAutoCompile(
       if (!resolveCompileEntry()) return;
       st.appendCompileLog(pick(cfg.language).autoCompileStart());
       void compile({ auto: true });
-    }, AUTOCOMPILE_DEBOUNCE_MS);
+    }, useSettingsStore.getState().livePreview ? LIVE_PREVIEW_DEBOUNCE_MS : AUTOCOMPILE_DEBOUNCE_MS);
   });
   return () => {
     unsub();

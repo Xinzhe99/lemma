@@ -123,6 +123,10 @@ const dict: MessageDict = {
   'settings.cliTest': { zh: '检测 (--version)', en: 'Probe (--version)' },
   'settings.cliTestOk': { zh: '✓ 命令可用：{v}', en: '✓ command available: {v}' },
   'settings.cliTestFail': { zh: '✗ {e}', en: '✗ {e}' },
+  'settings.enginePreference': { zh: 'LaTeX 引擎', en: 'LaTeX engine' },
+  'settings.engineAuto': { zh: '自动（优先 Tectonic）', en: 'Auto (Tectonic first)' },
+  'settings.livePreview': { zh: '实时预览', en: 'Live preview' },
+  'settings.livePreviewHint': { zh: '编辑后 0.5 秒自动重编（需开启自动编译）', en: 'Recompile 0.5s after edit (needs auto-compile)' },
   'settings.cliHint': {
     zh: '仅桌面版可用。一次性进程调用：输出完成后整段返回（伪流式），不支持中途停止与工具协议；浏览器形态自动回落 API/演示。',
     en: 'Desktop only. One-shot process call: output returns whole (pseudo-streaming); no mid-run stop or tool protocol; browser falls back to API/demo.',

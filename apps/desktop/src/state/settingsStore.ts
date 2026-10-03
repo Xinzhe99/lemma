@@ -28,6 +28,9 @@ export type ProviderInput = Omit<ProviderConfig, 'id'> & { id?: string };
 /** Agent 引擎选择：auto = 有 API 配置用 API、否则 CLI；显式指定则锁定 */
 export type AgentEngine = 'auto' | 'api' | 'cli';
 
+/** LaTeX 编译引擎偏好（v2.0.0） */
+export type LatexEnginePreference = 'auto' | 'tectonic' | 'lualatex' | 'xelatex' | 'pdflatex' | 'latexmk';
+
 /** CLI agent 桥配置（v1.5.0：codex / claude / gemini 等本地 CLI 作为引擎） */
 export interface CliAgentConfig {
   enabled: boolean;
@@ -80,6 +83,12 @@ export interface SettingsState {
   /** 保存后自动编译（Overleaf 式闭环；仅桌面真实引擎，浏览器模拟不触发） */
   autoCompile: boolean;
   setAutoCompile(on: boolean): void;
+  /** LaTeX 引擎偏好 */
+  enginePreference: LatexEnginePreference;
+  setEnginePreference(pref: LatexEnginePreference): void;
+  /** 实时预览（Live 模式：短防抖 + 平滑 PDF 刷新） */
+  livePreview: boolean;
+  setLivePreview(on: boolean): void;
   setTheme(theme: Theme): void;
   setLanguage(language: Language): void;
 }
@@ -95,6 +104,8 @@ interface PersistedSettings {
   agentEngine: AgentEngine;
   cliAgent: CliAgentConfig;
   autoCompile: boolean;
+  enginePreference: LatexEnginePreference;
+  livePreview: boolean;
 }
 
 function readPersisted(): PersistedSettings | null {
@@ -113,6 +124,13 @@ function readPersisted(): PersistedSettings | null {
       agentEngine: v.agentEngine === 'api' || v.agentEngine === 'cli' ? v.agentEngine : 'auto',
       cliAgent: coerceCliAgent(v.cliAgent),
       autoCompile: v.autoCompile !== false, // 默认开
+      enginePreference:
+        v.enginePreference === 'tectonic' || v.enginePreference === 'lualatex' ||
+        v.enginePreference === 'xelatex' || v.enginePreference === 'pdflatex' ||
+        v.enginePreference === 'latexmk'
+          ? v.enginePreference
+          : 'auto',
+      livePreview: v.livePreview !== false,
     };
   } catch {
     return null;
@@ -129,6 +147,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',
   autoCompile: initial?.autoCompile ?? true,
+  enginePreference: initial?.enginePreference ?? 'auto',
+  livePreview: initial?.livePreview ?? true,
   cliAgent: initial?.cliAgent ?? { ...DEFAULT_CLI_AGENT },
 
   addProvider(input) {
@@ -174,6 +194,14 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ autoCompile });
   },
 
+  setEnginePreference(enginePreference) {
+    set({ enginePreference });
+  },
+
+  setLivePreview(livePreview) {
+    set({ livePreview });
+  },
+
   setTheme(theme) {
     set({ theme });
   },
@@ -195,6 +223,8 @@ useSettingsStore.subscribe((s) => {
         agentEngine: s.agentEngine,
         cliAgent: s.cliAgent,
         autoCompile: s.autoCompile,
+        enginePreference: s.enginePreference,
+        livePreview: s.livePreview,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }

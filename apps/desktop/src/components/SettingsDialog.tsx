@@ -102,6 +102,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const setEmbeddingModel = useSettingsStore((s) => s.setEmbeddingModel);
   const agentEngine = useSettingsStore((s) => s.agentEngine);
   const setAgentEngine = useSettingsStore((s) => s.setAgentEngine);
+  const enginePreference = useSettingsStore((s) => s.enginePreference);
+  const setEnginePreference = useSettingsStore((s) => s.setEnginePreference);
+  const livePreview = useSettingsStore((s) => s.livePreview);
+  const setLivePreview = useSettingsStore((s) => s.setLivePreview);
   const cliAgent = useSettingsStore((s) => s.cliAgent);
   const setCliAgent = useSettingsStore((s) => s.setCliAgent);
   const addProvider = useSettingsStore((s) => s.addProvider);
@@ -448,6 +452,33 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                   {cliTest && <span style={{ fontSize: 11.5 }}>{cliTest}</span>}
                 </div>
                 <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-2)' }}>{t('settings.cliHint')}</p>
+
+              {/* —— LaTeX 引擎 + 实时预览（v2.0.0） —— */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10, display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12 }}>{t('settings.enginePreference')}</span>
+                  <select
+                    className="sf-cli-input"
+                    style={CLI_INPUT_STYLE}
+                    value={enginePreference}
+                    onChange={(e) => setEnginePreference(e.target.value as typeof enginePreference)}
+                  >
+                    <option value="auto">{t('settings.engineAuto')}</option>
+                    <option value="tectonic">Tectonic</option>
+                    <option value="lualatex">LuaLaTeX</option>
+                    <option value="xelatex">XeLaTeX</option>
+                    <option value="pdflatex">pdfLaTeX</option>
+                    <option value="latexmk">latexmk</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12 }}>{t('settings.livePreview')}</span>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <input type="checkbox" checked={livePreview} onChange={(e) => setLivePreview(e.target.checked)} />
+                    {t('settings.livePreviewHint')}
+                  </label>
+                </div>
+              </div>
               </div>
             </div>
           )}

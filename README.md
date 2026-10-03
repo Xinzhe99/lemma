@@ -40,7 +40,7 @@
 | 数学实时预览 | 悬停 `$...$` / `\[...\]` 即出 KaTeX 渲染浮层 |
 | 可视化工具 | 表格编辑器（图形网格 → tabular 代码）、插图向导（自动补 `graphicx`）、引用插入向导（语义推荐相关文献） |
 | 质量护栏 | LaTeX linter（环境配对/悬空引用/括号平衡）、拼写与学术用词检查（96 对错拼 + 26 组易混词，语境守卫防误报） |
-| 真实编译 | **无需预装 LaTeX**：首次点编译自动下载内置 Tectonic（约 30MB，缓存本地）；已装 TeX Live / Tectonic 则优先使用系统引擎；**SyncTeX 双向跳转** |
+| 真实编译 | **全引擎支持**：Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk 自动检测（设置页可锁定偏好）；缺引擎时 Tectonic 自动下载（~30MB 零配置）；**实时预览**（编辑 0.5s 自动重编 + PDF 平滑刷新）；**SyncTeX 双向跳转** |
 | 效率特性 | Ctrl+P 快速打开、Ctrl+Shift+F 全项目搜索、**AI 一键修编译错误**（诊断→diff 审批）、**导出 Word (.docx)**（自动下载内置 pandoc）、专注模式、多项目管理 |
 
 ![大纲与图表导航](docs/screenshots/outline.png)
@@ -117,9 +117,9 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_1.9.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.9.0/ScholarForge_1.9.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [ScholarForge_1.9.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.9.0/ScholarForge_1.9.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [ScholarForge_1.9.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.9.0/ScholarForge_1.9.0_x64.dmg) | macOS（Intel） |
+| [ScholarForge_2.0.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v2.0.0/ScholarForge_2.0.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [ScholarForge_2.0.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v2.0.0/ScholarForge_2.0.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [ScholarForge_2.0.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v2.0.0/ScholarForge_2.0.0_x64.dmg) | macOS（Intel） |
 
 > 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
 
@@ -172,6 +172,7 @@ packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · �
 - [x] v1.7 读-写闭环：PDF+编辑器分屏对照 · 智能引用推荐（TF-IDF 段落→文献库）
 - [x] v1.8 编辑深度：56 个 LaTeX snippet（数学/环境/文本）· PDF 引述→稿件
 - [x] v1.9 进度感知：各节字数/状态徽标 · TODO AI 解决 · 专注写作计时
+- [x] v2.0 引擎矩阵（Tectonic/LuaLaTeX/XeLaTeX/pdfLaTeX/latexmk）· 实时预览（0.5s 防抖）
 - [x] 多人协同一阶段：CRDT 离线补丁往返（.sfpatch，零服务器）
 - [ ] 协同二阶段：实时云房间（Yjs + 信令服务）
 - [x] CLI agent 桥（codex / claude / gemini 作为本地引擎接入）
