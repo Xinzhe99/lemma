@@ -71,11 +71,22 @@ export function packagingChecklist(files: Record<string, string>): PackagingChec
   return items;
 }
 
-/** 把项目文本文件打包为 zip（Uint8Array，可触发浏览器下载） */
-export function buildProjectZip(files: Record<string, string>, projectName = 'project'): { name: string; bytes: Uint8Array } {
+/**
+ * 把项目打包为 zip（Uint8Array，可触发浏览器下载）。
+ * binaryFiles（v2.1.2）：二进制附件（figures/ 下的图片等），key 为项目内相对路径，
+ * value 为原始字节——投稿包必须包含图片，否则对端编译产物缺失。
+ */
+export function buildProjectZip(
+  files: Record<string, string>,
+  projectName = 'project',
+  binaryFiles?: Record<string, Uint8Array>,
+): { name: string; bytes: Uint8Array } {
   const entries: Record<string, Uint8Array> = {};
   for (const [path, content] of Object.entries(files)) {
     entries[path] = strToU8(content);
+  }
+  for (const [path, bytes] of Object.entries(binaryFiles ?? {})) {
+    if (entries[path] === undefined) entries[path] = bytes;
   }
   return { name: `${projectName.replace(/[^\w-]+/g, '_') || 'project'}.zip`, bytes: zipSync(entries) };
 }

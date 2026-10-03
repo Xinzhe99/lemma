@@ -202,6 +202,7 @@ const dict: MessageDict = {
   'cmd.compile': { zh: '编译项目', en: 'Compile project' },
   'cmd.template': { zh: '从模板新建项目（6 套起步模板，含中文 ctex）', en: 'New project from template (6 starter templates, incl. Chinese ctex)' },
   'cmd.importZip': { zh: '导入 Overleaf / LaTeX 项目 zip', en: 'Import Overleaf / LaTeX project zip' },
+  'cmd.exportZip': { zh: '导出项目 zip（含 figures 图片）', en: 'Export project zip (incl. figures)' },
   'cmd.importBibtex': { zh: '导入 BibTeX 到文献库', en: 'Import BibTeX into library' },
   'cmd.fetchMetadata': { zh: '按 DOI / arXiv ID 抓取文献元数据', en: 'Fetch metadata by DOI / arXiv ID' },
   'cmd.openPdf': { zh: '打开本地 PDF 阅读（标注 + 选中即问）', en: 'Open local PDF (annotations + ask-on-selection)' },

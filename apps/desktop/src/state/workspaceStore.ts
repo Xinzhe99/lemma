@@ -375,6 +375,22 @@ export async function initWorkspace(): Promise<void> {
         ? parsed.snapshots
         : {};
     lastPersisted = JSON.stringify(parsed);
+    // 补充 figures/ 元数据（v2.1.2 Fix 3：文件树可见性——图片在磁盘但不在 files map）
+    try {
+      const all = await getPlatform().fs.list();
+      const figurePaths = all.filter((p) => p.startsWith('figures/'));
+      if (figurePaths.length > 0) {
+        const filesWithFigures = { ...parsed.files };
+        for (const fp of figurePaths) {
+          if (filesWithFigures[fp] === undefined) {
+            filesWithFigures[fp] = ''; // 空串标记：文件树可见但不参与文本编辑
+          }
+        }
+        parsed.files = filesWithFigures;
+      }
+    } catch {
+      // 列表失败不阻塞启动
+    }
     useWorkspaceStore.setState({
       projectName: typeof parsed.projectName === 'string' ? parsed.projectName : 'workspace',
       entry: typeof parsed.entry === 'string' ? parsed.entry : '',

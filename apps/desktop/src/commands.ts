@@ -51,6 +51,14 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setTemplateWizardOpen(true),
     },
     {
+      id: 'project.exportZip',
+      title: ctx.t('cmd.exportZip'),
+      hint: ctx.t('hint.view'),
+      run: () => {
+        void import('./exportZip').then(({ exportProjectZip }) => exportProjectZip());
+      },
+    },
+    {
       id: 'project.importZip',
       title: ctx.t('cmd.importZip'),
       hint: ctx.t('hint.project'),

@@ -27,6 +27,8 @@ import { BookOpen, Check, FileArchive, FileText, Plus, Trash2 } from 'lucide-rea
 import { buildProjectZip, packagingChecklist } from '@lemma/compile';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { getPlatform } from '../platform/types';
+import { tauriReadBase64 } from '../platform/tauri';
 import { useLibraryStore } from '../state/libraryStore';
 import { useUiStore } from '../state/uiStore';
 import {
@@ -336,8 +338,30 @@ export function SubmitPanel() {
     });
   };
 
-  const exportZip = () => {
-    const { name, bytes } = buildProjectZip(files, projectName);
+  /**
+   * 导出项目 zip（v2.1.2：补齐 figures/ 二进制附件——投稿包必须含图片）。
+   * 桌面形态：从数据目录 figures/ 读取全部图片文件；浏览器形态：图片不在磁盘（ImageWizard
+   * 的浏览器模式不写盘），zip 仅含文本文件（用户需手动补 figures/）。
+   */
+  const exportZip = async () => {
+    const binaryFiles: Record<string, Uint8Array> = {};
+    // 读取数据目录 figures/ 下的所有文件（Tauri 形态）
+    try {
+      const fs = getPlatform().fs;
+      const all = await fs.list();
+      const imagePaths = all.filter((p) => p.startsWith('figures/'));
+      for (const p of imagePaths) {
+        try {
+          const bytes = await tauriReadBase64(p);
+          binaryFiles[p] = bytes;
+        } catch {
+          // 单个图片读取失败不阻塞整包导出
+        }
+      }
+    } catch {
+      // 浏览器形态或列表失败：跳过二进制
+    }
+    const { name, bytes } = buildProjectZip(files, projectName, binaryFiles);
     // zipSync 产出精确尺寸的 buffer；cast 兼容 TS 新版 BlobPart 泛型口径
     const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
