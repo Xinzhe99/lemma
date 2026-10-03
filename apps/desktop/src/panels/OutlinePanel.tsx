@@ -167,6 +167,30 @@ export function OutlinePanel() {
                   )}
                   <span className="sf-outline-title">{node.title}</span>
                   {progress && (
+                    <span
+                      style={{
+                        flex: 'none',
+                        width: 40,
+                        height: 4,
+                        borderRadius: 2,
+                        background: 'var(--border)',
+                        overflow: 'hidden',
+                        marginLeft: 4,
+                      }}
+                      title={`${progress.words} words`}
+                    >
+                      <span
+                        style={{
+                          display: 'block',
+                          height: '100%',
+                          width: `${Math.min(100, (progress.words / 500) * 100)}%`,
+                          background: d.statusColor[progress.status],
+                          borderRadius: 2,
+                        }}
+                      />
+                    </span>
+                  )}
+                  {progress && (
                     <span className="sf-outline-file" style={{ marginLeft: 4 }}>
                       {d.wordsLabel(progress.words)}
                     </span>

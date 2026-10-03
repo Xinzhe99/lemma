@@ -77,6 +77,8 @@ export interface LatexEditorProps {
   value: string;
   onChange?: (v: string) => void;
   getCitations?: () => CitationEntry[];
+  /** 全项目 label（v2.3.0：\ref 补全跨文件） */
+  getProjectLabels?: () => { name: string; line: number; file?: string }[];
   extraExtensions?: Extension[];
   onCursorLine?: (line: number) => void;
   className?: string;
@@ -108,19 +110,24 @@ export function LatexEditor(props: LatexEditorProps) {
   const onCursorLineRef = useLatest(props.onCursorLine);
   const onReadyRef = useLatest(onEditorReady);
   const getCitationsRef = useLatest(props.getCitations);
+  const getLabelsRef = useLatest(props.getProjectLabels);
   const extraRef = useLatest(extraExtensions);
   const valueRef = useLatest(value);
 
   // 稳定引用的引用数据代理，使 latexSupport 无需重建
   const citationsProxy = useCallback(() => getCitationsRef.current?.() ?? [], []);
+  const labelsProxy = useCallback(
+    () => getLabelsRef.current?.() ?? [],
+    [],
+  );
 
   /** 按文件路径组装语言侧扩展：.bib → BibTeX；否则 LaTeX + 补全 + 数学 hover 预览 */
   const langSideFor = useCallback(
     (filePath: string | undefined): Extension[] =>
       isBibPath(filePath)
         ? bibBase()
-        : [latexSupport({ getCitations: citationsProxy }), mathHoverTooltip()],
-    [citationsProxy],
+        : [latexSupport({ getCitations: citationsProxy, getProjectLabels: labelsProxy }), mathHoverTooltip()],
+    [citationsProxy, labelsProxy],
   );
 
   useEffect(() => {

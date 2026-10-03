@@ -13,9 +13,11 @@ import {
   LatexEditor,
   quickFixExtension,
   compileDiagnosticsExtension,
+  collectLabels,
   spellcheckExtension,
   thesaurusExtension,
   citationHoverExtension,
+  sentenceQualityExtension,
   type CitationCard,
 } from '@lemma/editor';
 // 字号调节用的 CodeMirror 底层件（@lemma/editor 同源依赖，非新增包）
@@ -167,6 +169,21 @@ export function EditorArea() {
     },
     [],
   );
+  // 全项目 label（v2.3.0：
+  // 全项目 label（v2.3.0：ref 补全跨文件——收集所有 .tex 的 label，标注来源文件）
+  const projectLabels = useCallback(() => {
+    const ws = useWorkspaceStore.getState();
+    const out: { name: string; line: number; file?: string }[] = [];
+    for (const [path, content] of Object.entries(ws.files)) {
+      if (!path.toLowerCase().endsWith('.tex')) continue;
+      if (path === (useWorkspaceStore.getState().activeTab ?? '')) continue; // 本文件的 refCompletion 已覆盖
+      for (const node of collectLabels(content)) {
+        out.push({ name: node.name, line: node.line, file: path });
+      }
+    }
+    return out;
+  }, []);
+
   const openCitePdf = useCallback((citekey: string): void => {
     const p = useLibraryStore.getState().papers.find((x) => x.citekey === citekey);
     if (p) useLibraryStore.getState().openPdf(p.id);
@@ -178,6 +195,7 @@ export function EditorArea() {
       cursorTracker,
       spellcheckExtension(spellcheckEnabled),
       thesaurusExtension(),
+      sentenceQualityExtension(),
       citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),
@@ -458,6 +476,7 @@ export function EditorArea() {
           }}
           filePath={activeTab}
           getCitations={() => citations}
+          getProjectLabels={projectLabels}
           extraExtensions={editorExtensions}
           onEditorReady={(view) => {
             viewRef.current = view;

@@ -24,6 +24,8 @@ export interface CitationEntry {
 
 export interface LatexCompletionOptions {
   getCitations?: () => CitationEntry[];
+  /** 跨文件 \label 收集（v2.3.0：\ref 补全覆盖全项目 label，不限当前文件） */
+  getProjectLabels?: () => { name: string; line: number; file?: string }[];
 }
 
 /** 大小写不敏感的子序列匹配：query 为空恒真 */
@@ -385,23 +387,38 @@ function citeCompletion(
   return { from, options, validFor: /^[a-zA-Z0-9_.:+\-]*$/ };
 }
 
-/** \ref 系命令内的 label 补全（数据来自当前文档的 \label） */
-function refCompletion(context: CompletionContext): CompletionResult | null {
+/** \ref 系命令内的 label 补全（v2.3.0：当前文件 + 全项目跨文件） */
+function refCompletion(
+  context: CompletionContext,
+  getProjectLabels?: () => { name: string; line: number; file?: string }[],
+): CompletionResult | null {
   const line = context.state.doc.lineAt(context.pos);
   const before = context.state.sliceDoc(line.from, context.pos);
   const m = REF_TRIGGER.exec(before);
   if (!m) return null;
   const query = m[1]!.trim();
   const from = context.pos - query.length;
-  const labels = collectLabels(context.state.doc.toString());
-  const options = labels
-    .filter((l) => fuzzyMatch(query, l.name))
-    .map<Completion>((l) => ({
-      label: l.name,
-      detail: `第 ${l.line} 行定义`,
-      type: 'variable',
-      apply: keyApplier(l.name),
-    }));
+
+  // 本文件 label（优先展示，detail 带行号）
+  const localLabels = collectLabels(context.state.doc.toString());
+  // 跨文件 label（宿主注入；同名的本地 label 已覆盖，去重后追加）
+  const projectLabels = getProjectLabels?.() ?? [];
+  const localNames = new Set(localLabels.map((l) => l.name));
+  const crossFile = projectLabels.filter((l) => !localNames.has(l.name));
+
+  const mk = (l: { name: string; line: number; file?: string }, cross: boolean): Completion => ({
+    label: l.name,
+    detail: cross
+      ? `${l.file}:${l.line}（跨文件）`
+      : `第 ${l.line} 行定义`,
+    type: 'variable',
+    apply: keyApplier(l.name),
+  });
+
+  const options = [
+    ...localLabels.filter((l) => fuzzyMatch(query, l.name)).map((l) => mk(l, false)),
+    ...crossFile.filter((l) => fuzzyMatch(query, l.name)).map((l) => mk(l, true)),
+  ];
   return { from, options, validFor: /^[a-zA-Z0-9_.:+\-]*$/ };
 }
 
@@ -426,7 +443,7 @@ export function latexSnippetCompletions(context: CompletionContext): CompletionR
 export function latexCompletionSource(opts: LatexCompletionOptions = {}): CompletionSource {
   return (context) =>
     citeCompletion(context, opts.getCitations)
-    ?? refCompletion(context)
+    ?? refCompletion(context, opts.getProjectLabels)
     ?? latexSnippetCompletions(context);
 }
 

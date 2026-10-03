@@ -2709,3 +2709,9 @@ kbd {
   min-width: 220px;
   border-left: 1px solid var(--border);
 }
+
+/* —— 长句内联提示（v2.3.0）：淡虚线下划线，不打断写作流 —— */
+.sf-long-sentence {
+  background: transparent;
+  box-shadow: inset 0 -2px 0 0 color-mix(in srgb, var(--warn) 25%, transparent);
+}

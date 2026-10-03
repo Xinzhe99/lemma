@@ -151,3 +151,6 @@ export {
   type CitationCard,
   type PaperLookup,
 } from './citationHover';
+
+// 长句内联提示（v2.3.0）
+export { sentenceQualityExtension } from './sentenceQuality';
