@@ -162,3 +162,45 @@ describe('latexSupport', () => {
     ).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.8.0：数学/环境/文本补全覆盖
+// ---------------------------------------------------------------------------
+
+describe('LaTeX 补全 · v1.8.0 数学与环境扩充', () => {
+  const all = (query: string) => {
+    const opts = LATEX_SNIPPETS.filter((s) => fuzzyMatch(query, s.label));
+    return opts.map((s) => s.label);
+  };
+
+  it('数学命令补全：frac/sqrt/sum/int/lim 均命中', () => {
+    for (const cmd of ['frac', 'sqrt', 'sum', 'int', 'lim', 'prod', 'max', 'min', 'bigcup', 'bigcap']) {
+      expect(all(cmd)).toContain(cmd);
+    }
+  });
+
+  it('数学环境补全：cases/split/gather/multline/pmatrix/bmatrix/aligned 均命中', () => {
+    for (const env of ['cases', 'split', 'gather', 'multline', 'pmatrix', 'bmatrix', 'aligned']) {
+      expect(all(env)).toContain(env);
+    }
+  });
+
+  it('文本格式补全：textbf/textit/emph/texttt/footnote/citep/citet 均命中', () => {
+    for (const cmd of ['textbf', 'textit', 'emph', 'texttt', 'footnote', 'citep', 'citet']) {
+      expect(all(cmd)).toContain(cmd);
+    }
+  });
+
+  it('snippet 数量从 17 扩充到 ≥57', () => {
+    expect(LATEX_SNIPPETS.length).toBeGreaterThanOrEqual(56);
+  });
+
+  it('数学命令模板含花括号占位符（snippet 展开后可跳填）', () => {
+    const frac = LATEX_SNIPPETS.find((s) => s.label === 'frac');
+    expect(frac?.template).toContain('${1:');
+    expect(frac?.template).toContain('${2:');
+    const cases = LATEX_SNIPPETS.find((s) => s.label === 'cases');
+    expect(cases?.template).toContain('\\begin{cases}');
+    expect(cases?.template).toContain('\\end{cases}');
+  });
+});

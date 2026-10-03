@@ -27,6 +27,8 @@ import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { quickAsk } from './aiActions';
 import { initLibrary } from './state/libraryStore';
+import { useLibraryStore } from './state/libraryStore';
+import { useProposalStore } from './state/proposalStore';
 import { initUpdateCheck } from './state/updateStore';
 import { useAnnotationStore } from './state/annotationStore';
 import { useUiStore } from './state/uiStore';
@@ -349,6 +351,40 @@ export function App() {
     [setCenterView],
   );
 
+  /**
+   * PDF 选中文字 → 引述到稿件（v1.8.0 ②）：
+   * 选中 → 格式化为 LaTeX 引述块（% 来源注释 + \cite{citekey}）→ diff 审批卡。
+   * citekey 经 pdfView.name（`${citekey}.pdf`）反查文献库。
+   */
+  const insertPdfQuote = (text: string, pdfName: string): void => {
+    const ws = useWorkspaceStore.getState();
+    const file = ws.activeTab;
+    if (!file || !file.endsWith('.tex')) return;
+    const citekey = pdfName.replace(/\.pdf$/, '');
+    const paper = useLibraryStore.getState().papers.find((p) => p.citekey === citekey);
+    const year = paper?.year ? ` (${paper.year})` : '';
+    const author = paper?.authors?.[0]?.family ?? '';
+    const quote = text.trim().replace(/\s+/g, ' ').slice(0, 500);
+    if (!quote) return;
+    // 格式：引述段（来源注释 + 内容 + 归属）——内容不加引号（学术引述不直接引号包裹，由上下文衔接）
+    const block = [
+      `% Quoted from ${citekey}${year ? ` (${year})` : ''}${author ? ` by ${author}` : ''}:`,
+      `${quote}~\\cite{${citekey}}`,
+    ].join('\n');
+    const before = ws.files[file] ?? '';
+    const after = before.endsWith('\n') ? before + block + '\n\n' : before + '\n\n' + block + '\n\n';
+    useProposalStore.getState().setProposal({
+      file,
+      before,
+      after,
+      kind: 'draft-section',
+      label: `引述：${citekey}（PDF 选中 → 稿件）`,
+      via: 'PDF quote',
+    });
+    // 切回编辑器让用户看到审批卡（Agent 面板在编辑器视图旁）
+    useUiStore.getState().setCenterView(centerView === 'split' ? 'split' : 'editor');
+  };
+
   const editor = (
     <section className="center">
       {pdfView ? (
@@ -418,6 +454,10 @@ export function App() {
               { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
               { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
               { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
+              {
+                label: language === 'en' ? 'Quote → manuscript' : '引述到稿件',
+                run: (text) => insertPdfQuote(text, pdfView.name),
+              },
             ]}
             onPagePoint={(p, x, y) => {
               jumpPdfToSource(p, x, y);

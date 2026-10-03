@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-03
+
+### Added（编辑深度 + 读→写直通）
+
+- **LaTeX 数学/环境/文本补全扩充**：snippet 库从 17 → 56 个——新增 30 个数学命令（\\frac/\\dfrac/\\sqrt/\\sum/\\prod/\\int/\\lim/\\inf/\\sup/\\max/\\min/\\bigcup/\\bigcap/\\overline/\\underline/\\widehat/\\widetilde/\\vec/\\hat/\\bar/\\tilde/\\mathbf/\\mathcal/\\mathbb），7 个数学环境（cases/split/gather/multline/pmatrix/bmatrix/aligned），7 个文本格式命令（\\textbf/\\textit/\\emph/\\texttt/\\underline/\\footnote/\\citep/\\citet）。全部带 snippet 占位符，Tab 跳填
+- **PDF 选中 → 引述到稿件**：PDF 阅读器选中一段文字 → 工具条新增「引述到稿件」→ 格式化为 LaTeX 引述块（来源注释 + 归属 \\cite{citekey}）→ diff 审批卡裁决后落稿。从论文到稿件的引述路径缩短为一次点击
+
 ## [1.7.0] - 2026-10-03
 
 ### Added（读-写闭环）

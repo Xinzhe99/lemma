@@ -133,6 +133,204 @@ export const LATEX_SNIPPETS: readonly LatexSnippet[] = [
     detail: '小节（\\subsection）',
     template: '\\subsection{${1:标题}}\n\\label{ssec:${2:标签}}',
   },
+  // —— 数学命令片段（v1.8.0：高频数学排版操作） ——
+  {
+    label: 'frac',
+    detail: '分式 \\frac{}{}',
+    template: '\\frac{${1:分子}}{${2:分母}}',
+  },
+  {
+    label: 'dfrac',
+    detail: '大分式 \\dfrac{}{}',
+    template: '\\dfrac{${1:分子}}{${2:分母}}',
+  },
+  {
+    label: 'sqrt',
+    detail: '根号 \\sqrt{}',
+    template: '\\sqrt{${1:表达式}}',
+  },
+  {
+    label: 'sum',
+    detail: '求和 \\sum_{i=1}^{n}',
+    template: '\\sum_{${1:i}=1}^{${2:n}}',
+  },
+  {
+    label: 'prod',
+    detail: '连乘 \\prod_{i=1}^{n}',
+    template: '\\prod_{${1:i}=1}^{${2:n}}',
+  },
+  {
+    label: 'int',
+    detail: '积分 \\int_{a}^{b}',
+    template: '\\int_{${1:a}}^{${2:b}}',
+  },
+  {
+    label: 'lim',
+    detail: '极限 \\lim_{n\\to\\infty}',
+    template: '\\lim_{${1:n} \\to ${2:\\infty}}',
+  },
+  {
+    label: 'inf',
+    detail: '下确界 \\inf',
+    template: '\\inf_{${1:x} \\in ${2:S}}',
+  },
+  {
+    label: 'sup',
+    detail: '上确界 \\sup',
+    template: '\\sup_{${1:x} \\in ${2:S}}',
+  },
+  {
+    label: 'max',
+    detail: '最大值 \\max',
+    template: '\\max_{${1:x} \\in ${2:S}}',
+  },
+  {
+    label: 'min',
+    detail: '最小值 \\min',
+    template: '\\min_{${1:x} \\in ${2:S}}',
+  },
+  {
+    label: 'bigcup',
+    detail: '大并集 \\bigcup',
+    template: '\\bigcup_{${1:i} \\in ${2:I}}',
+  },
+  {
+    label: 'bigcap',
+    detail: '大交集 \\bigcap',
+    template: '\\bigcap_{${1:i} \\in ${2:I}}',
+  },
+  {
+    label: 'overline',
+    detail: '上划线 \\overline{}',
+    template: '\\overline{${1:表达式}}',
+  },
+  {
+    label: 'underline',
+    detail: '下划线 \\underline{}',
+    template: '\\underline{${1:表达式}}',
+  },
+  {
+    label: 'widehat',
+    detail: '宽帽子 \\widehat{}',
+    template: '\\widehat{${1:表达式}}',
+  },
+  {
+    label: 'widetilde',
+    detail: '宽波浪 \\widetilde{}',
+    template: '\\widetilde{${1:表达式}}',
+  },
+  {
+    label: 'vec',
+    detail: '向量箭头 \\vec{}',
+    template: '\\vec{${1:符号}}',
+  },
+  {
+    label: 'hat',
+    detail: '帽子 \\hat{}',
+    template: '\\hat{${1:符号}}',
+  },
+  {
+    label: 'bar',
+    detail: '横线 \\bar{}',
+    template: '\\bar{${1:符号}}',
+  },
+  {
+    label: 'tilde',
+    detail: '波浪 \\tilde{}',
+    template: '\\tilde{${1:符号}}',
+  },
+  {
+    label: 'mathbf',
+    detail: '粗体 \\mathbf{}',
+    template: '\\mathbf{${1:符号}}',
+  },
+  {
+    label: 'mathcal',
+    detail: '花体 \\mathcal{}',
+    template: '\\mathcal{${1:符号}}',
+  },
+  {
+    label: 'mathbb',
+    detail: '黑板粗体 \\mathbb{}',
+    template: '\\mathbb{${1:符号}}',
+  },
+  // —— 数学环境 ——
+  {
+    label: 'cases',
+    detail: '分段函数环境',
+    template: '\\begin{cases}\n  ${1:条件1}, & \\text{if } ${2:条件} \\\\\n  ${3:条件2}, & \\text{otherwise}\n\\end{cases}',
+  },
+  {
+    label: 'split',
+    detail: '公式内换行对齐',
+    template: '\\begin{split}\n  ${1:表达式} &= ${2:推导} \\\\\n  &= ${3:结果}\n\\end{split}',
+  },
+  {
+    label: 'gather',
+    detail: '居中多行公式（不对齐）',
+    template: '\\begin{gather}\n  ${1:公式1} \\\\\n  ${2:公式2}\n\\end{gather}',
+  },
+  {
+    label: 'multline',
+    detail: '长公式换行',
+    template: '\\begin{multline}\n  ${1:长公式第一段} \\\\\n  = ${2:第二段} \\\\\n  = ${3:结果}\n\\end{multline}',
+  },
+  {
+    label: 'pmatrix',
+    detail: '圆括号矩阵',
+    template: '\\begin{pmatrix}\n  ${1:a} & ${2:b} \\\\\n  ${3:c} & ${4:d}\n\\end{pmatrix}',
+  },
+  {
+    label: 'bmatrix',
+    detail: '方括号矩阵',
+    template: '\\begin{bmatrix}\n  ${1:a} & ${2:b} \\\\\n  ${3:c} & ${4:d}\n\\end{bmatrix}',
+  },
+  {
+    label: 'aligned',
+    detail: '公式内对齐（无编号）',
+    template: '\\begin{aligned}\n  ${1:表达式} &= ${2:推导} \\\\\n  &= ${3:结果}\n\\end{aligned}',
+  },
+  // —— 文本格式 ——
+  {
+    label: 'textbf',
+    detail: '粗体 \\textbf{}',
+    template: '\\textbf{${1:文本}}',
+  },
+  {
+    label: 'textit',
+    detail: '斜体 \\textit{}',
+    template: '\\textit{${1:文本}}',
+  },
+  {
+    label: 'emph',
+    detail: '强调 \\emph{}',
+    template: '\\emph{${1:文本}}',
+  },
+  {
+    label: 'texttt',
+    detail: '等宽 \\texttt{}',
+    template: '\\texttt{${1:文本}}',
+  },
+  {
+    label: 'underline',
+    detail: '下划线 \\underline{}',
+    template: '\\underline{${1:文本}}',
+  },
+  {
+    label: 'footnote',
+    detail: '脚注 \\footnote{}',
+    template: '\\footnote{${1:脚注内容}}',
+  },
+  {
+    label: 'citep',
+    detail: '括号引用 \\citep{}',
+    template: '\\citep{${1:citekey}}',
+  },
+  {
+    label: 'citet',
+    detail: '叙述引用 \\citet{}',
+    template: '\\citet{${1:citekey}}',
+  },
 ];
 
 /** 预构建 snippet 补全项（apply 为 snippet 展开函数） */
