@@ -45,6 +45,7 @@ interface DashDict {
   goalLabel(n: number): string;
   goalUnset: string;
   streakUnit: string;
+  focusLabel(m: number): string;
   continueWriting: string;
   deadlineTitle: string;
   deadlineNone: string;
@@ -63,6 +64,7 @@ interface DashDict {
   todoCount(n: number): string;
   todoNone: string;
   todoJump: string;
+  todoResolve: string;
 }
 
 const DICT: Record<Language, DashDict> = {
@@ -76,6 +78,7 @@ const DICT: Record<Language, DashDict> = {
     goalLabel: (n) => `每日目标 ${n} 字`,
     goalUnset: '尚未设置每日目标——想写多少都可以',
     streakUnit: '天',
+    focusLabel: (m: number) => '专注 ' + (m < 60 ? m + ' 分钟' : Math.floor(m / 60) + ' 小时 ' + Math.round(m % 60) + ' 分'),
     continueWriting: '继续写作',
     deadlineTitle: '投稿倒计时',
     deadlineNone: '未设置投稿截止日期',
@@ -94,6 +97,7 @@ const DICT: Record<Language, DashDict> = {
     todoCount: (n) => `${n} 条 TODO/FIXME`,
     todoNone: '稿件里没有 TODO 标记',
     todoJump: '去处理',
+    todoResolve: 'AI 解决',
   },
   en: {
     emptyTitle: 'Start your first project',
@@ -105,6 +109,7 @@ const DICT: Record<Language, DashDict> = {
     goalLabel: (n) => `Daily goal: ${n} words`,
     goalUnset: 'No daily goal set — write as much as you like',
     streakUnit: 'days',
+    focusLabel: (m: number) => 'Focused ' + (m < 60 ? m + ' min' : Math.floor(m / 60) + 'h ' + Math.round(m % 60) + 'm'),
     continueWriting: 'Keep writing',
     deadlineTitle: 'Submission countdown',
     deadlineNone: 'No submission deadline set',
@@ -123,6 +128,7 @@ const DICT: Record<Language, DashDict> = {
     todoCount: (n) => `${n} TODO/FIXME item${n > 1 ? 's' : ''}`,
     todoNone: 'No TODO markers in the manuscript',
     todoJump: 'Open',
+    todoResolve: 'AI resolve',
   },
 };
 
@@ -172,6 +178,7 @@ export function Dashboard() {
   const wordsToday = useWritingStatsStore((s) => s.wordsToday);
   const dailyGoal = useWritingStatsStore((s) => s.dailyGoal);
   const streakDays = useWritingStatsStore((s) => s.streakDays);
+  const focusMinutes = useWritingStatsStore((s) => s.focusMinutes);
   const ensureToday = useWritingStatsStore((s) => s.ensureToday);
 
   const deadline = useSubmitStore((s) => s.deadline);
@@ -449,6 +456,22 @@ export function Dashboard() {
                       onClick={() => jumpTo({ file: t.file, line: t.line })}
                     >
                       {t.text || `${t.file}:${t.line}`}
+                    </button>
+                    <button
+                      type='button'
+                      className='sf-link-btn'
+                      style={{ fontSize: 11, color: 'var(--accent-dim)', flex: 'none' }}
+                      title={d.todoResolve}
+                      onClick={() => {
+                        const ws = useWorkspaceStore.getState();
+                        useUiStore.getState().launchWorkflow('w2-section-draft', {
+                          SECTION_TITLE: t.text || 'TODO item',
+                          TODO_LINE: String(t.line),
+                          TODO_FILE: t.file,
+                        });
+                      }}
+                    >
+                      ✦ {d.todoResolve}
                     </button>
                     <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>{t.file}:{t.line}</span>
                   </li>

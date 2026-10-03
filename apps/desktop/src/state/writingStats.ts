@@ -108,12 +108,17 @@ export interface WritingStatsState {
   history: Record<string, number>;
   /** 连续达标天数（今天未达标不计入但不断昨天链） */
   streakDays: number;
+  /** 今日专注写作分钟数（击键间隔 <30s 的连续段累计） */
+  focusMinutes: number;
   /** 记一笔增量：仅正增量累计；跨天时先归档昨日并重置（rollover） */
   recordDelta(n: number): void;
   /** 设置每日目标（50–10000 钳制），并按新目标重算 streak */
   setDailyGoal(n: number): void;
   /** 校正跨天展示（挂载时调用；today 落后于实际日期则 rollover） */
   ensureToday(): void;
+  /** 写作活动心跳：由编辑器 onChange 调用；距上次心跳 <FOCUS_GAP_S 秒视为持续专注，
+   *  累计一段；超间隔开新段。内部节流（每 tick 只在整分钟变更时 set）。 */
+  recordFocusTick(): void;
 }
 
 type StatsCore = Pick<WritingStatsState, 'today' | 'dailyGoal' | 'wordsToday' | 'history'>;
@@ -160,11 +165,12 @@ interface PersistedStats {
   wordsToday: number;
   history: Record<string, number>;
   streakDays: number;
+  focusMinutes: number;
 }
 
 function defaultPersisted(): PersistedStats {
   const today = todayKey();
-  return { today, dailyGoal: DEFAULT_DAILY_GOAL, wordsToday: 0, history: {}, streakDays: 0 };
+  return { today, dailyGoal: DEFAULT_DAILY_GOAL, wordsToday: 0, history: {}, streakDays: 0, focusMinutes: 0 };
 }
 
 function readPersisted(): PersistedStats {
@@ -204,6 +210,7 @@ function readPersisted(): PersistedStats {
       wordsToday,
       history: pruneHistory(history),
       streakDays: computeStreak(historyWithToday({ today, dailyGoal, wordsToday, history }, wordsToday), dailyGoal, today),
+      focusMinutes: typeof o.focusMinutes === 'number' && Number.isFinite(o.focusMinutes) && o.focusMinutes >= 0 ? o.focusMinutes : 0,
     };
   } catch {
     return defaultPersisted();
@@ -241,6 +248,13 @@ export const useWritingStatsStore = create<WritingStatsState>()((set) => ({
     });
   },
 
+  recordFocusTick() {
+    recordFocusTickImpl(
+      (patch) => set((s) => ({ ...s, ...patch })),
+      () => useWritingStatsStore.getState(),
+    );
+  },
+
   ensureToday() {
     set((s) => (s.today === todayKey() ? s : roll(s, 0)));
   },
@@ -255,6 +269,7 @@ useWritingStatsStore.subscribe((s) => {
         wordsToday: s.wordsToday,
         history: s.history,
         streakDays: s.streakDays,
+      focusMinutes: s.focusMinutes,
       };
       localStorage.setItem(WRITING_STATS_STORAGE_KEY, JSON.stringify(snap));
     }
@@ -293,3 +308,32 @@ useWorkspaceStore.subscribe((s, prev) => {
   if (delta > 0) useWritingStatsStore.getState().recordDelta(delta);
   statsBaseline = { project: statsBaseline.project, words };
 });
+
+
+// ---------------------------------------------------------------------------
+// 专注计时（v1.9.0 ③）：模块级时间戳追踪
+// ---------------------------------------------------------------------------
+
+/** 击键间隔超过此秒数视为专注中断 */
+export const FOCUS_GAP_S = 30;
+/** 心跳最小间隔（秒）：避免高频 set */
+const TICK_MIN_S = 5;
+
+let lastTickAt = 0;
+let lastPersistAt = 0;
+
+function recordFocusTickImpl(set: (patch: Partial<WritingStatsState>) => void, get: () => WritingStatsState): void {
+  const now = Date.now();
+  if (lastTickAt === 0) {
+    lastTickAt = now;
+    return;
+  }
+  const gapS = (now - lastTickAt) / 1000;
+  lastTickAt = now;
+  if (gapS > FOCUS_GAP_S) return; // 中断后重新开始，不计入
+  if (now - lastPersistAt < TICK_MIN_S * 1000) return; // 节流
+  lastPersistAt = now;
+  const s = get();
+  // 每心跳约 5s → 换算分钟（粗粒度累计）
+  set({ focusMinutes: s.focusMinutes + Math.round(gapS / 60 * 10) / 10 });
+}

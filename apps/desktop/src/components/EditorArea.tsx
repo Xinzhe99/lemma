@@ -26,6 +26,7 @@ import 'katex/dist/katex.min.css';
 import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
+import { useWritingStatsStore } from '../state/writingStats';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
 import { useSettingsStore } from '../state/settingsStore';
@@ -451,7 +452,10 @@ export function EditorArea() {
         <LatexEditor
           key={activeTab}
           value={content}
-          onChange={(v) => updateFile(activeTab, v)}
+          onChange={(v) => {
+            updateFile(activeTab, v);
+            useWritingStatsStore.getState().recordFocusTick();
+          }}
           filePath={activeTab}
           getCitations={() => citations}
           extraExtensions={editorExtensions}

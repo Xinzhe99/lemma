@@ -13,6 +13,7 @@ import { useWorkspaceStore } from '../state/workspaceStore';
 import { outlineAcrossFiles, resolveEntry } from '../projectDoc';
 import { jumpTo } from '../editorJump';
 import { scanFloats, type FloatItem, type FloatKind } from '../floatsScan';
+import { sectionProgressForFile, type SectionStatus } from '../sectionProgress';
 
 // ---------------------------------------------------------------------------
 // 双语文案（组件内字典：zh / en）
@@ -25,6 +26,9 @@ interface Dict {
   kindIcon: Record<FloatKind, string>;
   noFloats: string;
   noCaption: string;
+  statusLabel: Record<SectionStatus, string>;
+  statusColor: Record<SectionStatus, string>;
+  wordsLabel: (n: number) => string;
 }
 
 const DICT: Record<Language, Dict> = {
@@ -35,6 +39,9 @@ const DICT: Record<Language, Dict> = {
     kindIcon: { figure: '图', table: '表', equation: '式', algorithm: '算' },
     noFloats: '未发现图表（figure / table / equation / algorithm）',
     noCaption: '（无题注）',
+    statusLabel: { empty: '空白', draft: '草稿', solid: '充实', mature: '成熟' },
+    statusColor: { empty: 'var(--err)', draft: 'var(--warn)', solid: 'var(--accent-dim)', mature: 'var(--ok)' },
+    wordsLabel: (n) => `${n} 字`,
   },
   en: {
     tabOutline: 'Outline',
@@ -43,6 +50,9 @@ const DICT: Record<Language, Dict> = {
     kindIcon: { figure: 'Fig', table: 'Tbl', equation: 'Eq', algorithm: 'Alg' },
     noFloats: 'No floats found (figure / table / equation / algorithm)',
     noCaption: '(no caption)',
+    statusLabel: { empty: 'empty', draft: 'draft', solid: 'solid', mature: 'mature' },
+    statusColor: { empty: 'var(--err)', draft: 'var(--warn)', solid: 'var(--accent-dim)', mature: 'var(--ok)' },
+    wordsLabel: (n) => `${n} w`,
   },
 };
 
@@ -75,6 +85,17 @@ export function OutlinePanel() {
   const entry = resolveEntry(files);
   const items = useMemo(() => outlineAcrossFiles(files), [files]);
   const floats = useMemo(() => scanFloats(files), [files]);
+
+  // 各节进度（v1.9.0：字数 + 状态标记）——按文件分组计算
+  const progressByFile = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof sectionProgressForFile>>();
+    for (const file of new Set(items.map((it) => it.file))) {
+      const fileNodes = items.filter((it) => it.file === file).map((it) => it.node);
+      const content = files[file] ?? '';
+      map.set(file, sectionProgressForFile(fileNodes, content));
+    }
+    return map;
+  }, [items, files]);
 
   // 双视图切换：默认大纲；状态记忆于组件内（面板卸载后重置）
   const [view, setView] = useState<'outline' | 'floats'>('outline');
@@ -113,18 +134,47 @@ export function OutlinePanel() {
           <p className="placeholder">{t('outline.empty')}</p>
         ) : (
           <ul className="sf-outline">
-            {items.map(({ file, node }, i) => (
-              <li
-                key={`${file}:${node.line}:${i}`}
-                className="sf-outline-item"
-                style={{ paddingLeft: 8 + Math.max(0, node.level - 1) * 12 }}
-                onClick={() => jumpTo({ file, line: node.line })}
-                title={`${file}:${node.line}`}
-              >
-                <span className="sf-outline-title">{node.title}</span>
-                {file !== entry && <span className="sf-outline-file">{file}</span>}
-              </li>
-            ))}
+            {items.map(({ file, node }, i) => {
+              // 该文件内的同级序号（进度数组按文件内大纲项索引）
+              const fileItems = items.filter((it) => it.file === file);
+              const idxInFile = fileItems.findIndex((it) => it.node.line === node.line && it.node.title === node.title);
+              const progress = progressByFile.get(file)?.[idxInFile] ?? null;
+              return (
+                <li
+                  key={`${file}:${node.line}:${i}`}
+                  className="sf-outline-item"
+                  style={{ paddingLeft: 8 + Math.max(0, node.level - 1) * 12 }}
+                  onClick={() => jumpTo({ file, line: node.line })}
+                  title={`${file}:${node.line}`}
+                >
+                  {progress && (
+                    <span
+                      style={{
+                        flex: 'none',
+                        fontSize: 9.5,
+                        fontWeight: 600,
+                        color: d.statusColor[progress.status],
+                        minWidth: 28,
+                        textAlign: 'center',
+                        border: `1px solid ${d.statusColor[progress.status]}`,
+                        borderRadius: 999,
+                        padding: '0 3px',
+                        marginRight: 4,
+                      }}
+                    >
+                      {d.statusLabel[progress.status]}
+                    </span>
+                  )}
+                  <span className="sf-outline-title">{node.title}</span>
+                  {progress && (
+                    <span className="sf-outline-file" style={{ marginLeft: 4 }}>
+                      {d.wordsLabel(progress.words)}
+                    </span>
+                  )}
+                  {file !== entry && <span className="sf-outline-file">{file}</span>}
+                </li>
+              );
+            })}
           </ul>
         )
       ) : groups.length === 0 ? (
