@@ -8,7 +8,12 @@ export interface Http {
 }
 
 const defaultHttp: Http = {
-  fetch: (url, init) => fetch(url, init),
+  fetch: (url, init) => {
+    // 15s 超时：外网 API（arXiv/Crossref）卡死时及时返回错误而非无限等待
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    return fetch(url, { ...init, signal: init?.signal ?? controller.signal }).finally(() => clearTimeout(timer));
+  },
 };
 
 const CROSSREF_VENUE_TYPE: Record<string, Venue['type']> = {

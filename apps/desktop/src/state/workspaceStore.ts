@@ -301,7 +301,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   },
 
   appendCompileLog(line) {
-    set((s) => ({ compileLog: [...s.compileLog, line] }));
+    set((s) => {
+      // FIFO 上限：防长会话无限增长（每次 append 触发控制台面板重渲染）
+      const next = [...s.compileLog, line];
+      return { compileLog: next.length > 500 ? next.slice(next.length - 500) : next };
+    });
   },
 
   clearCompileLog() {
@@ -346,12 +350,15 @@ useWorkspaceStore.subscribe((s) => {
       .then(() => {
         // 写盘成功：仅当期间没有新改动（当前快照与写盘内容一致）时标记已保存，
         // 避免写盘进行中的编辑被误标为 "✓ 已保存"。
+        // 注：必须 stringify 比较当前状态（lastPersisted 在防抖窗口内不会反映
+        // 写盘在途的新编辑，引用比较会误判为「无改动」）
         if (JSON.stringify(snapshot(useWorkspaceStore.getState())) === json) {
           useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
         }
       })
-      .catch(() => {
-        /* 持久化失败不打断 UI（dirty 保持 true） */
+      .catch((e) => {
+        // 持久化失败不打断 UI（dirty 保持 true），但记录日志便于诊断
+        console.warn('[workspace] 持久化写盘失败（dirty 保持 true）：', e);
       });
   }, PERSIST_DEBOUNCE_MS);
 });

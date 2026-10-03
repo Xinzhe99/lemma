@@ -504,7 +504,6 @@ const AUTOCOMPILE_DEBOUNCE_MS = 1500;
 const LIVE_PREVIEW_DEBOUNCE_MS = 500;
 
 let autoCompileTimer: ReturnType<typeof setTimeout> | null = null;
-let lastFilesJson = '';
 
 /**
  * 挂接自动编译（App 挂载时调用一次，返回卸载函数）。
@@ -519,13 +518,17 @@ export function attachAutoCompile(
   compile: (opts?: { auto?: boolean }) => Promise<unknown> = runCompile,
 ): () => void {
   // 挂接即快照基线：之后任何 files 变化都视为编辑增量（加载项目不置 dirty，双保险）
-  lastFilesJson = JSON.stringify(useWorkspaceStore.getState().files);
+  // 优化：引用比较替代 JSON.stringify——每次击键 stringify 全部文件是大项目的性能瓶颈
+  // （zustand set 创建新 files 对象 → 引用变化即可检测；值相同的不同引用只在极少场景
+  //  出现且最多多触发一次防抖编译，无正确性影响）
+  let lastFilesRef: unknown = useWorkspaceStore.getState().files;
+  let lastFilesLen = Object.keys(lastFilesRef as Record<string, string>).length;
   const unsub = useWorkspaceStore.subscribe((s) => {
-    const json = JSON.stringify(s.files);
-    if (json === lastFilesJson) return; // 与文件无关的状态变更（dirty/日志等）
-    const isFirst = lastFilesJson === '';
-    lastFilesJson = json;
-    if (isFirst || !s.dirty) return; // 初次水合 / 非编辑产生的文件替换
+    const filesChanged = s.files !== lastFilesRef || Object.keys(s.files).length !== lastFilesLen;
+    if (!filesChanged) return; // 与文件无关的状态变更（dirty/日志等）
+    lastFilesRef = s.files;
+    lastFilesLen = Object.keys(s.files).length;
+    if (!s.dirty) return; // 非编辑产生的文件替换（加载项目不置 dirty）
 
     if (autoCompileTimer) clearTimeout(autoCompileTimer);
     autoCompileTimer = setTimeout(() => {
