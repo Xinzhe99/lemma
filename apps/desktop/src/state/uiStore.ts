@@ -39,7 +39,7 @@ interface UiState {
   /** 自增计数：App 监听后触发隐藏的 file input（项目 zip 导入） */
   zipPickerTick: number;
   pdfView: PdfView | null;
-  centerView: 'editor' | 'pdf';
+  centerView: 'editor' | 'pdf' | 'split';
   /** 命令面板请求启动的内置工作流 id（AgentPanel 消费后清空） */
   workflowLaunch: string | null;
   /** 工作流启动的预填变量（与 workflowLaunch 同生命周期；如 W11 的 journal） */
@@ -75,6 +75,8 @@ interface UiState {
   styleReportOpen: boolean;
   /** 协作补丁对话框（v1.5.0） */
   collabDialogOpen: boolean;
+  /** 智能引用推荐（v1.7.0） */
+  citeSuggestOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -94,7 +96,7 @@ interface UiState {
   requestPdfPicker(): void;
   requestZipPicker(): void;
   setPdfView(view: PdfView | null): void;
-  setCenterView(view: 'editor' | 'pdf'): void;
+  setCenterView(view: 'editor' | 'pdf' | 'split'): void;
   setWorkflowLaunch(id: string | null): void;
   /** 启动工作流并可附带预填变量（缺省变量的步骤才会在启动器中询问） */
   launchWorkflow(id: string, vars?: Record<string, string>): void;
@@ -114,6 +116,7 @@ interface UiState {
   setPromptsLibOpen(open: boolean): void;
   setStyleReportOpen(open: boolean): void;
   setCollabDialogOpen(open: boolean): void;
+  setCiteSuggestOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -150,6 +153,7 @@ export const useUiStore = create<UiState>((set) => ({
   promptsLibOpen: false,
   styleReportOpen: false,
   collabDialogOpen: false,
+  citeSuggestOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -183,6 +187,7 @@ export const useUiStore = create<UiState>((set) => ({
   setPromptsLibOpen: (open) => set({ promptsLibOpen: open }),
   setStyleReportOpen: (open) => set({ styleReportOpen: open }),
   setCollabDialogOpen: (open) => set({ collabDialogOpen: open }),
+  setCiteSuggestOpen: (open) => set({ citeSuggestOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),

@@ -90,6 +90,7 @@ export function App() {
   const promptsLibOpen = useUiStore((s) => s.promptsLibOpen);
   const styleReportOpen = useUiStore((s) => s.styleReportOpen);
   const collabDialogOpen = useUiStore((s) => s.collabDialogOpen);
+  const citeSuggestOpen = useUiStore((s) => s.citeSuggestOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -364,6 +365,13 @@ export function App() {
           >
             {t('center.pdfTab')} · {pdfView.name}
           </button>
+          <button
+            className={`tab sf-split-btn ${centerView === 'split' ? 'active' : ''}`}
+            onClick={() => setCenterView(centerView === 'split' ? 'editor' : 'split')}
+            title={t('center.splitHint')}
+          >
+            {t('center.split')}
+          </button>
           <button className="sf-link-btn sf-pdfbar-close" onClick={() => setPdfView(null)}>
             {t('center.closePdf')}
           </button>
@@ -390,8 +398,8 @@ export function App() {
           }
         />
       )}
-      <div className="editor-area">
-        {pdfView && centerView === 'pdf' ? (
+      <div className={`editor-area ${centerView === 'split' && pdfView ? 'sf-split' : ''}`}>
+        {pdfView && (centerView === 'pdf' || centerView === 'split') ? (
           <PdfReader
             key={pdfView.name}
             data={pdfView.data}
@@ -417,9 +425,8 @@ export function App() {
             gotoPage={pdfGotoPage}
             gotoTick={pdfGotoTick || undefined}
           />
-        ) : (
-          <EditorArea />
-        )}
+        ) : null}
+        {(!pdfView || centerView === 'editor' || centerView === 'split') && <EditorArea />}
       </div>
     </section>
   );
@@ -576,6 +583,7 @@ export function App() {
       {promptsLibOpen && <LazyFeatureDialog file="PromptLibraryDialog" onClose={() => useUiStore.getState().setPromptsLibOpen(false)} />}
       {styleReportOpen && <LazyFeatureDialog file="StyleReportDialog" onClose={() => useUiStore.getState().setStyleReportOpen(false)} />}
       {collabDialogOpen && <LazyFeatureDialog file="CollabMergeDialog" onClose={() => useUiStore.getState().setCollabDialogOpen(false)} />}
+      {citeSuggestOpen && <LazyFeatureDialog file="CitationSuggest" onClose={() => useUiStore.getState().setCiteSuggestOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -609,11 +617,12 @@ function LazyFeatureDialog({
     | 'UsagePanel'
     | 'PromptLibraryDialog'
     | 'StyleReportDialog'
-    | 'CollabMergeDialog';
+    | 'CollabMergeDialog'
+    | 'CitationSuggest';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,StyleReportDialog,CollabMergeDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,StyleReportDialog,CollabMergeDialog,CitationSuggest}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

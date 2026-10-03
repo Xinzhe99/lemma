@@ -2691,3 +2691,21 @@ kbd {
   color: var(--fg-0);
   white-space: pre-wrap;
 }
+
+/* —— PDF + 编辑器分屏（v1.7.0）：左 PDF 右编辑器，可拖分隔条 —— */
+.editor-area.sf-split {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  overflow: hidden;
+}
+.editor-area.sf-split > *:first-child {
+  flex: 1 1 50%;
+  min-width: 220px;
+  overflow: hidden;
+}
+.editor-area.sf-split > .sf-editor-host {
+  flex: 1 1 50%;
+  min-width: 220px;
+  border-left: 1px solid var(--border);
+}

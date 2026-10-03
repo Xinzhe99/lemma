@@ -117,9 +117,9 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_1.6.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.6.0/ScholarForge_1.6.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [ScholarForge_1.6.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.6.0/ScholarForge_1.6.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [ScholarForge_1.6.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.6.0/ScholarForge_1.6.0_x64.dmg) | macOS（Intel） |
+| [ScholarForge_1.7.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v1.7.0/ScholarForge_1.7.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [ScholarForge_1.7.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.7.0/ScholarForge_1.7.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [ScholarForge_1.7.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v1.7.0/ScholarForge_1.7.0_x64.dmg) | macOS（Intel） |
 
 > 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
 
@@ -169,6 +169,7 @@ packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · �
 - [x] v1.5 CLI Agent 桥（codex/claude 本地引擎）· 协作补丁阶段一（CRDT 离线合并）
 - [x] v1.5.1 真实可用性缺陷轮：错误沟槽标注 · 保存后自动编译 · PDF 跟随光标 · TeX 感知字数
 - [x] v1.6 写作高频动作：cite 悬停文献卡 · 句子改写器（3 变体）· 会话按项目隔离
+- [x] v1.7 读-写闭环：PDF+编辑器分屏对照 · 智能引用推荐（TF-IDF 段落→文献库）
 - [x] 多人协同一阶段：CRDT 离线补丁往返（.sfpatch，零服务器）
 - [ ] 协同二阶段：实时云房间（Yjs + 信令服务）
 - [x] CLI agent 桥（codex / claude / gemini 作为本地引擎接入）

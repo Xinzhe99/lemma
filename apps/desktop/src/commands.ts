@@ -290,6 +290,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setPromptsLibOpen(true),
     },
     {
+      id: 'cite.suggest',
+      title: ctx.t('cmd.citeSuggest'),
+      hint: ctx.t('hint.agent'),
+      run: () => useUiStore.getState().setCiteSuggestOpen(true),
+    },
+    {
       id: 'collab.merge',
       title: ctx.t('cmd.collabMerge'),
       hint: ctx.t('hint.agent'),
