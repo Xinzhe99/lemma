@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { formatCost } from '@scholarforge/agent-hub';
+import { formatCost } from '@lemma/agent-hub';
 import { useSettingsStore } from '../state/settingsStore';
 import {
   useAgentUsageStore,

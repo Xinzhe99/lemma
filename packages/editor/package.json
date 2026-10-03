@@ -1,5 +1,5 @@
 {
-  "name": "@scholarforge/editor",
+  "name": "@lemma/editor",
   "version": "1.1.0",
   "private": true,
   "main": "src/index.ts",
@@ -14,7 +14,7 @@
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.36.0",
     "@lezer/highlight": "^1.2.0",
-    "@scholarforge/shared": "*",
+    "@lemma/shared": "*",
     "diff": "^7.0.0",
     "fflate": "^0.8.2",
     "katex": "^0.18.9",

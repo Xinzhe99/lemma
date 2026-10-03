@@ -49,7 +49,7 @@ import { useSubmitStore } from '../state/submitStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { todayKey, useWritingStatsStore } from '../state/writingStats';
 import { hasSynctexIndex, jumpSourceToPdf, onPdfGoto, setSynctexIndex } from '../synctexBridge';
-import type { SynctexIndex } from '@scholarforge/compile';
+import type { SynctexIndex } from '@lemma/compile';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

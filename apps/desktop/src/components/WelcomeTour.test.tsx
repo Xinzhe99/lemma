@@ -106,7 +106,7 @@ afterEach(() => {
 describe('WelcomeTour · 4 页 carousel', () => {
   it('页 1：欢迎标题 + 一句话定位 + writing.png 截图 + 4 个指示点（首个 active）', () => {
     mount();
-    expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 ScholarForge');
+    expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 Lemma');
     expect(query('.sf-tour-desc')?.textContent).toContain('AI 原生的一站式论文工作站');
     const img = query('img.sf-tour-shot');
     expect(img?.getAttribute('src')).toBe('docs/screenshots/writing.png');
@@ -150,7 +150,7 @@ describe('WelcomeTour · 翻页交互', () => {
   it('左右方向键翻页，首尾钳制（页 1 ← 不动，页 4 → 不动）', () => {
     mount();
     press('ArrowLeft');
-    expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 ScholarForge');
+    expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 Lemma');
     press('ArrowRight');
     expect(query('.sf-tour-title')?.textContent).toBe('写作与编译');
     press('ArrowRight');
@@ -165,7 +165,7 @@ describe('WelcomeTour · 翻页交互', () => {
     const prev = query('.sf-tour-prev') as HTMLButtonElement;
     expect(prev.disabled).toBe(true);
     click(prev);
-    expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 ScholarForge');
+    expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 Lemma');
 
     click([...container!.querySelectorAll('.sf-tour-dot')][3]!);
     expect(query('.sf-tour-title')?.textContent).toBe('三步上手');
@@ -237,7 +237,7 @@ describe('WelcomeTour · i18n', () => {
   it('en 字典：标题/描述/按钮均为英文', () => {
     useSettingsStore.setState({ language: 'en' });
     mount();
-    expect(query('.sf-tour-title')?.textContent).toBe('Welcome to ScholarForge');
+    expect(query('.sf-tour-title')?.textContent).toBe('Welcome to Lemma');
     expect(query('.sf-tour-desc')?.textContent).toContain('all-in-one workstation');
     expect(query('.sf-tour-skip')?.textContent).toBe('Skip the tour');
     expect(query('.sf-tour-next')?.textContent).toContain('Next');

@@ -1,4 +1,4 @@
-/** @scholarforge/agent-hub —— WS-D：Provider 适配 / 工具注册 / 权限 / 工作流引擎 / 会话 UI */
+/** @lemma/agent-hub —— WS-D：Provider 适配 / 工具注册 / 权限 / 工作流引擎 / 会话 UI */
 import './ui/agent-hub.css';
 
 // provider 统一对话接口

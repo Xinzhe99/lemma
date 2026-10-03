@@ -21,9 +21,9 @@ import {
   useAgentHubStore,
   type CompletedRun,
   type WorkflowStepUiStatus,
-} from '@scholarforge/agent-hub';
-import { createId, type WorkflowDef } from '@scholarforge/shared';
-import { DiffView } from '@scholarforge/editor';
+} from '@lemma/agent-hub';
+import { createId, type WorkflowDef } from '@lemma/shared';
+import { DiffView } from '@lemma/editor';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { promptDialog, confirmDialog } from '../dialogs';
 import { lastCursor } from '../editorJump';

@@ -151,7 +151,7 @@ describe('Tauri 真实编译：SyncTeX 索引注册（WS-2）', () => {
 });
 
 describe('Tauri 编译：内置 Tectonic 自动下载（系统引擎缺失时的全链兜底）', () => {
-  const BUILTIN_PATH = 'C:\\AppData\\ScholarForge\\bin\\tectonic.exe';
+  const BUILTIN_PATH = 'C:\\AppData\\Lemma\\bin\\tectonic.exe';
 
   /** 系统引擎全缺失的桥：--version 一律 127；download_and_install_tectonic / 编译结果可注入 */
   function installNoEngineBridge(opts: {

@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 
 export const SUBMIT_STORAGE_KEY = 'sf-submit';
 

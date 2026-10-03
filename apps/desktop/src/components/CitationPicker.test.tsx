@@ -59,7 +59,7 @@ import { insertAtCursor } from '../editorInsert';
 import { suggestCitations } from '../citationSuggest';
 import { useLibraryStore } from '../state/libraryStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 
 const insertMock = vi.mocked(insertAtCursor);
 const suggestMock = vi.mocked(suggestCitations);

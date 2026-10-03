@@ -1,4 +1,4 @@
-import { createId, type Paper, type PaperAuthor, type Venue } from '@scholarforge/shared';
+import { createId, type Paper, type PaperAuthor, type Venue } from '@lemma/shared';
 import { parsePersonName } from './bibtex';
 
 /**

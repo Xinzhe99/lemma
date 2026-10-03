@@ -3,8 +3,8 @@
  * 供大纲面板 / 引用面板 / Agent Context Pack 共用。
  */
 
-import { parseOutline, collectCitekeys, type OutlineNode } from '@scholarforge/editor';
-import { parseBibtex, type ParseBibtexResult } from '@scholarforge/library';
+import { parseOutline, collectCitekeys, type OutlineNode } from '@lemma/editor';
+import { parseBibtex, type ParseBibtexResult } from '@lemma/library';
 
 export function resolveEntry(files: Record<string, string>): string {
   if (files['main.tex'] !== undefined) return 'main.tex';

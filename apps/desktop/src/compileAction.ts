@@ -10,8 +10,8 @@
  * 命令面板与 agent 工具 tex.compile 共用。
  */
 
-import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, parseSynctex, runFullCompile } from '@scholarforge/compile';
-import type { Diagnostic, ProjectFileMap } from '@scholarforge/shared';
+import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, parseSynctex, runFullCompile } from '@lemma/compile';
+import type { Diagnostic, ProjectFileMap } from '@lemma/shared';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useUiStore } from './state/uiStore';
 import { useSettingsStore, type Language } from './state/settingsStore';
@@ -20,7 +20,7 @@ import { tauriProcRun, tauriReadBase64 } from './platform/tauri';
 import { ensureBuiltinTectonic, getReadyBuiltinTectonicPath, isBuiltinTectonicInfo } from './texSetup';
 import { jumpTo, lastCursor } from './editorJump';
 import { setSynctexIndex, jumpSourceToPdf } from './synctexBridge';
-import { setCompileDiagnosticsList, lintLatex } from '@scholarforge/editor';
+import { setCompileDiagnosticsList, lintLatex } from '@lemma/editor';
 import { ENGINE_PROBE_COMMANDS, selectEngine, engineArgs, ENGINE_INFO, type EngineKind } from './engineMatrix';
 
 const idleRunner = {

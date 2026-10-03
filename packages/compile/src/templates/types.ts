@@ -1,4 +1,4 @@
-import type { ProjectFileMap, TemplateDescriptor } from '@scholarforge/shared';
+import type { ProjectFileMap, TemplateDescriptor } from '@lemma/shared';
 
 export interface TemplateModule {
   descriptor: TemplateDescriptor;

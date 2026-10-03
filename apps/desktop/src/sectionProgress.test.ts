@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { sectionProgressForFile, statusForWords } from './sectionProgress';
-import type { OutlineNode } from '@scholarforge/editor';
+import type { OutlineNode } from '@lemma/editor';
 
 const DOC = [
   '\section{Introduction}',

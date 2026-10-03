@@ -25,7 +25,7 @@ import { foldGutter, foldKeymap, indentOnInput } from '@codemirror/language';
 import { latexSupport, type CitationEntry } from '../latex/completion';
 import { bibBase } from '../latex/bibLanguage';
 import { createMathPreviewElement, extractMathSpans } from '../latex/mathPreview';
-import { scholarforgeTheme } from '../latex/theme';
+import { lemmaTheme } from '../latex/theme';
 
 /** 标记来自外部 value 同步的事务，避免 onChange 回声 */
 const External = Annotation.define<boolean>();
@@ -153,7 +153,7 @@ export function LatexEditor(props: LatexEditorProps) {
         ]),
         indentOnInput(),
         langCompRef.current.of(langSideFor(props.filePath)),
-        scholarforgeTheme,
+        lemmaTheme,
         heightTheme,
         EditorView.updateListener.of((vu) => {
           if (vu.docChanged) {

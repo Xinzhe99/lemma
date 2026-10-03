@@ -2,7 +2,7 @@
 /**
  * TemplateWizard 组件测试（自定义模板集成）。测试环境说明同 CommentsPanel.test.tsx：
  * mock zustand 为仅依赖本包 react@18 的等价实现；templatesStore 以可控的 mock store 替代
- * （验证「保存当前项目为模板」对 saveFromWorkspace 的调用）；@scholarforge/compile 部分 mock
+ * （验证「保存当前项目为模板」对 saveFromWorkspace 的调用）；@lemma/compile 部分 mock
  * （scaffoldProject 挂 spy，验证自定义模板路径不走脚手架）。
  * 覆盖验收路径：
  *  - 自定义模板区渲染（name/描述/文件数/savedAt、置于列表顶部、无模板时不渲染）；
@@ -68,12 +68,12 @@ vi.mock('../state/templatesStore', () => ({
   useTemplatesStore: (selector: (s: typeof tplStore) => unknown) => selector(tplStore),
 }));
 
-vi.mock('@scholarforge/compile', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@scholarforge/compile')>();
+vi.mock('@lemma/compile', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@lemma/compile')>();
   return { ...mod, scaffoldProject: vi.fn(mod.scaffoldProject) };
 });
 
-import { listTemplates, scaffoldProject } from '@scholarforge/compile';
+import { listTemplates, scaffoldProject } from '@lemma/compile';
 import { TemplateWizard } from './TemplateWizard';
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';

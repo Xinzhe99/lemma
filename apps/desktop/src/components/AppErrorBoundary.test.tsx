@@ -78,7 +78,7 @@ describe('AppErrorBoundary', () => {
       </AppErrorBoundary>,
     );
     const text = container!.textContent ?? '';
-    expect(text).toContain('ScholarForge');
+    expect(text).toContain('Lemma');
     expect(text).toContain('编辑器渲染崩溃');
     expect(text).toContain('重试');
     expect(text).toContain('复制错误详情');

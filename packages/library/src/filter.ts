@@ -1,4 +1,4 @@
-import type { Paper, ReadStatus } from '@scholarforge/shared';
+import type { Paper, ReadStatus } from '@lemma/shared';
 
 /**
  * 智能过滤器查询语言：

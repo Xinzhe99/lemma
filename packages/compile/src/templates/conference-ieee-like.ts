@@ -3,7 +3,7 @@ import type { TemplateModule } from './types';
 
 /**
  * 会议风格模拟：双栏、小字号、罗马数字节标。
- * 注意：不使用任何真实 IEEE/ACM 版权 cls，全部样式为 ScholarForge 自写的相似观感。
+ * 注意：不使用任何真实 IEEE/ACM 版权 cls，全部样式为 Lemma 自写的相似观感。
  */
 export const conferenceIeeeLike: TemplateModule = {
   descriptor: {
@@ -25,7 +25,7 @@ export const conferenceIeeeLike: TemplateModule = {
   files: {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
-% ScholarForge 模板：conference-ieee-like —— 自写样式的双栏会议观感
+% Lemma 模板：conference-ieee-like —— 自写样式的双栏会议观感
 % 注意：不使用真实 IEEE/ACM cls，样式由下方自写命令构成。
 \documentclass[10pt,twocolumn]{article}
 \usepackage[T1]{fontenc}

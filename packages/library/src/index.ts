@@ -1,4 +1,4 @@
-/** @scholarforge/library —— WS-C：文献库与 PDF 阅读器 */
+/** @lemma/library —— WS-C：文献库与 PDF 阅读器 */
 export const LIBRARY_PACKAGE_VERSION = '1.1.0';
 
 export type { LibraryStore } from './store';

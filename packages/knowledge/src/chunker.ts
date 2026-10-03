@@ -3,7 +3,7 @@
  * 有 sections 按 section 切；单节超长再按句子边界细分（块间字符重叠）；
  * 无 sections 用 fallbackText 滑窗切。块 id 为确定性 hash，可重复构建。
  */
-import type { Paper, TextChunk } from '@scholarforge/shared';
+import type { Paper, TextChunk } from '@lemma/shared';
 import { fnv1a } from './util';
 
 /** 单节超过该长度时按句子边界二次切分 */

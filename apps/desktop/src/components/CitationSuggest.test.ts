@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { dedupeSuggestions, type SuggestedPaper } from './CitationSuggest';
 import { useLibraryStore } from '../state/libraryStore';
 import type { CitedRetrievedChunk } from '../state/libraryStore';
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 
 beforeEach(() => {
   useLibraryStore.setState({

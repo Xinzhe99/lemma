@@ -10,7 +10,7 @@
  */
 
 import { countTexWords } from './components/StatusBar';
-import type { OutlineNode } from '@scholarforge/editor';
+import type { OutlineNode } from '@lemma/editor';
 
 export type SectionStatus = 'empty' | 'draft' | 'solid' | 'mature';
 

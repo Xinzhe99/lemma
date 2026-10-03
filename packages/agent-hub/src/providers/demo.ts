@@ -43,7 +43,7 @@ export interface ScriptedDemoProviderOptions {
 const W6_PREP = `## 审稿简报（Reviewer Briefing）
 
 **稿件要点**（据 Context Pack 与稿件全文归纳）
-- 主题：AI 辅助科研写作的方法综述与工作站设计，题目为「ScholarForge 演示论文：AI 辅助科研写作方法综述」。
+- 主题：AI 辅助科研写作的方法综述与工作站设计，题目为「Lemma 演示论文：AI 辅助科研写作方法综述」。
 - 核心主张：以「一篇论文的完整生命周期」为单位组织写作环境，比单点工具（语法检查、引用格式化）更能减少上下文切换成本。
 - 方法框架：三阶段流水线——上下文组装（大纲/术语表/文献摘要）→ 多角色起草 → 修改以 diff 呈现并由作者裁决。
 - 实验现状：实验设置节为演示性静态文本，含一个余弦相似度检索公式，暂无对比实验与用户研究。
@@ -216,7 +216,7 @@ const W10_COMPILE = `## 编译与格式核对结果
 
 const W10_AUDIT = `## 合规审查（三态结论 + 证据定位）
 
-1. ⚠️ 匿名化——需人工判断：正文以「ScholarForge Demo」署名（main.tex:7），双盲投稿须移除；致谢与仓库链接不存在，无其他泄露点。自引措辞需作者自查（「本文以演示项目为例」不构成自引泄露）。
+1. ⚠️ 匿名化——需人工判断：正文以「Lemma Demo」署名（main.tex:7），双盲投稿须移除；致谢与仓库链接不存在，无其他泄露点。自引措辞需作者自查（「本文以演示项目为例」不构成自引泄露）。
 2. ❌ 引用格式——未通过：refs.bib 共 3 条，openai2023gpt4 为 @misc 但缺 doi 字段；unsrt 样式与官方 author-year 要求不符（换模板时一并处理）。定位：refs.bib:14。
 3. ⚠️ Data statement——需人工判断：正文无数据可得性声明；本文为系统设计论文，是否单列取决于最终 track（系统 track 鼓励）。
 4. ✅ AI 使用披露：可在 Limitations 节声明「草稿由 AI 辅助生成，作者逐条审定」；披露语句草稿已生成，随报告附上。
@@ -236,7 +236,7 @@ const W10_REPORT = `## 投稿前自检报告（目标：ACL 长文）
   → 建议：压缩「相关工作」节约 0.5 页（合并单点工具描述），实验设置演示性文字移入附录；预计工作量 1–2 小时
 - ❌ 模板不符：使用 article 文档类，需换官方两栏模板（main.tex:1）
   → 建议：换模板后全文重排并复查图表宽度；预计工作量 1 小时
-- ⚠️ 匿名化需作者确认：署名「ScholarForge Demo」须移除，自引措辞建议自查（main.tex:7）
+- ⚠️ 匿名化需作者确认：署名「Lemma Demo」须移除，自引措辞建议自查（main.tex:7）
   → 建议：双盲版用匿名作者行替换，投稿前全文检索一次机构名
 - ⚠️ 缺 Limitations 节（必填，不计页数）（main.tex:77）
   → 建议：按草稿「本研究证据限于静态演示文本……」扩写 150–200 词
@@ -585,7 +585,7 @@ const ROUTES: readonly DemoRoute[] = [
     '\\begin{itemize}',
     '  \\item 写作工具碎片化，上下文断裂',
     '  \\item AI 被关在聊天盒子里',
-    '  \\item 我们提出 ScholarForge',
+    '  \\item 我们提出 Lemma',
     '\\end{itemize}',
     '\\end{frame}',
     '% ……（完整 14 页骨架，每页要点不超过 1.5 行，图表用 \ref 引用原稿 label）',
@@ -610,7 +610,7 @@ const ROUTES: readonly DemoRoute[] = [
     '> ⚠️ 演示数据（内置示例，配置模型服务后为真实 AI 生成）',
     '',
     '## 英文 X 帖（247/280 字符）',
-    '> Proud to share ScholarForge — an AI-native workstation unifying literature, LaTeX writing, compilation & submission. Three simulated reviewers, diff-approved AI edits, zero hallucinated citations. #AcademicWriting #AI4Science #LaTeX',
+    '> Proud to share Lemma — an AI-native workstation unifying literature, LaTeX writing, compilation & submission. Three simulated reviewers, diff-approved AI edits, zero hallucinated citations. #AcademicWriting #AI4Science #LaTeX',
     '',
     '## 中文社交帖（约 180 字）',
     '> 论文写作工具太碎？文献调研、LaTeX 写作、编译、AI 审稿仿真、投稿打包装进一个本地优先的桌面应用。AI 改稿每一步都出 diff 由你审批，引用造假直接拦截。分享给正在写论文的你～',
@@ -619,7 +619,7 @@ const ROUTES: readonly DemoRoute[] = [
     '左侧：研究者被 8 个割裂工具包围（灰暗）；右侧：单一工作台（明亮）+ diff 审批卡 + 引用对勾；箭头连接，配句 One workstation, full paper lifecycle。',
     '',
     '## 院系新闻稿段落',
-    '> 我院团队开发的 ScholarForge 平台将学术论文写作全流程整合于单一本地应用，引入受审批制的人工智能协作机制，在提升效率的同时保障学术诚信……'
+    '> 我院团队开发的 Lemma 平台将学术论文写作全流程整合于单一本地应用，引入受审批制的人工智能协作机制，在提升效率的同时保障学术诚信……'
   ].join('\n') },
   { id: 'w16-confirm', keywords: ['自查语气事实性'], script: [
     '> ⚠️ 演示数据（内置示例，配置模型服务后为真实 AI 生成）',
@@ -633,7 +633,7 @@ const ROUTES: readonly DemoRoute[] = [
   { id: 'doc-highlights', keywords: ['生成 3 至 5 条 Highlights'], script: [
     '> ⚠️ 演示数据（内置示例，配置模型服务后为真实 AI 生成）',
     '',
-    '- ScholarForge unifies the full paper lifecycle in one local-first app (72 chars)',
+    '- Lemma unifies the full paper lifecycle in one local-first app (72 chars)',
     '- AI edits are gated by blocking diff approval with rollbackable snapshots (75 chars)',
     '- Hallucinated citations are intercepted by local-library verification (70 chars)',
     '- Real compilation via auto-provisioned Tectonic with bidirectional SyncTeX (77 chars)'

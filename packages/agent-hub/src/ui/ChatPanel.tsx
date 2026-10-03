@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
-import type { AgentMessage, ToolCallRequest } from '@scholarforge/shared';
+import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
 import type { AgentSession } from '../store';
 import { renderMarkdown } from './markdown';
 

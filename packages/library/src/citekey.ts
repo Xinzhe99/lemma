@@ -1,4 +1,4 @@
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 
 /**
  * Better-BibTeX 风格 citekey 生成。

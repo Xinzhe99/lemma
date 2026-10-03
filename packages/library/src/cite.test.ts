@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Paper, PaperAuthor } from '@scholarforge/shared';
+import type { Paper, PaperAuthor } from '@lemma/shared';
 import { CITATION_STYLES, formatCitation, parseCitationSegments } from './cite';
 
 function authors(n: number): PaperAuthor[] {

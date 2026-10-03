@@ -7,7 +7,7 @@
  * 全部纯函数、无副作用（浅拷贝输入，不改调用方数据），可独立测试。
  */
 
-export const BACKUP_SCHEMA = 'scholarforge-backup';
+export const BACKUP_SCHEMA = 'lemma-backup';
 export const BACKUP_VERSION = 1;
 
 /** 工作区快照（workspaceStore 的持久化子集；snapshots 为文件历史快照表） */
@@ -98,7 +98,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 /**
  * 校验备份 JSON（已 parse 的值）：
- * 1) 顶层必须是对象且 schema === 'scholarforge-backup'；
+ * 1) 顶层必须是对象且 schema === 'lemma-backup'；
  * 2) version 必须为 1（数字）；
  * 3) exportedAt 必须是字符串；
  * 4) 核心字段存在且形状正确：data.library.papers / data.knowledge.notes /

@@ -5,7 +5,7 @@
  * 测试用 prompt 文本取自 workflow/builtin 的 YAML 步骤原文，保证与真实运行时一致。
  */
 import { describe, expect, it } from 'vitest';
-import type { AgentMessage } from '@scholarforge/shared';
+import type { AgentMessage } from '@lemma/shared';
 import {
   DEMO_DISCLAIMER,
   DEMO_LIBRARY_CITEKEYS,

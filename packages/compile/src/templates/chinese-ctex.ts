@@ -23,7 +23,7 @@ export const chineseCtex: TemplateModule = {
   files: {
     'refs.bib': chineseRefsBib,
     'main.tex': String.raw`% !TeX program = xelatex
-% ScholarForge 模板：chinese-ctex —— 中文学术论文（ctexart）
+% Lemma 模板：chinese-ctex —— 中文学术论文（ctexart）
 % 编译：tectonic -X compile main.tex（XeTeX/xelatex 语义）
 %   或系统 TeX：latexmk -xelatex main.tex
 \documentclass[UTF8,zihao=-4,a4paper]{ctexart}

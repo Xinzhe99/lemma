@@ -16,7 +16,7 @@ import {
   FK_TARGET_RANGE,
   LONG_PARAGRAPH_WORDS,
   LONG_SENTENCE_WORDS,
-} from '@scholarforge/editor';
+} from '@lemma/editor';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { jumpTo } from '../editorJump';

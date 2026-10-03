@@ -56,7 +56,7 @@ import { runCompile } from '../compileAction';
 import { sendChatMessage } from '../aiActions';
 import { useOnboardingStore } from '../state/onboardingStore';
 import { useSettingsStore } from '../state/settingsStore';
-import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 

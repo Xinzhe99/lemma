@@ -1,5 +1,5 @@
 /**
- * ScholarForge Tauri 壳（Rust 侧）。
+ * Lemma Tauri 壳（Rust 侧）。
  *
  * 桥接约定与 apps/desktop/src/platform/tauri.ts 一一对应：
  * - fs_read / fs_read_base64 / fs_write / fs_write_base64 / fs_delete / fs_list：
@@ -33,7 +33,7 @@ fn base_dir(app: &tauri::AppHandle) -> PathBuf {
     let dir = app
         .path()
         .app_data_dir()
-        .unwrap_or_else(|_| std::env::temp_dir().join("scholarforge"));
+        .unwrap_or_else(|_| std::env::temp_dir().join("lemma"));
     let _ = fs::create_dir_all(&dir);
     dir
 }
@@ -733,5 +733,5 @@ mod pandoc_install_tests {
             download_and_install_pandoc
         ])
         .run(tauri::generate_context!())
-        .expect("error while running ScholarForge");
+        .expect("error while running Lemma");
 }

@@ -8,8 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildCliArgs, buildCliPrompt, CliAgentProvider, type ProcRunner } from './cliAgent';
 import { DEFAULT_CLI_AGENT, useSettingsStore, readPersistedSettings } from './state/settingsStore';
-import type { AgentMessage } from '@scholarforge/shared';
-import type { ChatEvent } from '@scholarforge/agent-hub';
+import type { AgentMessage } from '@lemma/shared';
+import type { ChatEvent } from '@lemma/agent-hub';
 
 describe('buildCliArgs', () => {
   it('空白分隔 + {prompt} 作为单个 argv 元素（提示词含引号/空白不逃逸）', () => {

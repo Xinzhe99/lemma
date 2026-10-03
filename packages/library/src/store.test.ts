@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createId, type Annotation, type Note, type Paper } from '@scholarforge/shared';
+import { createId, type Annotation, type Note, type Paper } from '@lemma/shared';
 import { MemoryStore } from './store';
 
 function makePaper(overrides: Partial<Paper> = {}): Paper {

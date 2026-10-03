@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PermissionLevel, ToolDef } from '@scholarforge/shared';
+import type { PermissionLevel, ToolDef } from '@lemma/shared';
 import { checkCall } from './permissions';
 import type { PermissionMode, PermissionPolicy } from './permissions';
 

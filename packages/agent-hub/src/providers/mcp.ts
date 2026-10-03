@@ -2,7 +2,7 @@
  * MCP（Model Context Protocol）客户端：连接任意外部 MCP server 作为额外工具源。
  * 传输层抽象注入（stdio / WebSocket / 内存回环皆可），本模块只做 JSON-RPC 2.0 over ndjson。
  */
-import type { ToolDef } from '@scholarforge/shared';
+import type { ToolDef } from '@lemma/shared';
 
 // ---------------------------------------------------------------------------
 // JSON-RPC 2.0 类型
@@ -89,7 +89,7 @@ export const MCP_PROTOCOL_VERSION = '2024-11-05';
 
 /**
  * 连接 MCP server：initialize → notifications/initialized → tools/list。
- * 外部工具没有 ScholarForge 权限分级信息，保守地按 execute 级（首次确认）接入。
+ * 外部工具没有 Lemma 权限分级信息，保守地按 execute 级（首次确认）接入。
  */
 export function connectMcp(transport: McpTransport): McpSession {
   let buffer = '';
@@ -130,7 +130,7 @@ export function connectMcp(transport: McpTransport): McpSession {
     const result = await request('initialize', {
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: {},
-      clientInfo: { name: 'scholarforge-agent-hub', version: '0.1.0' },
+      clientInfo: { name: 'lemma-agent-hub', version: '0.1.0' },
     });
     notify('notifications/initialized');
     return result;

@@ -2,7 +2,7 @@
  * 论文域工具注册表（设计文档 5.3：内置 MCP Server 暴露的 15 个工具）。
  * ToolDef 只是"契约"；实际执行体由宿主通过 createToolExecutor 注入。
  */
-import type { ToolCallRequest, ToolDef } from '@scholarforge/shared';
+import type { ToolCallRequest, ToolDef } from '@lemma/shared';
 
 const str = (description: string) => ({ type: 'string', description });
 const int = (description: string) => ({ type: 'integer', description });

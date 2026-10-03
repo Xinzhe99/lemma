@@ -2,7 +2,7 @@
  * 工作流引擎（L3 编排层）：DAG 拓扑执行、并行分支、人工检查点、失败传播。
  * 纯逻辑零 UI；步骤的实际执行（模型调用/工具编排/占位符替换）由宿主通过 hooks 注入。
  */
-import type { WorkflowDef, WorkflowStepDef } from '@scholarforge/shared';
+import type { WorkflowDef, WorkflowStepDef } from '@lemma/shared';
 
 export interface WorkflowStepContext {
   /** start(vars) 传入的工作流变量（对应 WorkflowDef.inputs） */

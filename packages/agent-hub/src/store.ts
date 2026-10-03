@@ -6,7 +6,7 @@
  * 把流式事件通过 appendDelta / appendToolCall / finishSession 写回。
  */
 import { create } from 'zustand';
-import { createId, type AgentMessage, type AgentRun, type ToolCallRequest } from '@scholarforge/shared';
+import { createId, type AgentMessage, type AgentRun, type ToolCallRequest } from '@lemma/shared';
 
 export type AgentSessionStatus = 'idle' | 'streaming' | 'error';
 

@@ -1,7 +1,7 @@
 /**
  * 工作流运行视图：步骤状态灯（pending/running/done/failed/checkpoint），checkpoint 提供继续按钮。
  */
-import type { WorkflowStepDef } from '@scholarforge/shared';
+import type { WorkflowStepDef } from '@lemma/shared';
 
 export type WorkflowStepUiStatus = 'pending' | 'running' | 'done' | 'failed' | 'checkpoint';
 

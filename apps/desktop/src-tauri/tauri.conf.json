@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ScholarForge",
+  "productName": "Lemma",
   "version": "2.0.0",
-  "identifier": "com.scholarforge.desktop",
+  "identifier": "com.lemma.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ScholarForge — 科研写作工作站",
+        "title": "Lemma — 科研写作工作站",
         "width": 1360,
         "height": 860,
         "minWidth": 960,
@@ -27,7 +27,7 @@
   "bundle": {
     "active": true,
     "category": "Productivity",
-    "copyright": "© 2026 ScholarForge",
+    "copyright": "© 2026 Lemma",
     "shortDescription": "AI-native scholarly writing workstation",
     "targets": "all",
     "createUpdaterArtifacts": true,
@@ -45,7 +45,7 @@
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2RkQ4MzMyQzI1MDRCQjAKUldTd1MxRENNb1A5Rm9rTEFrblRQNVpFbFBnMXpGZHArMWNLUnhTTlJuZWJkZDBRR3puaFlQV2MK",
       "endpoints": [
-        "https://github.com/Xinzhe99/scholarforge/releases/latest/download/latest.json"
+        "https://github.com/Xinzhe99/lemma/releases/latest/download/latest.json"
       ]
     }
   }

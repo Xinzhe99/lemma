@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 import { useAgentHubStore } from './store';
 
 describe('appendToolResult', () => {

@@ -6,7 +6,7 @@
  * 无索引（浏览器/模拟编译）时所有查询返回 false，功能静默不可用。
  */
 
-import { lineLocation, sourceLocation, type SynctexIndex } from '@scholarforge/compile';
+import { lineLocation, sourceLocation, type SynctexIndex } from '@lemma/compile';
 
 type PdfGotoListener = (goto: { page: number; y?: number }) => void;
 

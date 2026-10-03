@@ -1,4 +1,4 @@
-import type { Diagnostic } from '@scholarforge/shared';
+import type { Diagnostic } from '@lemma/shared';
 
 interface HintRule {
   match: RegExp;

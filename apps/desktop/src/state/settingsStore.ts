@@ -8,7 +8,7 @@
  */
 
 import { create } from 'zustand';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 import type { Theme } from '../theme';
 
 export type Language = 'zh' | 'en';

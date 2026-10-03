@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 
 export interface UserPrompt {
   id: string;

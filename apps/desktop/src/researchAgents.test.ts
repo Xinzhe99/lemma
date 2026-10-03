@@ -5,7 +5,7 @@
  * providerChoice + runTurn 假件，演示分支依赖未配置 provider 的缺省状态。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import {
   FAILED_TOPIC_PREFIX,
   RESEARCH_ANGLES,
@@ -17,7 +17,7 @@ import {
 import { useAgentUsageStore } from './state/agentUsage';
 import { useSettingsStore } from './state/settingsStore';
 import type { ProviderChoice } from './aiActions';
-import type { ChatProvider, ChatRequest, ChatEvent } from '@scholarforge/agent-hub';
+import type { ChatProvider, ChatRequest, ChatEvent } from '@lemma/agent-hub';
 
 beforeEach(() => {
   useAgentHubStore.setState({ sessions: [], activeSessionId: null, runs: [], completedRuns: [] });

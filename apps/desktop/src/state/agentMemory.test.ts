@@ -6,7 +6,7 @@
  * 以及 agentTools.buildContextPackMd 的注入点联通。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentMessage } from '@scholarforge/shared';
+import type { AgentMessage } from '@lemma/shared';
 import {
   AGENT_MEMORY_STORAGE_KEY,
   PARTIAL_NOTE,

@@ -13,7 +13,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Annotation } from '@scholarforge/shared';
+import type { Annotation } from '@lemma/shared';
 import { PdfReader, type PdfReaderProps } from './PdfReader';
 
 // pdfjs mock 需在模块导入前创建（vi.hoisted），工厂与测试体共享同一组 spy

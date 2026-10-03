@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it, afterEach, vi } from 'vitest';
-import type { SynctexIndex } from '@scholarforge/compile';
-import type { Diagnostic } from '@scholarforge/shared';
+import type { SynctexIndex } from '@lemma/compile';
+import type { Diagnostic } from '@lemma/shared';
 import {
   detectEngine,
   engineLabel,
@@ -47,7 +47,7 @@ describe('detectEngine（探测结果注入，不依赖真实进程）', () => {
 });
 
 describe('detectEngine + builtinTectonicPath（内置引擎探测注入点）', () => {
-  const builtin = 'C:\\AppData\\ScholarForge\\bin\\tectonic.exe';
+  const builtin = 'C:\\AppData\\Lemma\\bin\\tectonic.exe';
 
   it('系统引擎均不可用、注入内置路径时选择 builtin-tectonic', () => {
     expect(detectEngine({ tectonic: bad(), latexmk: bad(), builtinTectonicPath: builtin })).toBe('builtin-tectonic');

@@ -1,12 +1,12 @@
 <div align="center">
 
-# ScholarForge
+# Lemma
 
 **AI 原生的一站式学术论文写作工作站 · IDE for Papers**
 
 *Literature discovery → reading → LaTeX writing → compilation → AI review → submission, in one local-first app.*
 
-[![CI](https://github.com/Xinzhe99/scholarforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Xinzhe99/scholarforge/actions/workflows/ci.yml)
+[![CI](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml/badge.svg)](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-1165%20passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-lightgrey)]()
@@ -18,7 +18,7 @@
 
 ---
 
-![ScholarForge 写作视图](docs/screenshots/writing.png)
+![Lemma 写作视图](docs/screenshots/writing.png)
 
 ---
 
@@ -28,7 +28,7 @@
 
 更关键的是：AI 编码工具（Cursor / Codex / Claude Code）已经证明"agent 能动手"的价值，但论文工具里的 AI 还被关在"只能聊天"的盒子里——看不到你的文献库，跑不了你的编译，改不了你的引用。
 
-**ScholarForge 把这两件事缝合起来**：一个本地优先的桌面应用，AI Agent 作为一等公民深入每个环节——能读你的文献库、能编译你的论文、能核查你的引用、能模拟你的审稿人。而每一次 AI 修改都以 diff 呈现、由你审批。
+**Lemma 把这两件事缝合起来**：一个本地优先的桌面应用，AI Agent 作为一等公民深入每个环节——能读你的文献库、能编译你的论文、能核查你的引用、能模拟你的审稿人。而每一次 AI 修改都以 diff 呈现、由你审批。
 
 ## ✨ 功能总览
 
@@ -105,8 +105,8 @@
 ### 方式一：Web 版（无需安装 Rust）
 
 ```bash
-git clone https://github.com/Xinzhe99/scholarforge.git
-cd scholarforge
+git clone https://github.com/Xinzhe99/lemma.git
+cd lemma
 npm install
 npm run dev        # 打开 http://localhost:5173
 ```
@@ -117,13 +117,13 @@ npm run dev        # 打开 http://localhost:5173
 
 | 下载 | 说明 |
 |---|---|
-| [ScholarForge_2.0.0_x64-setup.exe](https://github.com/Xinzhe99/scholarforge/releases/download/v2.0.0/ScholarForge_2.0.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [ScholarForge_2.0.0_aarch64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v2.0.0/ScholarForge_2.0.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [ScholarForge_2.0.0_x64.dmg](https://github.com/Xinzhe99/scholarforge/releases/download/v2.0.0/ScholarForge_2.0.0_x64.dmg) | macOS（Intel） |
+| [Lemma_2.0.0_x64-setup.exe](https://github.com/Xinzhe99/lemma/releases/download/v2.0.0/Lemma_2.0.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
+| [Lemma_2.0.0_aarch64.dmg](https://github.com/Xinzhe99/lemma/releases/download/v2.0.0/Lemma_2.0.0_aarch64.dmg) | macOS（Apple Silicon） |
+| [Lemma_2.0.0_x64.dmg](https://github.com/Xinzhe99/lemma/releases/download/v2.0.0/Lemma_2.0.0_x64.dmg) | macOS（Intel） |
 
-> 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/scholarforge/releases) 全部列表。
+> 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/lemma/releases) 全部列表。
 
-全部版本见 [Releases](https://github.com/Xinzhe99/scholarforge/releases)。应用内建自动更新：闲时静默检查下载，重启即完成升级。
+全部版本见 [Releases](https://github.com/Xinzhe99/lemma/releases)。应用内建自动更新：闲时静默检查下载，重启即完成升级。
 
 ### 方式二：桌面版（Windows）
 
@@ -183,4 +183,4 @@ packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · �
 
 ## 📄 许可
 
-[MIT](LICENSE) © 2026 ScholarForge Contributors
+[MIT](LICENSE) © 2026 Lemma Contributors

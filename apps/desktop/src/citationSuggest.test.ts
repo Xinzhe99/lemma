@@ -4,7 +4,7 @@
  * 过滤已引、过滤无键、去重、空结果回退、异常回退、回退排序与截断、回退过滤、空文本短路。
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 import {
   buildSuggestQuery,
   FALLBACK_LIMIT,

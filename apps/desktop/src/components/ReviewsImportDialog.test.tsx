@@ -2,7 +2,7 @@
 /**
  * ReviewsImportDialog 组件测试。测试环境说明同 StatsDialog.test.tsx：
  * mock zustand 为仅依赖本包 react@18 的等价实现，避免根 react@19 混渲染；
- * 另 mock @scholarforge/library 的 loadPdfText（避免拉起 pdfjs 运行时，并可控返回）。
+ * 另 mock @lemma/library 的 loadPdfText（避免拉起 pdfjs 运行时，并可控返回）。
  * 覆盖：粘贴解析、.txt/.docx/.pdf 三格式文件入口、文件名 reviewer 数字命名、
  * 预览编辑/删除/加条、统计行、启动 W7 的 launchWorkflow 参数（含 manuscript=
  * combinedDoc）、保存笔记（标题含日期、正文结构化）、空态禁用、Esc 关闭。
@@ -56,7 +56,7 @@ const { loadPdfText } = vi.hoisted(() => ({
     },
   ),
 }));
-vi.mock('@scholarforge/library', () => ({ loadPdfText }));
+vi.mock('@lemma/library', () => ({ loadPdfText }));
 
 import { ReviewsImportDialog } from './ReviewsImportDialog';
 import { useSettingsStore } from '../state/settingsStore';

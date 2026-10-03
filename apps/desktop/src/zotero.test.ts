@@ -48,7 +48,7 @@ vi.mock('zustand', async () => {
   return { create };
 });
 
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 import {
   collectionNamesFor,
   collectionTree,

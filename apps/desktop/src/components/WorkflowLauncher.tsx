@@ -8,7 +8,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { WorkflowDef } from '@scholarforge/shared';
+import type { WorkflowDef } from '@lemma/shared';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 
 /** 变量元信息：说明（双语）+ 默认值 + 是否多行 */
@@ -40,7 +40,7 @@ export const WORKFLOW_VAR_META: Record<string, VarMeta> = {
   reviews: { desc: { zh: '审稿意见全文（将逐条拆解回复）', en: 'Full review comments (parsed item by item)' }, def: '', multiline: true },
   text: { desc: { zh: '待润色文本', en: 'Text to polish' }, def: '本文提出了一种面向科研写作的智能体工作流。', multiline: true },
   target: { desc: { zh: '润色目标（风格/venue）', en: 'Polish target (style/venue)' }, def: 'NeurIPS' },
-  paper: { desc: { zh: '相关论文主题描述', en: 'Description of the related paper' }, def: 'ScholarForge 演示论文' },
+  paper: { desc: { zh: '相关论文主题描述', en: 'Description of the related paper' }, def: 'Lemma 演示论文' },
   selection: {
     desc: { zh: '编辑器选中的待改写片段', en: 'Selected snippet to rewrite' },
     def: 'In order to demonstrate the pipeline, we utilize a number of examples.',

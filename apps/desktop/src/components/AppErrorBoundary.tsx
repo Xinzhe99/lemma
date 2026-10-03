@@ -135,7 +135,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <div style={S.page}>
         <div style={S.card}>
-          <div style={S.brand}>ScholarForge</div>
+          <div style={S.brand}>Lemma</div>
           <p style={S.headline}>应用遇到了未捕获的错误 —— 你可以重试，或复制错误详情用于回报。</p>
           <pre style={S.summary}>{error.message}</pre>
           <div style={S.actions}>

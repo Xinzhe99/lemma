@@ -1,6 +1,6 @@
 # Tauri 桌面壳
 
-ScholarForge 的桌面形态：同一 Web 应用（`apps/desktop`）由 Tauri 2 壳承载，获得本地
+Lemma 的桌面形态：同一 Web 应用（`apps/desktop`）由 Tauri 2 壳承载，获得本地
 文件、进程与密钥能力（桥接实现见 `apps/desktop/src-tauri/src/lib.rs`，前端侧
 `apps/desktop/src/platform/tauri.ts`）。
 

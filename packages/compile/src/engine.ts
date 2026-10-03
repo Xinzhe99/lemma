@@ -1,4 +1,4 @@
-import type { CompileEngineKind, CompileResult, Diagnostic, ProjectFileMap } from '@scholarforge/shared';
+import type { CompileEngineKind, CompileResult, Diagnostic, ProjectFileMap } from '@lemma/shared';
 import { parseLatexLog } from './logParser';
 
 /** 宿主注入的命令执行器（Electron 主进程 / Node 侧实现；浏览器形态不存在） */
@@ -112,4 +112,4 @@ export class MockEngine implements LatexEngine {
   }
 }
 
-const MOCK_PDF = new TextEncoder().encode('%PDF-1.4\n%ScholarForge MockEngine 合成输出（非真实文档）\n%%EOF\n');
+const MOCK_PDF = new TextEncoder().encode('%PDF-1.4\n%Lemma MockEngine 合成输出（非真实文档）\n%%EOF\n');

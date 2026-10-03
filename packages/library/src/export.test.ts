@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Annotation, Paper, Venue } from '@scholarforge/shared';
+import type { Annotation, Paper, Venue } from '@lemma/shared';
 import { parseBibtex } from './importers/bibtex';
 import { annotationsToMarkdown, escapeBibtex, papersToBibtex, paperToBibtex } from './export';
 

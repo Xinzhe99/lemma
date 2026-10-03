@@ -17,9 +17,9 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { Annotation, Note, Paper } from '@scholarforge/shared';
-import { annotationsToMarkdown } from '@scholarforge/library';
-import { buildBacklinkIndex, type PaperRef } from '@scholarforge/knowledge';
+import type { Annotation, Note, Paper } from '@lemma/shared';
+import { annotationsToMarkdown } from '@lemma/library';
+import { buildBacklinkIndex, type PaperRef } from '@lemma/knowledge';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useNotesStore } from '../state/notesStore';
 import { useAnnotationStore } from '../state/annotationStore';
@@ -153,7 +153,7 @@ const DICT: Record<Language, Dict> = {
 // 工具
 // ---------------------------------------------------------------------------
 
-/** 与 @scholarforge/knowledge parseWikilinks 同构的 token 正则（渲染用） */
+/** 与 @lemma/knowledge parseWikilinks 同构的 token 正则（渲染用） */
 const WIKILINK_TOKEN_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
 
 const SEM_CLASS: Record<NonNullable<Annotation['semantic']>, string> = {
@@ -180,7 +180,7 @@ function markdownOf(note: Note): string {
 
 /** 卡片入稿的 LaTeX 注释块：% --- note: 标题 --- + 逐行注释的正文 */
 export function noteTexBlock(note: Note, lang: Language = 'zh'): string {
-  const source = lang === 'zh' ? '% 来自 ScholarForge 卡片笔记' : '% from a ScholarForge note card';
+  const source = lang === 'zh' ? '% 来自 Lemma 卡片笔记' : '% from a Lemma note card';
   const body = note.bodyMd.split('\n').map((line) => `% ${line}`.trimEnd());
   return [`% --- note: ${note.title} ---`, source, ...body].join('\n');
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TextChunk } from '@scholarforge/shared';
+import type { TextChunk } from '@lemma/shared';
 import { HashEmbeddingProvider } from './embeddings';
 import { cosine, HybridRetriever } from './retriever';
 

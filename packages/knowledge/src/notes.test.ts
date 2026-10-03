@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Note } from '@scholarforge/shared';
+import type { Note } from '@lemma/shared';
 import { buildBacklinkIndex, createNoteFromAnnotation, parseWikilinks } from './notes';
 
 describe('parseWikilinks', () => {

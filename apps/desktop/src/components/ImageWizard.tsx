@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { stripLineComment } from '@scholarforge/editor';
+import { stripLineComment } from '@lemma/editor';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { insertAtCursor } from '../editorInsert';

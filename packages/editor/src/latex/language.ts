@@ -79,7 +79,7 @@ export const latexFoldService: Extension = foldService.of((state, lineStart) => 
 });
 
 /**
- * 高亮样式（与 scholarforgeTheme 深色主题协调）：
+ * 高亮样式（与 lemmaTheme 深色主题协调）：
  * 命令蓝紫、环境绿、注释灰、数学橙。stex 模式输出的 legacy style
  * 经 StreamLanguage 映射：命令=tagName、环境名/label=atom、注释=comment、数学定界符=keyword。
  */

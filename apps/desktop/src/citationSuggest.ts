@@ -9,7 +9,7 @@
  *     （同样过滤已引与无 citekey，年份缺失排最后），reason 标注「（回退）」。
  */
 
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 
 /** 检索注入签名：与 libraryStore.searchKnowledge(query, k) 结构兼容 */
 export type RetrieveFn = (q: string, k: number) => Promise<{ paperId: string; citekey?: string }[]>;

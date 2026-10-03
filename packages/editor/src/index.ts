@@ -1,4 +1,4 @@
-/** @scholarforge/editor —— WS-A：LaTeX 编辑器（CodeMirror 6） */
+/** @lemma/editor —— WS-A：LaTeX 编辑器（CodeMirror 6） */
 export const EDITOR_PACKAGE_VERSION = '1.1.0';
 
 // 语法支持
@@ -108,7 +108,7 @@ export {
 export { parseCsv, parseXlsx } from './tabularData';
 
 // 主题
-export { scholarforgeTheme, EDITOR_COLORS } from './latex/theme';
+export { lemmaTheme, EDITOR_COLORS } from './latex/theme';
 
 // 组件
 export { LatexEditor, type LatexEditorProps } from './components/LatexEditor';

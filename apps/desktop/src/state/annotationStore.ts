@@ -14,7 +14,7 @@
  */
 
 import { create } from 'zustand';
-import type { Annotation } from '@scholarforge/shared';
+import type { Annotation } from '@lemma/shared';
 
 const STORAGE_KEY = 'sf-pdf-annotations';
 

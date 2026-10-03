@@ -2,7 +2,7 @@
  * Context Pack：每次 Agent Run 前组装并注入的上下文（设计 5.4）。
  * build 负责归一化输入，render 产出 prompt-ready 中文 markdown。
  */
-import type { ContextPack, GlossaryTerm, RetrievedChunk, StyleProfile } from '@scholarforge/shared';
+import type { ContextPack, GlossaryTerm, RetrievedChunk, StyleProfile } from '@lemma/shared';
 
 /** 相关文献块可携带 citekey（TextChunk 只有 paperId，渲染时缺省回退到 paperId） */
 export interface CitedChunk extends RetrievedChunk {

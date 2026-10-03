@@ -15,8 +15,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import type { PaperAuthor } from '@scholarforge/shared';
-import type { PaperSearchHit } from '@scholarforge/library';
+import type { PaperAuthor } from '@lemma/shared';
+import type { PaperSearchHit } from '@lemma/library';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useLibraryStore } from '../state/libraryStore';
 import {

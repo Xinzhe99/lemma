@@ -1,7 +1,7 @@
 /**
  * 全量备份/恢复对话框（WS-F 应用设施，经命令 app.backup / uiStore.backupDialogOpen 挂载）：
  *  - 导出：从各 store 收集快照（settingsStore 经 stripSecrets 脱敏——API key 永不进备份）→
- *    buildBackup → Blob 下载 `scholarforge-backup-YYYYMMDD-HHmm.json`；
+ *    buildBackup → Blob 下载 `lemma-backup-YYYYMMDD-HHmm.json`；
  *  - 恢复：file input 选择 json → validateBackup → 展示备份内容摘要（各部分条数）→
  *    应用内确认（uiStore.openTextDialog mode:'confirm'，不用 window.confirm）→ 逐 store 恢复：
  *    libraryStore.setState({papers}) / notesStore / annotationStore.setState({byFile}) /
@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Download, RotateCcw, Upload } from 'lucide-react';
-import type { Paper, Annotation, Note } from '@scholarforge/shared';
+import type { Paper, Annotation, Note } from '@lemma/shared';
 import { buildBackup, stripSecrets, validateBackup, type BackupFile } from '../backup';
 import { useAnnotationStore } from '../state/annotationStore';
 import { useLibraryStore } from '../state/libraryStore';
@@ -115,7 +115,7 @@ function stamp(): string {
 }
 
 function backupFileName(): string {
-  return `scholarforge-backup-${stamp()}.json`;
+  return `lemma-backup-${stamp()}.json`;
 }
 
 /** Blob 下载（与 LibraryPanel 导出 .bib 同款手法） */

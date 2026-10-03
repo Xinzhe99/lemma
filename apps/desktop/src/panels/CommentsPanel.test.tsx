@@ -83,7 +83,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { buildReviewPackage } from '../reviewPackage';
-import type { Annotation } from '@scholarforge/shared';
+import type { Annotation } from '@lemma/shared';
 
 // jsdom 的 Blob/File 无 text()（导入流程组件内 file.text() 依赖）：经 FileReader 补齐
 if (typeof Blob !== 'undefined' && Blob.prototype.text === undefined) {

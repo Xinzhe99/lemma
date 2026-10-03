@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactElement } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { createId, type Annotation, type HighlightSemantic } from '@scholarforge/shared';
+import { createId, type Annotation, type HighlightSemantic } from '@lemma/shared';
 import {
   createDestPageResolver,
   flattenOutline,

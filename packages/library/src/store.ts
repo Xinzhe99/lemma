@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Annotation, Collection, Note, Paper } from '@scholarforge/shared';
+import type { Annotation, Collection, Note, Paper } from '@lemma/shared';
 
 /**
  * 文献库存储接口：MemoryStore 供测试与纯内存场景，DexieStore 供应用端 IndexedDB 持久化。
@@ -122,7 +122,7 @@ export class LibraryDatabase extends Dexie {
   annotations!: Table<Annotation, string>;
   notes!: Table<Note, string>;
 
-  constructor(name = 'scholarforge-library') {
+  constructor(name = 'lemma-library') {
     super(name);
     this.version(1).stores({
       papers: 'id, citekey',
@@ -137,7 +137,7 @@ export class LibraryDatabase extends Dexie {
 export class DexieStore implements LibraryStore {
   private readonly db: LibraryDatabase;
 
-  constructor(nameOrDb: string | LibraryDatabase = 'scholarforge-library') {
+  constructor(nameOrDb: string | LibraryDatabase = 'lemma-library') {
     this.db = typeof nameOrDb === 'string' ? new LibraryDatabase(nameOrDb) : nameOrDb;
   }
 
@@ -202,6 +202,6 @@ export class DexieStore implements LibraryStore {
 }
 
 /** 打开（或创建）一个 Dexie 存储实例。 */
-export function openDexieStore(name = 'scholarforge-library'): DexieStore {
+export function openDexieStore(name = 'lemma-library'): DexieStore {
   return new DexieStore(name);
 }

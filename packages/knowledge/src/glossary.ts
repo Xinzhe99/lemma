@@ -2,7 +2,7 @@
  * 术语表抽取与一致性检查（设计 4.7）。
  * 识别 "Full Capitalized Term (FCT)" 定义模式；全文首个定义为准、去重。
  */
-import type { GlossaryTerm } from '@scholarforge/shared';
+import type { GlossaryTerm } from '@lemma/shared';
 import { escapeRegExp, fnv1a } from './util';
 
 export interface GlossaryIssue {

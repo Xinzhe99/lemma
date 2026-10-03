@@ -2,7 +2,7 @@
  * Provider 统一对话接口（L2 Agent 接入层）。
  * 无论 OpenAI 兼容 API、本地 CLI agent 还是 MCP，都被拉平为同一套流式事件协议。
  */
-import type { AgentMessage, ToolCallRequest, ToolDef } from '@scholarforge/shared';
+import type { AgentMessage, ToolCallRequest, ToolDef } from '@lemma/shared';
 
 export interface ChatRequest {
   messages: AgentMessage[];

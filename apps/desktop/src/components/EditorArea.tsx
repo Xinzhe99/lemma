@@ -1,5 +1,5 @@
 /**
- * 编辑区：把 @scholarforge/editor 接入工作区文件系统。
+ * 编辑区：把 @lemma/editor 接入工作区文件系统。
  * \cite 补全数据 = 文献库条目 + 项目 .bib 条目；挂载行级跳转桥；
  * 「选中即问」：选中文本后浮动 AI 操作条（润色/解释/翻译/找文献，设计 3.2）。
  * 宿主为 flex 列布局：编辑器占满，底部为 StatusBar（字数/行数/光标行列/保存状态）。
@@ -17,8 +17,8 @@ import {
   thesaurusExtension,
   citationHoverExtension,
   type CitationCard,
-} from '@scholarforge/editor';
-// 字号调节用的 CodeMirror 底层件（@scholarforge/editor 同源依赖，非新增包）
+} from '@lemma/editor';
+// 字号调节用的 CodeMirror 底层件（@lemma/editor 同源依赖，非新增包）
 import { keymap, type KeyBinding } from '@codemirror/view';
 import { Compartment, type Extension } from '@codemirror/state';
 // KaTeX 渲染所需样式（mathPreview hover 浮层；经 vite 打包，不改任何 .css 文件）

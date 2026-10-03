@@ -1,7 +1,7 @@
 /**
  * 卡片与双链笔记（设计 4.7）：[[双链]] 解析、反向索引、PDF 标注自动成卡。
  */
-import { createId, type Note } from '@scholarforge/shared';
+import { createId, type Note } from '@lemma/shared';
 
 const WIKILINK_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
 

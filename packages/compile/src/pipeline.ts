@@ -1,4 +1,4 @@
-import type { CompileResult, Diagnostic } from '@scholarforge/shared';
+import type { CompileResult, Diagnostic } from '@lemma/shared';
 import type { CommandRunner, CompileInput, LatexEngine } from './engine';
 import { parseLatexLog } from './logParser';
 

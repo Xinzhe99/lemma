@@ -1,4 +1,4 @@
-import type { Paper, PaperAuthor, Venue } from '@scholarforge/shared';
+import type { Paper, PaperAuthor, Venue } from '@lemma/shared';
 
 /**
  * 引用格式化纯函数（L1 条目详情视图用）。

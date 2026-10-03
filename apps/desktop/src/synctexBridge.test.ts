@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import type { SynctexIndex } from '@scholarforge/compile';
+import type { SynctexIndex } from '@lemma/compile';
 import {
   hasSynctexIndex,
   jumpPdfToSource,

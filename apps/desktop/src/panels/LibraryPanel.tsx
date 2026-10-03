@@ -36,8 +36,8 @@ import {
   searchCrossref,
   type CitationStyle,
   type PaperSearchHit,
-} from '@scholarforge/library';
-import type { Paper, ReadStatus } from '@scholarforge/shared';
+} from '@lemma/library';
+import type { Paper, ReadStatus } from '@lemma/shared';
 import { analyzeBib, applyBibFixes, diffLineStats, type BibIssue } from '../bibCleaner';
 import { confirmDialog } from '../dialogs';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
@@ -549,7 +549,7 @@ export function LibraryPanel() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `scholarforge-library-${stamp()}.bib`;
+    a.download = `lemma-library-${stamp()}.bib`;
     document.body.appendChild(a);
     a.click();
     a.remove();

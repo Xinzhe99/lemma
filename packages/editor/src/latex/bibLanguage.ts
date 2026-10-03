@@ -163,7 +163,7 @@ export const bibLanguage: StreamLanguage<BibState> = StreamLanguage.define<BibSt
 });
 
 /**
- * BibTeX 高亮样式（与 scholarforgeTheme 深色主题协调）：
+ * BibTeX 高亮样式（与 lemmaTheme 深色主题协调）：
  * 条目类型紫、citekey 绿、字段名橙、值蓝、注释灰。
  */
 export const bibHighlightStyle: HighlightStyle = HighlightStyle.define(

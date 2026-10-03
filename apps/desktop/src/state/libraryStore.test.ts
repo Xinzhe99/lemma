@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createId, type Annotation, type Paper } from '@scholarforge/shared';
+import { createId, type Annotation, type Paper } from '@lemma/shared';
 import { hydrateAttachments, initLibrary, useLibraryStore } from './libraryStore';
 import { paperAnnotationKey, useAnnotationStore } from './annotationStore';
 import { useUiStore } from './uiStore';

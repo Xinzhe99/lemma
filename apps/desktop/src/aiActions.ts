@@ -11,8 +11,8 @@ import {
   ScriptedDemoProvider,
   useAgentHubStore,
   type ChatProvider,
-} from '@scholarforge/agent-hub';
-import { validateCitations } from '@scholarforge/knowledge';
+} from '@lemma/agent-hub';
+import { validateCitations } from '@lemma/knowledge';
 import { useSettingsStore, type Language } from './state/settingsStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useLibraryStore } from './state/libraryStore';
@@ -280,7 +280,7 @@ export async function paraphraseSelection(selection: string, count = 3): Promise
   }
 
   // 离线规则改写：同义词替换（THESAURUS 命中才产生变化）+ 被动化微调，最多 2 个变体
-  const { THESAURUS } = await import('@scholarforge/editor');
+  const { THESAURUS } = await import('@lemma/editor');
   const words = trimmed.match(/[A-Za-z][A-Za-z'-]*/g) ?? [];
   const hits = words.filter((w) => THESAURUS[w.toLowerCase()]?.[0]);
   if (hits.length === 0) {

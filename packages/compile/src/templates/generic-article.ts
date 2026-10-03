@@ -18,7 +18,7 @@ export const genericArticle: TemplateModule = {
   files: {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
-% ScholarForge 模板：generic-article —— 通用学术论文（article + natbib）
+% Lemma 模板：generic-article —— 通用学术论文（article + natbib）
 \documentclass[11pt,a4paper]{article}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}

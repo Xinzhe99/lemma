@@ -16,7 +16,7 @@
  */
 
 import { create } from 'zustand';
-import type { AgentMessage, AgentMessageRole } from '@scholarforge/shared';
+import type { AgentMessage, AgentMessageRole } from '@lemma/shared';
 
 // ---------------------------------------------------------------------------
 // 常量与类型

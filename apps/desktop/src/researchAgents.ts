@@ -15,7 +15,7 @@
  *   估算——面板全程标注「估算，非账单」）。
  */
 
-import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import { resolveProvider, type ProviderChoice } from './aiActions';
 import { buildContextPackMd, runAgentTurn } from './agentTools';
 import { useAgentUsageStore } from './state/agentUsage';
@@ -97,7 +97,7 @@ export function splitResearchTopics(task: string, k = 3): string[] {
  */
 export function buildSubAgentPrompt(topic: string, sharedContext: string): string {
   return [
-    '你是 ScholarForge 的并行研究子代理：只回答分配给你的这一个子问题，独立给出结论，不假设能看到其他子代理的产出。',
+    '你是 Lemma 的并行研究子代理：只回答分配给你的这一个子问题，独立给出结论，不假设能看到其他子代理的产出。',
     '',
     '## 你负责的子问题',
     topic,
@@ -129,7 +129,7 @@ export function buildDemoResearchOutput(topic: string): string {
 
 /** 子代理共用的 system prompt（简短：角色 + 输出契约 + 引用护栏） */
 const RESEARCH_SYSTEM =
-  '你是 ScholarForge 的并行研究子代理：只回答分配给你的子问题，输出简洁中文 markdown（先结论摘要、后要点列表）；引用文献只用给定上下文中出现过的 citekey，不得编造。';
+  '你是 Lemma 的并行研究子代理：只回答分配给你的子问题，输出简洁中文 markdown（先结论摘要、后要点列表）；引用文献只用给定上下文中出现过的 citekey，不得编造。';
 
 export interface ResearchAgentResult {
   topic: string;

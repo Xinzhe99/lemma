@@ -7,7 +7,7 @@
  *   （超 85 字符转黄）；每类结果可一键复制；
  * - 投稿 deadline 追踪：type=date 输入绑定 submitStore.deadline，
  *   deadlineCountdown 倒计时 chip（>14 天灰 / 3–14 天 warn / <3 天 err）；
- * - 投稿打包自检（@scholarforge/compile packagingChecklist）逐项 ✓/✗，
+ * - 投稿打包自检（@lemma/compile packagingChecklist）逐项 ✓/✗，
  *   全部通过才可 buildProjectZip 生成 zip 并触发浏览器下载；
  * - 「起草 Cover Letter (W11)」经 uiStore.launchWorkflow 预填 journal/highlights；
  * - 「起草 Related Work (W12)」同经 launchWorkflow 预填 topic（摘要前 200 字或 venue 名）/manuscript；
@@ -24,7 +24,7 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import { BookOpen, Check, FileArchive, FileText, Plus, Trash2 } from 'lucide-react';
-import { buildProjectZip, packagingChecklist } from '@scholarforge/compile';
+import { buildProjectZip, packagingChecklist } from '@lemma/compile';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';

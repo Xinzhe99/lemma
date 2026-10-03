@@ -22,7 +22,7 @@ export const journalSpringerLike: TemplateModule = {
   files: {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
-% ScholarForge 模板：journal-springer-like —— 通用期刊单栏风格（自写样式）
+% Lemma 模板：journal-springer-like —— 通用期刊单栏风格（自写样式）
 \documentclass[11pt,a4paper]{article}
 \usepackage[T1]{fontenc}
 \usepackage{mathptmx}
@@ -40,7 +40,7 @@ export const journalSpringerLike: TemplateModule = {
 \renewcommand{\headrulewidth}{0.4pt}
 
 \title{{TITLE}}
-\author{{AUTHORS}\thanks{Manuscript prepared with ScholarForge. Target venue: {VENUE}.}}
+\author{{AUTHORS}\thanks{Manuscript prepared with Lemma. Target venue: {VENUE}.}}
 \date{{DATE}}
 
 \begin{document}

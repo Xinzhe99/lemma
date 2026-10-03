@@ -8,7 +8,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAgentHubStore, type AgentSession } from '@scholarforge/agent-hub';
+import { useAgentHubStore, type AgentSession } from '@lemma/agent-hub';
 import { AGENT_SESSIONS_KEY, hydrateAgentSessions, attachAgentSessionPersist } from './agentSessionPersist';
 import { getBigData, setBigData, __resetKvStoreForTests } from '../storage/kvStore';
 import { __resetStorageForTests } from '../storage/db';

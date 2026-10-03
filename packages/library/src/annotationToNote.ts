@@ -1,4 +1,4 @@
-import { createId, type Annotation, type HighlightSemantic, type Note, type Paper } from '@scholarforge/shared';
+import { createId, type Annotation, type HighlightSemantic, type Note, type Paper } from '@lemma/shared';
 
 const SEMANTIC_LABELS: Record<HighlightSemantic, string> = {
   method: '方法',

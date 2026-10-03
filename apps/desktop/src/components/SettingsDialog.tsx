@@ -512,7 +512,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {tab === 'about' && (
             <div className="sf-about">
-              <div className="sf-about-brand">ScholarForge</div>
+              <div className="sf-about-brand">Lemma</div>
               <div className="sf-about-version">v0.1.0 · {t('app.codename')}</div>
               <p className="sf-about-desc">{t('about.desc')}</p>
               <p className="sf-about-doc">{t('about.designDoc')}</p>

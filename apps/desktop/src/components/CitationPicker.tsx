@@ -12,8 +12,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { collectCitekeys } from '@scholarforge/editor';
-import type { Paper } from '@scholarforge/shared';
+import { collectCitekeys } from '@lemma/editor';
+import type { Paper } from '@lemma/shared';
 import { useLibraryStore } from '../state/libraryStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore } from '../state/settingsStore';

@@ -28,7 +28,7 @@ describe('CRDT 合并', () => {
   const BASE = [
     'SECTION Introduction',
     'Large language models have changed how researchers write.',
-    'We present ScholarForge, a local-first writing workstation.',
+    'We present Lemma, a local-first writing workstation.',
     'SECTION Method',
     'The system uses a blocking approval protocol.',
   ].join('\n');
@@ -56,11 +56,11 @@ describe('CRDT 合并', () => {
     const { merged } = applyCollabPatch(bText, patch);
     expect(merged).toContain('carefully');
     expect(merged).toContain('now');
-    expect(merged).toContain('present ScholarForge');
+    expect(merged).toContain('present Lemma');
   });
 
   it('A 删除段落 + B 编辑另一段：删除生效、B 的编辑保留', () => {
-    const aText = BASE.replace('We present ScholarForge, a local-first writing workstation.\n', '');
+    const aText = BASE.replace('We present Lemma, a local-first writing workstation.\n', '');
     const bText = BASE.replace('blocking approval protocol', 'review-first approval protocol');
     const patch = makePatchFile(BASE, aText, {});
     const { merged } = applyCollabPatch(bText, patch);

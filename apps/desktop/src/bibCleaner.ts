@@ -2,7 +2,7 @@
  * Bib 清理向导（纯函数层）：refs.bib 用久了积累的重复 / 缺字段 / 不一致条目的
  * 检测（analyzeBib）与唯一可执行修复——去重保留字段更全条目（applyBibFixes）。
  *
- * 为什么不直接用 parseBibtex（@scholarforge/library）做分析：parseBibtex 面向
+ * 为什么不直接用 parseBibtex（@lemma/library）做分析：parseBibtex 面向
  * 「入库」——缺 title 的条目会被整条丢弃、journal/booktitle 被折叠进 venue、
  * 不保留原始字段集合与源码位置。清理场景恰恰要看到这些「坏条目」并在原始文本上
  * 做手术，因此这里自带一套轻量条目块扫描（`@type{key,` 到配对定界符的深度扫描，

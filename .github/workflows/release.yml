@@ -51,7 +51,7 @@ jobs:
           projectPath: apps/desktop
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           tagName: ${{ github.ref_name }}
-          releaseName: 'ScholarForge ${{ github.ref_name }}'
+          releaseName: 'Lemma ${{ github.ref_name }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false

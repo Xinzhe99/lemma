@@ -24,10 +24,10 @@ export interface AttachmentRecord {
   savedAt: number;
 }
 
-export const DB_NAME = 'scholarforge';
+export const DB_NAME = 'lemma';
 
 /** 应用数据库 schema（版本 1）。 */
-class ScholarForgeDb extends Dexie {
+class LemmaDb extends Dexie {
   kv!: Table<KvRecord, string>;
   attachments!: Table<AttachmentRecord, string>;
 
@@ -37,17 +37,17 @@ class ScholarForgeDb extends Dexie {
   }
 }
 
-let dbInstance: ScholarForgeDb | null = null;
+let dbInstance: LemmaDb | null = null;
 
 /**
  * Dexie 单例（懒初始化）。仅在 indexedDB 可用的真实环境可获取；无 indexedDB 时抛出
  * 明确错误——降级环境请使用下方 kv 与 attachment 系列接口（自动落到内存实现）。
  */
-export function getAppDb(): ScholarForgeDb {
+export function getAppDb(): LemmaDb {
   if (typeof indexedDB === 'undefined') {
     throw new Error('IndexedDB 不可用：getAppDb 仅在真实浏览器/桌面环境可用');
   }
-  if (!dbInstance) dbInstance = new ScholarForgeDb();
+  if (!dbInstance) dbInstance = new LemmaDb();
   return dbInstance;
 }
 

@@ -2,7 +2,7 @@
  * OpenAI 兼容 API 适配器：DeepSeek / GLM / Kimi / Qwen / OpenAI 等共用
  * {baseUrl}/chat/completions + SSE 流式协议。fetch 由宿主注入，便于测试与代理配置。
  */
-import type { AgentMessage, ToolCallRequest } from '@scholarforge/shared';
+import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
 import type { ChatEvent, ChatProvider, ChatRequest, ChatUsage } from './types';
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;

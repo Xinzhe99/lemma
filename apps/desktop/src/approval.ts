@@ -5,7 +5,7 @@
  * 会话中止/新请求到来时，未决审批自动按“拒绝”结算，绝不悬空。
  */
 
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 import { useProposalStore, type EditProposal } from './state/proposalStore';
 
 export interface ApprovalDecision {

@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 
 export interface CommentReply {
   author: string;

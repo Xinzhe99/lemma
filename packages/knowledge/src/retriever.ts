@@ -2,7 +2,7 @@
  * 混合检索：向量余弦（0.6）+ 自实现 BM25（0.4，归一化到 [0,1]）。
  * 缺某一路时自动退化为另一路。
  */
-import type { RetrievedChunk, TextChunk } from '@scholarforge/shared';
+import type { RetrievedChunk, TextChunk } from '@lemma/shared';
 import { tokenize } from './util';
 
 export const VECTOR_WEIGHT = 0.6;

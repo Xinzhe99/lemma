@@ -1,11 +1,11 @@
 /**
  * 卡片笔记状态（设计 4.7 知识底座）：CRUD、[[双链]] 目标同步、localStorage 持久化（sf-notes）。
- * PDF 标注转卡片（@scholarforge/knowledge 的 createNoteFromAnnotation）也经此 store 落库。
+ * PDF 标注转卡片（@lemma/knowledge 的 createNoteFromAnnotation）也经此 store 落库。
  */
 
 import { create } from 'zustand';
-import { createId, type Annotation, type Note } from '@scholarforge/shared';
-import { createNoteFromAnnotation, parseWikilinks, type PaperRef } from '@scholarforge/knowledge';
+import { createId, type Annotation, type Note } from '@lemma/shared';
+import { createNoteFromAnnotation, parseWikilinks, type PaperRef } from '@lemma/knowledge';
 
 export const NOTES_STORAGE_KEY = 'sf-notes';
 

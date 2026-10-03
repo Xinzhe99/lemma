@@ -22,7 +22,7 @@ export const preprintMlLike: TemplateModule = {
   files: {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
-% ScholarForge 模板：preprint-ml-like —— 机器学习预印本观感（单栏）
+% Lemma 模板：preprint-ml-like —— 机器学习预印本观感（单栏）
 \documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage{mathptmx}

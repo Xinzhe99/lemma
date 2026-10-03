@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Paper } from '@scholarforge/shared';
+import type { Paper } from '@lemma/shared';
 import { applyFilter, parseFilter } from './filter';
 
 const papers: Paper[] = [

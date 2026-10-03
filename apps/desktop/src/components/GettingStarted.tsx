@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { FolderPlus, MessageSquare, PenLine, Play, Plug } from 'lucide-react';
-import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import { useT } from '../i18n';
 import { runCompile } from '../compileAction';
 import { sendChatMessage } from '../aiActions';

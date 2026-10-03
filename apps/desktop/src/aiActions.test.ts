@@ -24,7 +24,7 @@ import {
   runPlannedTask,
   skipFailedStep,
 } from './aiActions';
-import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import { useSettingsStore } from './state/settingsStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useProposalStore } from './state/proposalStore';

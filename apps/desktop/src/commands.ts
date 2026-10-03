@@ -6,7 +6,7 @@
 
 import type { Command } from './commandPalette';
 import { applyTheme } from './theme';
-import { useAgentHubStore } from '@scholarforge/agent-hub';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import { runCompile, resolveCompileEntry } from './compileAction';
 import { requestToolApproval } from './approval';
 import { rulePolish } from './polish';

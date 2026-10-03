@@ -299,7 +299,7 @@ const dict: MessageDict = {
   'snap.currentFile': { zh: '当前文件', en: 'current file' },
 
   // 首启引导卡
-  'onboarding.title': { zh: '开始使用 ScholarForge', en: 'Get started with ScholarForge' },
+  'onboarding.title': { zh: '开始使用 Lemma', en: 'Get started with Lemma' },
   'onboarding.subtitle': {
     zh: '三步跑通第一条工作流：导入 → 编译 → 问 Agent',
     en: 'Three steps to your first workflow: import → compile → ask the agent',
@@ -335,7 +335,7 @@ const dict: MessageDict = {
   'tour.next': { zh: '下一步', en: 'Next' },
   'tour.start': { zh: '开始使用', en: 'Get started' },
   'tour.later': { zh: '先看看', en: 'Explore first' },
-  'tour.page1.title': { zh: '欢迎来到 ScholarForge', en: 'Welcome to ScholarForge' },
+  'tour.page1.title': { zh: '欢迎来到 Lemma', en: 'Welcome to Lemma' },
   'tour.page1.desc': {
     zh: 'AI 原生的一站式论文工作站——写作、编译、文献与智能体，在同一工作区完成一篇论文的完整生命周期。',
     en: 'An AI-native, all-in-one workstation for papers — writing, compiling, references, and agents in a single workspace for the full life cycle of a paper.',
@@ -352,8 +352,8 @@ const dict: MessageDict = {
   },
   'tour.page4.title': { zh: '三步上手', en: 'Three steps to start' },
   'tour.page4.desc': {
-    zh: '首页的新手任务清单会自动检测进度——跑通这三步，ScholarForge 就是你的了。',
-    en: 'The getting-started checklist on Home tracks progress automatically — finish these three steps and ScholarForge is yours.',
+    zh: '首页的新手任务清单会自动检测进度——跑通这三步，Lemma 就是你的了。',
+    en: 'The getting-started checklist on Home tracks progress automatically — finish these three steps and Lemma is yours.',
   },
   'tour.step1.title': { zh: '创建项目', en: 'Create a project' },
   'tour.step1.desc': { zh: '从模板新建，或导入 Overleaf zip', en: 'Start from a template or import an Overleaf zip' },
@@ -367,7 +367,7 @@ const dict: MessageDict = {
   'tour.pageOf': { zh: '第 {n} / {total} 页', en: 'Page {n} of {total}' },
 
   // 新手任务清单（GettingStarted：Dashboard 顶部，自动检测完成态）
-  'gs.title': { zh: '上手 ScholarForge', en: 'Get started' },
+  'gs.title': { zh: '上手 Lemma', en: 'Get started' },
   'gs.subtitle': { zh: '完成这几个动作，跑通第一条工作流', en: 'Finish these actions to run your first workflow' },
   'gs.progress': { zh: '{n} / 5', en: '{n} / 5' },
   'gs.collapse': { zh: '收起', en: 'Collapse' },

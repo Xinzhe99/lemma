@@ -12,7 +12,7 @@ import type {
   Paper,
   PaperAuthor,
   Venue,
-} from '@scholarforge/shared';
+} from '@lemma/shared';
 
 // ---------------------------------------------------------------------------
 // BibTeX 导出

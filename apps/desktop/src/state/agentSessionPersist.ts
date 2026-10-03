@@ -9,7 +9,7 @@
  * 与文献库等大数据同一通道；store 本体（agent-hub 包）保持零存储依赖。
  */
 
-import { useAgentHubStore, parsePersistedSessions, serializeSessionsForPersist } from '@scholarforge/agent-hub';
+import { useAgentHubStore, parsePersistedSessions, serializeSessionsForPersist } from '@lemma/agent-hub';
 import { getBigData, setBigData } from '../storage/kvStore';
 
 /** kv 键（版本化：结构不兼容时换 v2 键平滑失效） */

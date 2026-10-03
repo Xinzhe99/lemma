@@ -2,7 +2,7 @@
  * 风格档案（设计 4.7）：句长分布、被动语态比例、hedging 密度，附中文观察。
  * 启发式实现，供 soft constraint 注入润色与起草流程。
  */
-import type { StyleProfile } from '@scholarforge/shared';
+import type { StyleProfile } from '@lemma/shared';
 import { tokenize } from './util';
 
 /** 句点前若为这些缩写词，则不视为句子边界 */

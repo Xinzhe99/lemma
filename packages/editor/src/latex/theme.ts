@@ -1,5 +1,5 @@
 /**
- * ScholarForge 编辑器主题：结构色全部经 CSS 变量（--cm-*）引用，变量由宿主
+ * Lemma 编辑器主题：结构色全部经 CSS 变量（--cm-*）引用，变量由宿主
  * styles.css 在 :root（亮色，默认）与 [data-theme='dark']（暗色）提供，
  * 编辑器随应用主题实时切换，无需重建 EditorView。
  *
@@ -48,7 +48,7 @@ export const latexTokenHighlight: HighlightStyle = HighlightStyle.define([
 ]);
 
 /** 编辑器结构主题（变量驱动）+ 滚动条基础样式 + 语法高亮 */
-export const scholarforgeTheme: Extension = [
+export const lemmaTheme: Extension = [
   EditorView.theme(
     {
       '&': {

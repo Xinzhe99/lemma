@@ -3,7 +3,7 @@
  * read 默认放行 → execute 首次确认（strict 下逐次确认）→ write 逐 diff 审批 → export 显式确认。
  * mode 档位：strict（最严）/ balanced（默认）/ yolo（全自动，风险自负）。
  */
-import type { ToolDef } from '@scholarforge/shared';
+import type { ToolDef } from '@lemma/shared';
 import { PAPER_TOOLS } from './tools/registry';
 
 export type PermissionMode = 'strict' | 'balanced' | 'yolo';

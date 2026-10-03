@@ -1,5 +1,5 @@
 /**
- * ScholarForge 桌面壳：三栏工作区（导航栏 | 大纲/文件/引用/文献侧栏 | 编辑器+PDF+控制台 | Agent 面板）。
+ * Lemma 桌面壳：三栏工作区（导航栏 | 大纲/文件/引用/文献侧栏 | 编辑器+PDF+控制台 | Agent 面板）。
  * 六条工作流已集成：WS-A 编辑器、WS-B 编译、WS-C 文献库与阅读、WS-D Agent 中枢、WS-E 知识底座、WS-F 应用设施。
  */
 
@@ -52,8 +52,8 @@ import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
 import { hydrateAgentSessions, attachAgentSessionPersist } from './state/agentSessionPersist';
 import { attachAutoCompile } from './compileAction';
-import { parseProjectZip } from '@scholarforge/compile';
-import { PdfReader } from '@scholarforge/library';
+import { parseProjectZip } from '@lemma/compile';
+import { PdfReader } from '@lemma/library';
 import { jumpPdfToSource, onPdfGoto } from './synctexBridge'; // WS-2 编译同步闭环（App 窄 carve-out）
 
 const TOAST_MS = 2400;
@@ -506,7 +506,7 @@ export function App() {
     <div className="app">
       <UpdateBar />
       <header className="topbar">
-        <div className="brand">ScholarForge</div>
+        <div className="brand">Lemma</div>
         <button
           className="sf-project-name"
           title={t('cmd.manageProjects')}

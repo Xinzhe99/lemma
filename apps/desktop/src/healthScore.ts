@@ -15,8 +15,8 @@
  * combinedDoc 只跑一次供 spell/glossary/citation 三方共用；无额外重复扫描。
  */
 
-import { checkText, collectCitekeys, collectLabels, lintLatex } from '@scholarforge/editor';
-import { checkConsistency, extractGlossary } from '@scholarforge/knowledge';
+import { checkText, collectCitekeys, collectLabels, lintLatex } from '@lemma/editor';
+import { checkConsistency, extractGlossary } from '@lemma/knowledge';
 import { bibCitekeys, combinedDoc } from './projectDoc';
 import { computeProjectWords } from './state/writingStats';
 

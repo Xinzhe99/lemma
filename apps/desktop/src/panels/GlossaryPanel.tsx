@@ -15,8 +15,8 @@ import {
   analyzeStyle,
   checkConsistency,
   extractGlossary,
-} from '@scholarforge/knowledge';
-import type { GlossaryTerm, StyleProfile } from '@scholarforge/shared';
+} from '@lemma/knowledge';
+import type { GlossaryTerm, StyleProfile } from '@lemma/shared';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { combinedDoc, resolveEntry } from '../projectDoc';
@@ -155,8 +155,8 @@ function acronymLabel(term: GlossaryTerm): string {
 function renderGlossaryTex(glossary: GlossaryTerm[], lang: Language): string {
   const header =
     lang === 'zh'
-      ? `% glossary.tex —— ScholarForge 术语表导出（${glossary.length} 项）\n% 用法：导言区加入 \\usepackage{acronym}；正文用 \\ac{label} 引用缩写。\n`
-      : `% glossary.tex -- exported by ScholarForge (${glossary.length} terms)\n% Usage: add \\usepackage{acronym} in the preamble; cite abbreviations with \\ac{label}.\n`;
+      ? `% glossary.tex —— Lemma 术语表导出（${glossary.length} 项）\n% 用法：导言区加入 \\usepackage{acronym}；正文用 \\ac{label} 引用缩写。\n`
+      : `% glossary.tex -- exported by Lemma (${glossary.length} terms)\n% Usage: add \\usepackage{acronym} in the preamble; cite abbreviations with \\ac{label}.\n`;
   const rows = glossary
     .filter((g) => g.abbr)
     .map((g) => `\\newacronym{${acronymLabel(g)}}{${g.abbr}}{${g.term}}`);

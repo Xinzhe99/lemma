@@ -15,7 +15,7 @@
  * 对话框）；入库复用 libraryStore.importHit（citekey 入库时生成消歧）。
  */
 
-import { createId, type Paper, type PaperAuthor, type Venue } from '@scholarforge/shared';
+import { createId, type Paper, type PaperAuthor, type Venue } from '@lemma/shared';
 
 // ---------------------------------------------------------------------------
 // 类型

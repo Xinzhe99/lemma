@@ -9,7 +9,7 @@
 
 import type { Platform, ProjectFs, Secrets } from './types';
 
-const DB_NAME = 'scholarforge-fs';
+const DB_NAME = 'lemma-fs';
 const STORE = 'files';
 const LS_FILE_PREFIX = 'sf-file.';
 const SECRET_PREFIX = 'sf-secret.';

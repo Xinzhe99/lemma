@@ -68,7 +68,7 @@ describe('Tauri 形态（mock __TAURI__ 桥）', () => {
     const mod = await freshTexSetup(async (cmd) => {
       calls.push(cmd);
       if (cmd === 'download_and_install_tectonic') {
-        return { path: 'C:\\AppData\\ScholarForge\\bin\\tectonic.exe', cached: false, firstRunNote: true };
+        return { path: 'C:\\AppData\\Lemma\\bin\\tectonic.exe', cached: false, firstRunNote: true };
       }
       return null;
     });
@@ -76,21 +76,21 @@ describe('Tauri 形态（mock __TAURI__ 桥）', () => {
     expect(calls).toEqual(['download_and_install_tectonic']);
     expect(isBuiltinTectonicInfo(r)).toBe(true);
     expect(r).toMatchObject({
-      path: 'C:\\AppData\\ScholarForge\\bin\\tectonic.exe',
+      path: 'C:\\AppData\\Lemma\\bin\\tectonic.exe',
       cached: false,
       firstRunNote: true,
     });
     const st = mod.getTexSetupState();
     expect(st.phase).toBe('ready');
-    expect(st.path).toBe('C:\\AppData\\ScholarForge\\bin\\tectonic.exe');
+    expect(st.path).toBe('C:\\AppData\\Lemma\\bin\\tectonic.exe');
     expect(st.message).toBe('内置 Tectonic 已就绪（缓存于应用数据目录）');
-    expect(mod.getReadyBuiltinTectonicPath()).toBe('C:\\AppData\\ScholarForge\\bin\\tectonic.exe');
+    expect(mod.getReadyBuiltinTectonicPath()).toBe('C:\\AppData\\Lemma\\bin\\tectonic.exe');
   });
 
   it('Rust 返回 cached:true（数据目录已有二进制）时原样透传', async () => {
     const mod = await freshTexSetup(async (cmd) =>
       cmd === 'download_and_install_tectonic'
-        ? { path: '/Users/x/Library/Application Support/ScholarForge/bin/tectonic', cached: true, firstRunNote: true }
+        ? { path: '/Users/x/Library/Application Support/Lemma/bin/tectonic', cached: true, firstRunNote: true }
         : null,
     );
     const r = await mod.ensureBuiltinTectonic();

@@ -12,7 +12,7 @@
  *
  * 真实进程 spawn 由宿主注入 ProcessRunner（Electron/Tauri 侧桥接），本包不做 child_process。
  */
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 import type { ChatEvent, ChatProvider, ChatRequest, ChatUsage } from './types';
 
 /** 进程运行器抽象：真实实现由宿主注入（node-pty / child_process / 平台桥） */

@@ -7,14 +7,14 @@
  *  - applyReviewPackage：合法包合入本机 stores——批注逐条 addComment（id 重新生成防碰撞、
  *    author/line/file/resolved/回复保留），标注逐 fileKey 按 id 去重合并（跳过已有），返回统计；
  *  - buildAnnotationReportHtml：审阅包 → 自包含单文件 HTML（内联 CSS、无外部资源、亮色可打印），
- *    导师不装 ScholarForge 也能用浏览器打开（Ctrl+P 打印为 PDF）。
+ *    导师不装 Lemma 也能用浏览器打开（Ctrl+P 打印为 PDF）。
  *
  * build/validate/HTML 均为纯函数（浅拷贝输入，不改调用方数据），可独立测试；
  * apply 是唯一有副作用的一步（写回两个 store）。
  */
 
-import { createId } from '@scholarforge/shared';
-import type { Annotation, HighlightSemantic } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
+import type { Annotation, HighlightSemantic } from '@lemma/shared';
 import { useCommentsStore, type ManuscriptComment } from './state/commentsStore';
 import { useAnnotationStore } from './state/annotationStore';
 
@@ -343,7 +343,7 @@ export function buildAnnotationReportHtml(pkg: ReviewPackage): string {
   if (pkg.comments.length > 0) parts.push(`稿件批注 ${pkg.comments.length} 条`);
   if (totalAnnotations > 0) parts.push(`PDF 标注 ${totalAnnotations} 条`);
   return `<!DOCTYPE html>
-<!-- 由 ScholarForge 生成，浏览器打开后可 Ctrl+P 打印为 PDF -->
+<!-- 由 Lemma 生成，浏览器打开后可 Ctrl+P 打印为 PDF -->
 <html lang="zh">
 <head>
 <meta charset="utf-8">
@@ -358,7 +358,7 @@ export function buildAnnotationReportHtml(pkg: ReviewPackage): string {
 </header>
 ${commentsSectionHtml(pkg.comments)}
 ${annotationsSectionHtml(pkg.annotations)}
-<p class="hint">由 ScholarForge 生成 · 浏览器打开后可 Ctrl+P 打印为 PDF</p>
+<p class="hint">由 Lemma 生成 · 浏览器打开后可 Ctrl+P 打印为 PDF</p>
 </body>
 </html>`;
 }

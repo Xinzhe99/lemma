@@ -14,9 +14,9 @@ import {
   createToolExecutor,
   type ChatProvider,
   type ToolExecutor,
-} from '@scholarforge/agent-hub';
-import type { AgentMessage, ToolCallRequest, ToolDef } from '@scholarforge/shared';
-import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@scholarforge/knowledge';
+} from '@lemma/agent-hub';
+import type { AgentMessage, ToolCallRequest, ToolDef } from '@lemma/shared';
+import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@lemma/knowledge';
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { buildMemoryInjection } from './state/agentMemory';

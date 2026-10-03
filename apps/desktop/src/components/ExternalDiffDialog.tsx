@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DiffView } from '@scholarforge/editor';
+import { DiffView } from '@lemma/editor';
 import { matchExternalFiles, type ExternalMatch } from '../externalDiff';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';

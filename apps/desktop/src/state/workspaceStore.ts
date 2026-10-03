@@ -50,8 +50,8 @@ export interface WorkspaceState extends WorkspaceSnapshot {
   clearCompileLog(): void;
   setCompileStatus(status: CompileStatus): void;
   /** 最近一次编译的诊断（编辑器标注数据源；不持久化，重编译整体替换） */
-  compileDiagnostics: import('@scholarforge/shared').Diagnostic[];
-  setCompileDiagnostics(list: import('@scholarforge/shared').Diagnostic[]): void;
+  compileDiagnostics: import('@lemma/shared').Diagnostic[];
+  setCompileDiagnostics(list: import('@lemma/shared').Diagnostic[]): void;
 }
 
 const WORKSPACE_FILE = 'workspace.json';
@@ -66,15 +66,15 @@ const DEMO_MAIN_TEX = `\\documentclass[11pt]{article}
 \\usepackage{graphicx}
 \\usepackage[colorlinks, citecolor=blue]{hyperref}
 
-\\title{ScholarForge 演示论文：AI 辅助科研写作方法综述}
-\\author{ScholarForge Demo}
+\\title{Lemma 演示论文：AI 辅助科研写作方法综述}
+\\author{Lemma Demo}
 \\date{2026}
 
 \\begin{document}
 \\maketitle
 
 \\begin{abstract}
-本文演示 ScholarForge 工作站的项目结构：主文件通过 \\input 组织章节，参考文献集中于 refs.bib。
+本文演示 Lemma 工作站的项目结构：主文件通过 \\input 组织章节，参考文献集中于 refs.bib。
 \\end{abstract}
 
 \\input{sections/intro}
@@ -146,7 +146,7 @@ const DEMO_REFS_BIB = `@inproceedings{vaswani2017attention,
 
 const DEMO_README_MD = `# 演示论文项目
 
-ScholarForge 内置示例，展示标准项目结构：
+Lemma 内置示例，展示标准项目结构：
 
 - \`main.tex\` —— 主文件，通过 \\input 组织章节
 - \`sections/intro.tex\` —— 引言与相关工作

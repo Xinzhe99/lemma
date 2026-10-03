@@ -38,7 +38,7 @@ export function AnnotationReportPreview({ pkg }: { pkg: ReviewPackage }) {
   const html = useMemo(() => buildAnnotationReportHtml(pkg), [pkg]);
   return (
     <iframe
-      title="ScholarForge 审阅报告预览"
+      title="Lemma 审阅报告预览"
       srcDoc={html}
       sandbox=""
       style={{ width: '100%', height: 360, border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff' }}

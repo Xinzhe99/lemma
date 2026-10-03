@@ -56,7 +56,7 @@ import { useProjectsStore, PROJECTS_STORAGE_KEY, type ProjectRecord } from '../s
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
-import type { Annotation, Note, Paper } from '@scholarforge/shared';
+import type { Annotation, Note, Paper } from '@lemma/shared';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -274,17 +274,17 @@ describe('BackupDialog · 导出', () => {
     expect(text).toContain('工作区文件 1 个（demo-paper · 入口 main.tex）');
   });
 
-  it('点击导出 → Blob 下载 scholarforge-backup-YYYYMMDD-HHmm.json，内容为合法备份且不含 API key', async () => {
+  it('点击导出 → Blob 下载 lemma-backup-YYYYMMDD-HHmm.json，内容为合法备份且不含 API key', async () => {
     click(btn('导出全量备份'));
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledTimes(1);
     const anchor = anchorClicks[0]!;
-    expect(anchor.download).toMatch(/^scholarforge-backup-\d{8}-\d{4}\.json$/);
+    expect(anchor.download).toMatch(/^lemma-backup-\d{8}-\d{4}\.json$/);
 
     const blob = createObjectURL.mock.calls[0]![0];
     const parsed = JSON.parse(await blob.text()) as ReturnType<typeof buildBackup>;
-    expect(parsed.schema).toBe('scholarforge-backup');
+    expect(parsed.schema).toBe('lemma-backup');
     expect(parsed.version).toBe(1);
     expect(parsed.data.library.papers).toHaveLength(1);
     expect(parsed.data.knowledge.notes).toHaveLength(1);
@@ -296,7 +296,7 @@ describe('BackupDialog · 导出', () => {
     expect(parsed.data.settings).not.toHaveProperty('providers');
 
     expect((container!.querySelector('[role="status"]') as HTMLElement).textContent).toMatch(
-      /^已导出：scholarforge-backup-/,
+      /^已导出：lemma-backup-/,
     );
   });
 });
@@ -321,7 +321,7 @@ describe('BackupDialog · 选文件与校验', () => {
     expect((container!.querySelector('[role="status"]') as HTMLElement).textContent).toContain('schema');
 
     await pickFile(fileInput(), 'wrong-version.json', JSON.stringify({
-      schema: 'scholarforge-backup',
+      schema: 'lemma-backup',
       version: 2,
       exportedAt: '2026-01-01T00:00:00.000Z',
       data: {},

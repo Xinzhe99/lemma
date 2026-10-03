@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
-import type { WorkflowStepDef } from '@scholarforge/shared';
+import type { WorkflowStepDef } from '@lemma/shared';
 import { MessageList, ToolCallCard } from './ChatPanel';
 import { CostBadge, formatCost } from './CostBadge';
 import { PatchView } from './DiffApprovalCard';

@@ -9,8 +9,8 @@
  *  - prompt 组装：system + 历史 + user 以「角色: 内容」段落拼接为单条提示词。
  */
 
-import type { AgentMessage } from '@scholarforge/shared';
-import type { ChatEvent, ChatProvider, ChatRequest } from '@scholarforge/agent-hub';
+import type { AgentMessage } from '@lemma/shared';
+import type { ChatEvent, ChatProvider, ChatRequest } from '@lemma/agent-hub';
 import { tauriProcRun } from './platform/tauri';
 import type { CliAgentConfig } from './state/settingsStore';
 

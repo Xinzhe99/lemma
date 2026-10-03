@@ -10,7 +10,7 @@
  *  - reviewDownloadName：sf-review-{projectName}-{YYYYMMDD}.{ext} 与非法字符清洗。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Annotation } from '@scholarforge/shared';
+import type { Annotation } from '@lemma/shared';
 import {
   applyReviewPackage,
   buildAnnotationReportHtml,
@@ -348,12 +348,12 @@ describe('buildAnnotationReportHtml', () => {
     expect(both).toContain('审阅报告'); // 标题仍在
   });
 
-  it('标题=项目名+导出时间；注释头注明由 ScholarForge 生成并可 Ctrl+P 打印为 PDF', () => {
+  it('标题=项目名+导出时间；注释头注明由 Lemma 生成并可 Ctrl+P 打印为 PDF', () => {
     const html = buildAnnotationReportHtml(pkgOf({ projectName: 'thesis-2026', exportedAt: '2026-01-01T08:30:00.000Z' }));
     expect(html).toContain('<title>thesis-2026 · 审阅报告</title>');
     expect(html).toContain('<h1>thesis-2026 · 审阅报告</h1>');
     expect(html).toContain('导出时间：');
-    expect(html).toContain('由 ScholarForge 生成，浏览器打开后可 Ctrl+P 打印为 PDF'); // HTML 注释头
+    expect(html).toContain('由 Lemma 生成，浏览器打开后可 Ctrl+P 打印为 PDF'); // HTML 注释头
     expect(html).toContain('Ctrl+P 打印为 PDF</p>'); // 可见页脚提示
   });
 

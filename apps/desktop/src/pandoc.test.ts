@@ -143,7 +143,7 @@ function makeBridge(opts: {
     }
     if (cmd === 'download_and_install_pandoc') {
       if (typeof opts.install === 'function') return opts.install();
-      const r = opts.install ?? { path: 'C:\\Data\\ScholarForge\\bin\\pandoc.exe', cached: false };
+      const r = opts.install ?? { path: 'C:\\Data\\Lemma\\bin\\pandoc.exe', cached: false };
       if ('error' in r) throw new Error(r.error);
       return r;
     }
@@ -182,11 +182,11 @@ describe('Tauri 形态 ensureBuiltinPandoc（探测链）', () => {
   it('系统 pandoc 不可用：调 download_and_install_pandoc 并透传结果', async () => {
     const b = makeBridge({
       systemPandoc: false,
-      install: { path: 'C:\\Data\\ScholarForge\\bin\\pandoc.exe', cached: false },
+      install: { path: 'C:\\Data\\Lemma\\bin\\pandoc.exe', cached: false },
     });
     const { pandoc } = await freshPandoc(b.invoke);
     const r = await pandoc.ensureBuiltinPandoc();
-    expect(r).toMatchObject({ path: 'C:\\Data\\ScholarForge\\bin\\pandoc.exe', cached: false });
+    expect(r).toMatchObject({ path: 'C:\\Data\\Lemma\\bin\\pandoc.exe', cached: false });
     expect(b.invokes).toEqual(['proc_run', 'download_and_install_pandoc']);
   });
 
@@ -243,7 +243,7 @@ describe('Tauri 形态 exportDocx（全流程与错误路径）', () => {
   it('成功路径：物化 → pandoc 参数组装 → 读回 → Blob 下载', async () => {
     const b = makeBridge({
       systemPandoc: false,
-      install: { path: 'C:\\Data\\ScholarForge\\bin\\pandoc.exe', cached: false },
+      install: { path: 'C:\\Data\\Lemma\\bin\\pandoc.exe', cached: false },
       pandocRun: { code: 0, stdout: '[INFO] Converted', stderr: '' },
     });
     const dl = stubDownload();
@@ -256,7 +256,7 @@ describe('Tauri 形态 exportDocx（全流程与错误路径）', () => {
     expect(materialized).toEqual(['main.tex', 'refs.bib', 'sections/intro.tex'].sort());
     // pandoc 转换：内置绝对路径 + 参数组装 + cwd 为数据目录根
     const conv = b.procRuns.find((p) => !(p.args as string[]).includes('--version'))!;
-    expect(conv.cmd).toBe('C:\\Data\\ScholarForge\\bin\\pandoc.exe');
+    expect(conv.cmd).toBe('C:\\Data\\Lemma\\bin\\pandoc.exe');
     expect(conv.args).toEqual(['main.tex', '-o', 'main.docx', '--from=latex', '--to=docx']);
     expect(conv.cwd).toBe('');
     // 读回产物并触发下载（文件名来自项目名）

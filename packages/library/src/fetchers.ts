@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { createId, type Paper, type PaperAuthor, type Venue } from '@scholarforge/shared';
+import { createId, type Paper, type PaperAuthor, type Venue } from '@lemma/shared';
 import { parsePersonName } from './importers/bibtex';
 
 /** 可注入的 HTTP 客户端（便于测试与平台适配）。 */

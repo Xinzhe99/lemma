@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Annotation, Paper } from '@scholarforge/shared';
+import type { Annotation, Paper } from '@lemma/shared';
 import { annotationToCard } from './annotationToNote';
 
 const paper: Paper = {

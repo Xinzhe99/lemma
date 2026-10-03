@@ -44,7 +44,7 @@ export function parsePatchFile(content: string): PatchFile {
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error('补丁文件不是合法 JSON（应为 ScholarForge .sfpatch）');
+    throw new Error('补丁文件不是合法 JSON（应为 Lemma .sfpatch）');
   }
   const o = parsed as Record<string, unknown>;
   if (o?.v !== 1 || typeof o.base !== 'string' || typeof o.text !== 'string') {

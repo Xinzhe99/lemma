@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 import { useWorkspaceStore } from './workspaceStore';
 import { resolveEntry } from '../projectDoc';
 

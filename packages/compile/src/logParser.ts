@@ -1,4 +1,4 @@
-import type { Diagnostic, DiagnosticSeverity } from '@scholarforge/shared';
+import type { Diagnostic, DiagnosticSeverity } from '@lemma/shared';
 
 /**
  * 解析 (pdf/Xe/Lua)LaTeX 编译日志为结构化诊断列表。

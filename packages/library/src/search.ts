@@ -4,7 +4,7 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
-import type { Paper, PaperAuthor } from '@scholarforge/shared';
+import type { Paper, PaperAuthor } from '@lemma/shared';
 import { parsePersonName } from './importers/bibtex';
 import {
   asArray,

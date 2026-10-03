@@ -36,7 +36,7 @@ describe('buildBackup · 构建', () => {
   it('产出统一结构：schema/version/exportedAt(ISO) 与 data 各节', () => {
     const bak = buildBackup(sampleInput());
     expect(bak.schema).toBe(BACKUP_SCHEMA);
-    expect(bak.schema).toBe('scholarforge-backup');
+    expect(bak.schema).toBe('lemma-backup');
     expect(bak.version).toBe(BACKUP_VERSION);
     expect(bak.version).toBe(1);
     expect(() => new Date(bak.exportedAt).toISOString()).not.toThrow();
@@ -99,7 +99,7 @@ describe('validateBackup · 校验', () => {
   it('非对象（null / 字符串 / 数组）拒绝', () => {
     const rNull = validateBackup(null);
     expect(rNull.ok).toBe(false);
-    expect(validateBackup('scholarforge-backup').ok).toBe(false);
+    expect(validateBackup('lemma-backup').ok).toBe(false);
     expect(validateBackup([1, 2]).ok).toBe(false);
     if (!rNull.ok) expect(rNull.error).toContain('不是 JSON 对象');
   });

@@ -215,7 +215,7 @@ function generateMain(sectionCount: number, inlineBody: string | null): string {
     '\\usepackage[UTF8]{ctex}',
     '',
     '\\title{A Synthetic 大规模 Survey of 深度学习 Methods for 学术写作}',
-    '\\author{ScholarForge Perf Bot \\and 合成生成器}',
+    '\\author{Lemma Perf Bot \\and 合成生成器}',
     '\\date{2026}',
     '',
     '\\begin{document}',

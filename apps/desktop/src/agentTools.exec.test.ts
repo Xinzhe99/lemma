@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import type { ChatEvent, ChatProvider, ChatRequest } from '@scholarforge/agent-hub';
-import type { ToolCallRequest } from '@scholarforge/shared';
+import type { ChatEvent, ChatProvider, ChatRequest } from '@lemma/agent-hub';
+import type { ToolCallRequest } from '@lemma/shared';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { createAppToolExecutor, runAgentTurn, ENABLED_TOOLS } from './agentTools';
 import type { ApprovalDecision } from './approval';

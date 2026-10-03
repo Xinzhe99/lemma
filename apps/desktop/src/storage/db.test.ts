@@ -150,11 +150,11 @@ describe('storage/db Dexie 路径（mock dexie + stub indexedDB）', () => {
     __resetStorageForTests();
   });
 
-  it('getAppDb 单例：库名 scholarforge、版本 schema kv[key] / attachments[paperId]', () => {
+  it('getAppDb 单例：库名 lemma、版本 schema kv[key] / attachments[paperId]', () => {
     const a = getAppDb();
     expect(getAppDb()).toBe(a); // 单例
     const db = fakeDb();
-    expect(db.name).toBe('scholarforge');
+    expect(db.name).toBe('lemma');
     expect(db.schemaCalls).toEqual([
       { version: 1, stores: { kv: 'key', attachments: 'paperId' } },
     ]);

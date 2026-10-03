@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { DiffView } from '@scholarforge/editor';
+import { DiffView } from '@lemma/editor';
 import { useT } from '../i18n';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';

@@ -1,4 +1,4 @@
-import { createId, type PaperSection } from '@scholarforge/shared';
+import { createId, type PaperSection } from '@lemma/shared';
 
 /**
  * 纯函数启发式分节：

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkflowDef, WorkflowStepDef } from '@scholarforge/shared';
+import type { WorkflowDef, WorkflowStepDef } from '@lemma/shared';
 import { WorkflowRun } from './engine';
 import type { WorkflowRunHooks, WorkflowStepContext } from './engine';
 

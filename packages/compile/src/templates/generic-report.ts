@@ -18,7 +18,7 @@ export const genericReport: TemplateModule = {
   files: {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
-% ScholarForge 模板：generic-report —— 通用长报告（report + chapter 结构）
+% Lemma 模板：generic-report —— 通用长报告（report + chapter 结构）
 \documentclass[12pt,a4paper]{report}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}

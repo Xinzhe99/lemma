@@ -165,9 +165,9 @@ describe('runMockCompile 的诊断发布（浏览器闭环）', () => {
       'main.tex': '\\documentclass{article}\n\\begin{document}\n\\begin{itemize}\n\\item x\n',
     });
     const { runCompile } = await import('./compileAction');
-    const { setCompileDiagnosticsList } = await import('@scholarforge/editor');
+    const { setCompileDiagnosticsList } = await import('@lemma/editor');
     // 静态导入注册表读取（模块级单例）
-    const editor = await import('@scholarforge/editor');
+    const editor = await import('@lemma/editor');
     const before = editor.getCompileDiagnosticsList().length;
     await runCompile();
     const store = useWorkspaceStore.getState().compileDiagnostics;

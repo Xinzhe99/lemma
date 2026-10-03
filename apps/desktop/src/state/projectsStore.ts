@@ -10,7 +10,7 @@
  */
 
 import { create } from 'zustand';
-import { createId } from '@scholarforge/shared';
+import { createId } from '@lemma/shared';
 import { useWorkspaceStore, type FileSnapshot } from './workspaceStore';
 
 /** 项目快照：与 workspaceStore 现有持久化结构（workspace.json）一致 */

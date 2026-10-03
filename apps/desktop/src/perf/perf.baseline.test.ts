@@ -14,7 +14,7 @@ import { generateBigProject, generateInputChain } from './genProject';
 import { bibEntries, combinedDoc, outlineAcrossFiles } from '../projectDoc';
 import { scanFloats } from '../floatsScan';
 import { searchProject } from '../searchProject';
-import { collectCitekeys, collectLabels, lintLatex, parseOutline } from '@scholarforge/editor';
+import { collectCitekeys, collectLabels, lintLatex, parseOutline } from '@lemma/editor';
 
 /** 宽松时限表（ms）——目标值 5~10 倍余量；调整需在 PR 中说明理由 */
 const TIME_BUDGET_MS = {

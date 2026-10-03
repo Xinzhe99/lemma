@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react';
-import { listTemplates, scaffoldProject } from '@scholarforge/compile';
+import { listTemplates, scaffoldProject } from '@lemma/compile';
 import { useT } from '../i18n';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';

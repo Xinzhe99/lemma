@@ -15,7 +15,7 @@ import {
   type ReadStatus,
   type RetrievedChunk,
   type TextChunk,
-} from '@scholarforge/shared';
+} from '@lemma/shared';
 import {
   parseBibtex,
   generateCitekey,
@@ -23,14 +23,14 @@ import {
   fetchByDoi,
   fetchByArxiv,
   type PaperSearchHit,
-} from '@scholarforge/library';
+} from '@lemma/library';
 import {
   chunkPaper,
   TfidfEmbeddingProvider,
   HybridRetriever,
   OpenAICompatEmbeddings,
   type EmbeddingProvider,
-} from '@scholarforge/knowledge';
+} from '@lemma/knowledge';
 import { useSettingsStore } from './settingsStore';
 import { useUiStore } from './uiStore';
 import { paperAnnotationKey, useAnnotationStore } from './annotationStore';

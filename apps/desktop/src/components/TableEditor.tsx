@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { gridToTabular, parseCsv, parseXlsx } from '@scholarforge/editor';
+import { gridToTabular, parseCsv, parseXlsx } from '@lemma/editor';
 import { useSettingsStore } from '../state/settingsStore';
 import { insertAtCursor } from '../editorInsert';
 

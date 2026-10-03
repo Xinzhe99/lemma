@@ -48,16 +48,16 @@ vi.mock('../editorInsert', () => ({
   insertAtCursor: vi.fn<(code: string) => boolean>(),
 }));
 
-// @scholarforge/editor：gridToTabular/parseCsv 用真实实现（纯函数），
+// @lemma/editor：gridToTabular/parseCsv 用真实实现（纯函数），
 // parseXlsx 换可控 mock（xlsx 解析本身在 packages/editor 的单测覆盖）
-vi.mock('@scholarforge/editor', async (importOriginal) => {
+vi.mock('@lemma/editor', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, parseXlsx: vi.fn<(data: ArrayBuffer) => string[][]>() };
 });
 
 import { TableEditor } from './TableEditor';
 import { insertAtCursor } from '../editorInsert';
-import { parseXlsx } from '@scholarforge/editor';
+import { parseXlsx } from '@lemma/editor';
 
 const insertMock = vi.mocked(insertAtCursor);
 const parseXlsxMock = vi.mocked(parseXlsx);

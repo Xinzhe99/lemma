@@ -1,6 +1,6 @@
-# ScholarForge — AI 原生的一站式科研写作工作站 · 完整设计文档
+# Lemma — AI 原生的一站式科研写作工作站 · 完整设计文档
 
-> 工作代号：**ScholarForge**（命名候选见附录 A）
+> 工作代号：**Lemma**（命名候选见附录 A）
 > 版本：Design v1.0 · 2026-09-30
 > 定位一句话：**"IDE for Papers" —— 把 Overleaf 的写作体验、Codex/ZCode 的 Agent 能力、Zotero 的文献管理、SciSpace 的 AI 调研，融合为一个本地优先的桌面级科研全流程工作站。**
 >
@@ -65,7 +65,7 @@
 
 ### 1.4 竞品全景与差异化
 
-| 能力维度 | Overleaf | Zotero | SciSpace/Elicit | Jenni/Writefull | Cursor/Codex | **ScholarForge** |
+| 能力维度 | Overleaf | Zotero | SciSpace/Elicit | Jenni/Writefull | Cursor/Codex | **Lemma** |
 |---|---|:---:|:---:|:---:|:---:|---|
 | LaTeX 写作 + 实时编译 | ★★★ | ✗ | ✗ | ✗ | △（需配置） | ★★★（本地 Tectonic/TeX Live + 增量编译 + SyncTeX） |
 | 多人文档协作 | ★★★ | △ | ✗ | ✗ | ✗ | ★★☆（本地优先 + 可选云房间 CRDT） |
@@ -80,11 +80,11 @@
 
 **护城河判断**：
 - 单点功能都有人做，但**"agent 拥有论文域工具集 + 全流程数据在一个库"** 的组合没有竞品。数据闭环（文献库↔写作↔审稿↔投稿）一旦形成，迁移成本极高。
-- 本地 CLI agent（Codex CLI / Claude Code / ZCode / Gemini CLI）生态正在爆发，但它们都缺一个**面向论文的宿主（host）**——ScholarForge 就是那个宿主，为它们提供文献库工具、编译服务、diff 审批 UI。这与 "终端 + IDE" 的关系同构。
+- 本地 CLI agent（Codex CLI / Claude Code / ZCode / Gemini CLI）生态正在爆发，但它们都缺一个**面向论文的宿主（host）**——Lemma 就是那个宿主，为它们提供文献库工具、编译服务、diff 审批 UI。这与 "终端 + IDE" 的关系同构。
 
 ### 1.5 与 "IDE" 的同构（产品设计的主隐喻）
 
-| IDE 概念 | ScholarForge 对应物 |
+| IDE 概念 | Lemma 对应物 |
 |---|---|
 | 编辑器 + LSP | LaTeX 编辑器 + LaTeX Language Server（补全/诊断/重命名 label） |
 | Build / 任务 | LaTeX 编译链（Tectonic / TeX Live / latexmk） |
@@ -134,7 +134,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        ScholarForge 桌面应用                          │
+│                        Lemma 桌面应用                          │
 ├───────────────┬───────────────┬───────────────┬─────────────────────┤
 │ ① 文献调研     │ ② 文献库&阅读  │ ③ 写作工坊     │ ④ 引用与诚信         │
 │  Discovery    │  Library      │  Write        │  Citation Integrity │
@@ -346,7 +346,7 @@
 ### 5.1 设计原则
 
 1. **模型无关**：统一抽象三类 provider，用户随时换脑子。
-2. **Agent 与工具分离**：agent（推理主体）可插拔，工具（论文域能力）由 ScholarForge 统一以 MCP 形态提供——任何 agent 进来都立刻"懂论文"。
+2. **Agent 与工具分离**：agent（推理主体）可插拔，工具（论文域能力）由 Lemma 统一以 MCP 形态提供——任何 agent 进来都立刻"懂论文"。
 3. **人类是审批门**：所有落盘修改过 diff 审批；高危操作（删除、覆盖、导出、联网外发内容）二次确认。
 4. **全程可审计**：每次 Run 记录完整工具调用链、上下文快照、成本、结果 hash。
 
@@ -366,7 +366,7 @@
 │               + OpenAI / Anthropic / Google 原生 · 流式 + tool call  │
 │  ③ MCP 客户端：连接任意外部 MCP server 作为额外工具源                 │
 ├───────────────────────────────────────────────────────────────────┤
-│ L1 工具层：ScholarForge 内置 MCP Server（论文域工具集，见 5.3）        │
+│ L1 工具层：Lemma 内置 MCP Server（论文域工具集，见 5.3）        │
 │     + 权限网关（路径白名单/操作分级）+ 工具执行沙箱                    │
 ├───────────────────────────────────────────────────────────────────┤
 │ L0 能力层：文献库 · PDF 解析(GROBID) · 全文/向量索引 · 编译服务        │
@@ -395,7 +395,7 @@
 
 **权限模型**（类 ZCode/Codex 的 permission mode）：
 - `read`（默认放行）→ `execute`（编译/渲染，首次确认）→ `write`（改文件，逐 diff 审批）→ `export`（任何内容离开本机：外发网络、生成投稿包，显式确认）。
-- 项目级配置 `.scholarforge/permissions.toml`，可按工作流预设放宽/收紧。
+- 项目级配置 `.lemma/permissions.toml`，可按工作流预设放宽/收紧。
 
 ### 5.4 Context Pack（上下文工程）
 
@@ -463,7 +463,7 @@ graph TD
 
 ```mermaid
 graph TB
-    subgraph Desktop["ScholarForge 桌面应用 (Tauri 2)"]
+    subgraph Desktop["Lemma 桌面应用 (Tauri 2)"]
         UI[前端 UI<br/>React + CodeMirror6 + PDF.js]
         subgraph RustCore["Rust Core"]
             ORCH[Agent 编排器 + MCP Host]
@@ -493,10 +493,10 @@ graph TB
 ### 6.3 本地数据布局（用户可见、git 友好、可整体备份）
 
 ```
-~/ScholarForge/
+~/Lemma/
 ├── projects/my-paper/            # 一个科研项目
 │   ├── main.tex, sections/, figures/, refs.bib   # 纯文件，任何 TeX 工具可开
-│   ├── .scholarforge/
+│   ├── .lemma/
 │   │   ├── project.db            # 结构化数据（任务、agent 运行、标注索引）
 │   │   ├── context/              # Context Pack、术语表、风格档案
 │   │   ├── workflows/            # 项目级工作流定义与权限配置
@@ -540,10 +540,10 @@ graph TB
 ## 7. 生态与开放性
 
 - **插件系统（P1）**：TypeScript 插件 API——注册命令、面板、LSP、CSL 样式、工作流步骤；沙箱执行（类 VS Code 扩展模型）。
-- **对外 MCP Server（P1）**：ScholarForge 本身可作为 MCP server 暴露给**外部**任意 agent 宿主（让 Claude Code 直接操作你的文献库与稿件）——双向开放巩固"论文域事实标准工具层"的地位。
+- **对外 MCP Server（P1）**：Lemma 本身可作为 MCP server 暴露给**外部**任意 agent 宿主（让 Claude Code 直接操作你的文献库与稿件）——双向开放巩固"论文域事实标准工具层"的地位。
 - **模板市场**：期刊/会议模板社区共建 + 版本审核（模板变更历史，防伪造）。
 - **工作流市场**：分享/安装 Workflow 定义（YAML：步骤、模型建议、权限预设），带签名与评分。
-- **CLI 伴侣（P1）**：`scholarforge compile / ask / run W6`，供脚本化与远程（SSH）使用。
+- **CLI 伴侣（P1）**：`lemma compile / ask / run W6`，供脚本化与远程（SSH）使用。
 - **开放格式承诺**：项目 = 纯文件夹 + 标准 LaTeX + SQLite；随时整体迁移到 Overleaf/VS Code，无锁定。这是信任策略，也是与 Overleaf 竞争的姿态。
 
 ---
@@ -639,7 +639,7 @@ graph TB
 
 | 候选 | 含义 | 备注 |
 |---|---|---|
-| **ScholarForge** | 学者熔炉 | 直白、可用性待查 |
+| **Lemma** | 学者熔炉 | 直白、可用性待查 |
 | Scriptorium | 中世纪抄写室 | 有文化厚度，偏长 |
 | OverAgent | Overleaf × Agent | 传播梗好，但暗示派生 |
 | Athenaeum | 图书馆（希腊） | 高级但难拼 |

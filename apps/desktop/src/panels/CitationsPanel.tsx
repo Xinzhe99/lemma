@@ -9,7 +9,7 @@ import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
 import { bibCitekeys, citedKeys } from '../projectDoc';
-import { collectLabels, lintLatex, type LintIssue } from '@scholarforge/editor';
+import { collectLabels, lintLatex, type LintIssue } from '@lemma/editor';
 import { jumpTo } from '../editorJump';
 
 // ---------------------------------------------------------------------------

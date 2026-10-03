@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { configurePdfWorker } from '@scholarforge/library';
+import { configurePdfWorker } from '@lemma/library';
 import { App } from './App';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { applyTheme } from './theme';

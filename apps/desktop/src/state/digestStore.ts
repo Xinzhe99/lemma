@@ -15,8 +15,8 @@
 
 import { create } from 'zustand';
 import { XMLParser } from 'fast-xml-parser';
-import { createId, type PaperAuthor } from '@scholarforge/shared';
-import { parsePersonName } from '@scholarforge/library';
+import { createId, type PaperAuthor } from '@lemma/shared';
+import { parsePersonName } from '@lemma/library';
 import { getBigData, setBigData } from '../storage/kvStore';
 import { getPlatform } from '../platform/types';
 import { tauriProcRun } from '../platform/tauri';
@@ -35,7 +35,7 @@ const ARXIV_API_URL = 'https://export.arxiv.org/api/query';
 /** 浏览器版拉取失败时的固定中文提示（验收文案）。 */
 export const DIGEST_BROWSER_LIMIT_HINT = '桌面版可正常拉取；浏览器版受跨域限制，显示上次缓存';
 
-/** 可注入的 HTTP 客户端（与 @scholarforge/library 的 Http 同构，便于测试）。 */
+/** 可注入的 HTTP 客户端（与 @lemma/library 的 Http 同构，便于测试）。 */
 export interface HttpFetch {
   fetch(url: string, init?: RequestInit): Promise<Response>;
 }

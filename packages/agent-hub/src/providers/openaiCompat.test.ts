@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentMessage } from '@scholarforge/shared';
+import type { AgentMessage } from '@lemma/shared';
 import { OpenAICompatibleProvider, parseSseChunk } from './openaiCompat';
 import type { FetchLike } from './openaiCompat';
 import type { ChatEvent, ChatRequest } from './types';

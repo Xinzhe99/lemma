@@ -4,8 +4,8 @@
  * N1/N2 验收的 store 级落点（面板仅做展示与交互）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Annotation, Note } from '@scholarforge/shared';
-import { buildBacklinkIndex } from '@scholarforge/knowledge';
+import type { Annotation, Note } from '@lemma/shared';
+import { buildBacklinkIndex } from '@lemma/knowledge';
 import { NOTES_STORAGE_KEY, useNotesStore } from './notesStore';
 
 const ann: Annotation = {

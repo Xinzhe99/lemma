@@ -1,4 +1,4 @@
-import type { ProjectFileMap, ScaffoldVars, TemplateDescriptor } from '@scholarforge/shared';
+import type { ProjectFileMap, ScaffoldVars, TemplateDescriptor } from '@lemma/shared';
 import { chineseCtex } from './chinese-ctex';
 import { conferenceIeeeLike } from './conference-ieee-like';
 import { genericArticle } from './generic-article';
@@ -69,7 +69,7 @@ function renderReadme(tpl: TemplateModule, vars: Record<string, string>): string
   const lines: string[] = [
     `# ${vars.TITLE}`,
     '',
-    `> 由 ScholarForge 模板「${d.name}」生成的论文工程（模板 ID：\`${d.id}\`）。`,
+    `> 由 Lemma 模板「${d.name}」生成的论文工程（模板 ID：\`${d.id}\`）。`,
     '',
     '## 文件说明',
     `- \`${d.entry}\`：主文件（编译入口）`,

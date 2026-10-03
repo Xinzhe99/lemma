@@ -5,7 +5,7 @@
  * W16（w16-promo，发表后宣传物料）由命令 wf.promo 触发（launchWorkflow('w16-promo')）。
  */
 import { parse as parseYaml } from 'yaml';
-import type { WorkflowDef, WorkflowStepDef } from '@scholarforge/shared';
+import type { WorkflowDef, WorkflowStepDef } from '@lemma/shared';
 import w2Source from './builtin/w2-section-draft.yaml?raw';
 import w3Source from './builtin/w3-polish.yaml?raw';
 import w6Source from './builtin/w6-reviewer-sim.yaml?raw';

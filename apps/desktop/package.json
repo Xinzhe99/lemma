@@ -1,5 +1,5 @@
 {
-  "name": "@scholarforge/desktop",
+  "name": "@lemma/desktop",
   "version": "2.0.0",
   "private": true,
   "main": "src/main.tsx",
@@ -11,12 +11,12 @@
     "desktop:build": "tauri build"
   },
   "dependencies": {
-    "@scholarforge/agent-hub": "*",
-    "@scholarforge/compile": "*",
-    "@scholarforge/editor": "*",
-    "@scholarforge/knowledge": "*",
-    "@scholarforge/library": "*",
-    "@scholarforge/shared": "*",
+    "@lemma/agent-hub": "*",
+    "@lemma/compile": "*",
+    "@lemma/editor": "*",
+    "@lemma/knowledge": "*",
+    "@lemma/library": "*",
+    "@lemma/shared": "*",
     "diff": "^7.0.0",
     "fflate": "^0.8.2",
     "lucide-react": "^0.460.0",
