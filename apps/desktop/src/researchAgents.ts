@@ -19,6 +19,7 @@ import { useAgentHubStore } from '@scholarforge/agent-hub';
 import { resolveProvider, type ProviderChoice } from './aiActions';
 import { buildContextPackMd, runAgentTurn } from './agentTools';
 import { useAgentUsageStore } from './state/agentUsage';
+import { useWorkspaceStore } from './state/workspaceStore';
 
 /** 角度模板（k ≤ 8 时按序取用；「方法/实验/应用」为前三，与需求约定一致） */
 export const RESEARCH_ANGLES: readonly string[] = [
@@ -174,7 +175,7 @@ export async function runResearchAgents(
 
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
-  if (!sessionId) sessionId = store().newSession('host');
+  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
   if (store().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return [];
 
   store().sendMessage(sessionId, `【并行研究】${task.trim()}`);

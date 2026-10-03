@@ -316,7 +316,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
       id: 'agent.newSession',
       title: ctx.t('cmd.newSession'),
       hint: ctx.t('hint.agent'),
-      run: () => useAgentHubStore.getState().newSession('host'),
+      run: () => useAgentHubStore.getState().newSession('host', useWorkspaceStore.getState().projectName || undefined),
     },
     {
       id: 'agent.simulateToolEdit',

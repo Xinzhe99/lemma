@@ -143,3 +143,11 @@ export {
   type CompileDiagnostic,
   type DiagLineHit,
 } from './compileDiagnostics';
+
+// 引用悬停文献卡（v1.6.0）
+export {
+  citationHoverExtension,
+  citeKeyAt,
+  type CitationCard,
+  type PaperLookup,
+} from './citationHover';

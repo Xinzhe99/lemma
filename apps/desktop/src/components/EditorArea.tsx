@@ -5,7 +5,7 @@
  * 宿主为 flex 列布局：编辑器占满，底部为 StatusBar（字数/行数/光标行列/保存状态）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Image, Quote, Table } from 'lucide-react';
 import {
@@ -15,6 +15,8 @@ import {
   compileDiagnosticsExtension,
   spellcheckExtension,
   thesaurusExtension,
+  citationHoverExtension,
+  type CitationCard,
 } from '@scholarforge/editor';
 // 字号调节用的 CodeMirror 底层件（@scholarforge/editor 同源依赖，非新增包）
 import { keymap, type KeyBinding } from '@codemirror/view';
@@ -24,12 +26,13 @@ import 'katex/dist/katex.min.css';
 import { useT } from '../i18n';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore } from '../state/libraryStore';
+import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { bibEntries } from '../projectDoc';
 import { setJumpHandler, stashPendingJump, takePendingJump, notifyCursor } from '../editorJump';
 import { setInsertHandler } from '../editorInsert';
-import { polishSelection, quickAsk } from '../aiActions';
+import { polishSelection, quickAsk, paraphraseSelection } from '../aiActions';
 import { StatusBar } from './StatusBar';
 
 const TEXT_EXT = /\.(tex|bib|md|txt|sty|cls|bst)$/i;
@@ -115,6 +118,10 @@ export function EditorArea() {
   const updateFile = useWorkspaceStore((s) => s.updateFile);
   const papers = useLibraryStore((s) => s.papers);
   const selectionText = useUiStore((s) => s.selectionText);
+
+  // 改写变体（v1.6.0 ②）：paraphraseSelection 产出，浮层点选后走 diff 审批
+  const [paraphraseVariants, setParaphraseVariants] = useState<string[] | null>(null);
+  const [paraphraseBusy, setParaphraseBusy] = useState(false);
   const setSelectionText = useUiStore((s) => s.setSelectionText);
   // 拼写/用词检查开关（命令 edit.spellcheck 切换）：变化时经下方 useMemo 重建扩展，
   // LatexEditor 的 extraExtensions compartment 随数组身份变化整体重配——等效 Compartment 切换
@@ -143,16 +150,38 @@ export function EditorArea() {
   );
   // quickFixExtension 追加在末位：多个 hover 源同点堆叠时位于最内层（最贴近文本，更具体）；
   // 编译诊断扩展绑定当前文件名（activeTab 变化需整体重配）
+  // 引用悬停数据源：citekey → 文献卡（标题/首作者/年份/阅读状态/有无 PDF）
+  const paperCard = useCallback(
+    (citekey: string): CitationCard | undefined => {
+      const p = useLibraryStore.getState().papers.find((x) => x.citekey === citekey);
+      if (!p) return undefined;
+      const first = p.authors?.[0];
+      return {
+        title: p.title ?? '(untitled)',
+        firstAuthor: first ? (p.authors.length > 1 ? first.family + ' et al.' : first.family) : undefined,
+        year: p.year ? String(p.year) : undefined,
+        readStatus: p.readStatus,
+        hasPdf: !!p.pdfPath,
+      };
+    },
+    [],
+  );
+  const openCitePdf = useCallback((citekey: string): void => {
+    const p = useLibraryStore.getState().papers.find((x) => x.citekey === citekey);
+    if (p) useLibraryStore.getState().openPdf(p.id);
+  }, []);
+
   const extraExtensions = useMemo(
     () => [
       selectionTracker,
       cursorTracker,
       spellcheckExtension(spellcheckEnabled),
       thesaurusExtension(),
+      citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),
     ],
-    [cursorTracker, spellcheckEnabled, activeTab],
+    [cursorTracker, spellcheckEnabled, activeTab, paperCard, openCitePdf],
   );
 
   // —— 编辑器字号调节（挂载时读取 localStorage，快捷键经 Compartment 重设主题）——
@@ -323,6 +352,19 @@ export function EditorArea() {
             <button className="sf-btn" onClick={() => void polishSelection(selectionText)}>
               {t('selbar.polish')}
             </button>
+            <button
+              className="sf-btn"
+              disabled={paraphraseBusy}
+              onClick={() => {
+                setParaphraseBusy(true);
+                setParaphraseVariants(null);
+                void paraphraseSelection(selectionText)
+                  .then((vs) => setParaphraseVariants(vs))
+                  .finally(() => setParaphraseBusy(false));
+              }}
+            >
+              {paraphraseBusy ? t('selbar.paraphraseBusy') : t('selbar.paraphrase')}
+            </button>
             <button className="sf-btn" onClick={() => quickAsk('explain', selectionText)}>
               {t('selbar.explain')}
             </button>
@@ -332,9 +374,78 @@ export function EditorArea() {
             <button className="sf-btn" onClick={() => quickAsk('find', selectionText)}>
               {t('selbar.find')}
             </button>
-            <button className="sf-link-btn" onClick={() => setSelectionText('')} title={t('selbar.clear')}>
+            <button
+              className="sf-link-btn"
+              onClick={() => {
+                setSelectionText('');
+                setParaphraseVariants(null);
+              }}
+              title={t('selbar.clear')}
+            >
               ×
             </button>
+          </div>
+        )}
+        {paraphraseVariants !== null && paraphraseVariants.length > 0 && activeTab.endsWith('.tex') && (
+          <div
+            className="sf-paraphrase-pop"
+            style={{
+              position: 'absolute',
+              zIndex: 30,
+              top: 44,
+              right: 16,
+              width: 420,
+              maxHeight: 260,
+              overflowY: 'auto',
+              background: 'var(--bg-0)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: 'var(--shadow-pop)',
+              padding: 10,
+            }}
+          >
+            <div style={{ fontSize: 11.5, color: 'var(--fg-2)', marginBottom: 6 }}>
+              {t('selbar.paraphraseTitle')}
+            </div>
+            {paraphraseVariants.map((v, i) => (
+              <button
+                key={i}
+                type="button"
+                className="sf-paraphrase-item"
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  background: 'var(--bg-0)',
+                  padding: '6px 10px',
+                  marginBottom: 6,
+                  fontSize: 12.5,
+                  lineHeight: 1.55,
+                  cursor: 'pointer',
+                  color: 'var(--fg-0)',
+                }}
+                onClick={() => {
+                  const ws = useWorkspaceStore.getState();
+                  const file = ws.activeTab;
+                  if (!file) return;
+                  const before = ws.files[file] ?? '';
+                  if (!before.includes(selectionText)) return;
+                  useProposalStore.getState().setProposal({
+                    file,
+                    before,
+                    after: before.replace(selectionText, v),
+                    kind: 'polish',
+                    label: '改写变体 ' + (i + 1),
+                    via: 'paraphrase',
+                  });
+                  setParaphraseVariants(null);
+                }}
+              >
+                {v}
+              </button>
+            ))}
           </div>
         )}
         <LatexEditor

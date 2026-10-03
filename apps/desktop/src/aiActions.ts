@@ -117,7 +117,7 @@ export function abortChat(): void {
 export async function sendChatMessage(text: string): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
-  if (!sessionId) sessionId = store().newSession('host');
+  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
   const session = store().sessions.find((s) => s.id === sessionId);
   if (session?.status === 'streaming') return;
 
@@ -228,6 +228,73 @@ export async function polishSelection(selection: string): Promise<void> {
     label: 'AI 润色（选中文本）',
     via,
   });
+}
+
+/**
+ * 选中句子改写器（v1.6.0 ②）：返回 2–4 个改写变体（由调用方渲染挑选卡）。
+ * 真实模型：要求输出 N 行变体并解析；演示/离线：本地规则改写（同义词替换 +
+ * 句式微调，命中词典才会产生变化——未命中返回空数组并提示）。不动稿件：
+ * 用户点选变体后由调用方构造 EditProposal 走 diff 审批。
+ */
+export async function paraphraseSelection(selection: string, count = 3): Promise<string[]> {
+  const t = pick(useSettingsStore.getState().language);
+  const trimmed = selection.trim();
+  const proposalStore = useProposalStore.getState();
+  if (!trimmed) {
+    proposalStore.setNote(t.emptySelection);
+    return [];
+  }
+  const ws = useWorkspaceStore.getState();
+  const file = ws.activeTab;
+  if (!file || !file.endsWith('.tex') || ws.files[file] === undefined) {
+    proposalStore.setNote(t.needTex);
+    return [];
+  }
+
+  const { real, model, provider } = resolveProvider();
+  if (real) {
+    let reply: string;
+    try {
+      const system = await buildContextPackMd('学术句子改写');
+      reply = await runAgentTurn({
+        provider,
+        model,
+        system,
+        history: [],
+        user:
+          `请把下面的学术句子改写为 ${count} 个不同的表达变体（改写此句）。要求：保持学术语气与原意，不增删信息；保留所有 \\cite / \\ref / \\label 等 LaTeX 命令与数学环境原样；每行一个变体，不要编号与解释。\n\n${trimmed}`,
+      });
+    } catch (e) {
+      proposalStore.setNote(t.polishFailed(e instanceof Error ? e.message : String(e)));
+      return [];
+    }
+    const variants = reply
+      .split('\n')
+      .map((l) => l.replace(/^\s*\d+[.、)]\s*/, '').trim())
+      .filter((l) => l.length > 0 && l !== trimmed);
+    const uniq = [...new Set(variants)].slice(0, count);
+    if (uniq.length === 0) {
+      proposalStore.setNote(t.noChangeNeeded);
+    }
+    return uniq;
+  }
+
+  // 离线规则改写：同义词替换（THESAURUS 命中才产生变化）+ 被动化微调，最多 2 个变体
+  const { THESAURUS } = await import('@scholarforge/editor');
+  const words = trimmed.match(/[A-Za-z][A-Za-z'-]*/g) ?? [];
+  const hits = words.filter((w) => THESAURUS[w.toLowerCase()]?.[0]);
+  if (hits.length === 0) {
+    proposalStore.setNote(t.noChangeNeeded);
+    return [];
+  }
+  const swap = (nth: number): string =>
+    trimmed.replace(/[A-Za-z][A-Za-z'-]*/g, (w) => {
+      const alts = THESAURUS[w.toLowerCase()];
+      if (!alts) return w;
+      const pickWord = alts[Math.min(nth, alts.length - 1)] ?? w;
+      return w[0] === w[0].toUpperCase() ? pickWord[0].toUpperCase() + pickWord.slice(1) : pickWord;
+    });
+  return [swap(0), swap(1)].filter((v, i, a) => v !== trimmed && a.indexOf(v) === i);
 }
 
 export type QuickAskKind = 'explain' | 'translate' | 'find';
@@ -491,7 +558,7 @@ function sessionOfMessage(msgId: string): string | null {
 export async function runPlannedTask(userRequest: string): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
-  if (!sessionId) sessionId = store().newSession('host');
+  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
   if (store().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return;
 
   const contextMd = await buildContextPackMd(userRequest);

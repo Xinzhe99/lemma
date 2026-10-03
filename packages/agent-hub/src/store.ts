@@ -16,6 +16,8 @@ export interface AgentSession {
   messages: AgentMessage[];
   providerId: string;
   status: AgentSessionStatus;
+  /** 归属项目名（v1.6.0 ③：多项目会话隔离；旧会话无此字段 = 「全部」可见） */
+  projectName?: string;
 }
 
 /** 已完成工作流的留存记录（WF-3 A3）：刷新页面后可从历史恢复查看产物 */
@@ -81,7 +83,7 @@ interface AgentHubState {
   completedRuns: CompletedRun[];
 
   /** 新建会话并激活，返回会话 id */
-  newSession(providerId: string): string;
+  newSession(providerId: string, projectName?: string): string;
   setActiveSession(sessionId: string): void;
   /** 水合（宿主启动时从持久层恢复）：整体替换并截断到上限；activeId 不在列表时回落首个 */
   hydrateSessions(sessions: AgentSession[], activeSessionId?: string | null): void;
@@ -151,7 +153,8 @@ function isAgentSession(v: unknown): v is AgentSession {
     Array.isArray(o.messages) &&
     o.messages.every(isAgentMessage) &&
     typeof o.providerId === 'string' &&
-    (o.status === 'idle' || o.status === 'streaming' || o.status === 'error')
+    (o.status === 'idle' || o.status === 'streaming' || o.status === 'error') &&
+    (o.projectName === undefined || typeof o.projectName === 'string')
   );
 }
 
@@ -169,12 +172,12 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
   runs: [],
   completedRuns: loadCompletedRuns(),
 
-  newSession: (providerId) => {
+  newSession: (providerId, projectName) => {
     const id = createId();
     set((state) => {
       let sessions = [
         ...state.sessions,
-        { id, title: '新会话', messages: [], providerId, status: 'idle' as const },
+        { id, title: '新会话', messages: [], providerId, status: 'idle' as const, projectName },
       ];
       // 上限淘汰：从最旧开始移除非本会话的记录（新会话恒保留）
       while (sessions.length > SESSIONS_LIMIT) {

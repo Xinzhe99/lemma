@@ -178,3 +178,26 @@ describe('会话管理 actions（v1.2.0）', () => {
     expect(sessions.some((s) => s.id === 'old0')).toBe(false); // 最旧被淘汰
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.6.0 ③：会话项目隔离（projectName 字段随会话持久化）
+// ---------------------------------------------------------------------------
+
+describe('会话项目隔离', () => {
+  it('newSession 携带 projectName；序列化/解析往返保留', () => {
+    const id = useAgentHubStore.getState().newSession('host', 'demo-paper');
+    const s = useAgentHubStore.getState().sessions.find((x) => x.id === id);
+    expect(s?.projectName).toBe('demo-paper');
+    const snap = serializeSessionsForPersist(useAgentHubStore.getState().sessions);
+    const restored = parsePersistedSessions(snap);
+    expect(restored[0]?.projectName).toBe('demo-paper');
+    // 旧格式（无 projectName）仍可解析
+    const legacy = parsePersistedSessions([{ ...mkSession(), projectName: undefined }]);
+    expect(legacy[0]?.projectName).toBeUndefined();
+  });
+
+  it('坏类型 projectName（数字）被宽容丢弃', () => {
+    const bad = { ...mkSession(), projectName: 42 };
+    expect(parsePersistedSessions([bad])).toEqual([]);
+  });
+});

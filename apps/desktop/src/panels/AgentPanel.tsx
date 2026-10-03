@@ -311,7 +311,7 @@ export function AgentPanel() {
   // 确保存在会话
   useEffect(() => {
     if (!useAgentHubStore.getState().activeSessionId) {
-      newSession('host');
+      newSession('host', useWorkspaceStore.getState().projectName || undefined);
     }
   }, [newSession]);
 
@@ -617,7 +617,7 @@ export function AgentPanel() {
         <button
           className="sf-link-btn"
           onClick={() => {
-            newSession('host');
+            newSession('host', useWorkspaceStore.getState().projectName || undefined);
             setWorkflow(null);
           }}
         >
@@ -640,7 +640,9 @@ export function AgentPanel() {
               {sessions.length === 0 ? (
                 <div className="sf-session-item dim">{t.sessionHistoryEmpty}</div>
               ) : (
+                // 项目隔离（v1.6.0 ③）：当前项目的会话 + 未标记项目的旧会话
                 [...sessions]
+                  .filter((s) => !s.projectName || s.projectName === (useWorkspaceStore.getState().projectName || ''))
                   .reverse()
                   .map((s) => (
                     <div

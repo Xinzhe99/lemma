@@ -57,6 +57,10 @@ const dict: MessageDict = {
   // 选中即问工具条（EditorArea）
   'selbar.selected': { zh: '已选 {n} 字', en: '{n} chars selected' },
   'selbar.polish': { zh: '润色', en: 'Polish' },
+  'selbar.paraphrase': { zh: '改写', en: 'Paraphrase' },
+  'selbar.paraphraseTitle': { zh: '选择一个改写变体（点击应用，经 diff 审批落稿）', en: 'Pick a rewrite variant (applies via diff approval)' },
+  'selbar.paraphraseBusy': { zh: '生成变体…', en: 'Generating variants…' },
+  'selbar.paraphraseDemo': { zh: '离线规则改写（配置模型服务获得深度变体）', en: 'Offline rule-based rewrite (configure a model for deeper variants)' },
   'selbar.explain': { zh: '解释', en: 'Explain' },
   'selbar.translate': { zh: '翻译', en: 'Translate' },
   'selbar.find': { zh: '找文献', en: 'Find papers' },

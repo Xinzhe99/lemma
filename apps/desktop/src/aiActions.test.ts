@@ -650,3 +650,52 @@ describe('计划模式 · executePlan（逐步执行）', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// v1.6.0 ②：paraphraseSelection（选中句子改写器）
+// ---------------------------------------------------------------------------
+
+describe('paraphraseSelection', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ providers: [], activeProviderId: null, language: 'zh' });
+    useWorkspaceStore.setState({
+      projectName: 'p',
+      entry: 'main.tex',
+      files: { 'main.tex': 'The method is very good and quite fast.\n' },
+      openTabs: ['main.tex'],
+      activeTab: 'main.tex',
+    });
+    useAgentHubStore.setState({ sessions: [], activeSessionId: null });
+  });
+
+  it('离线：词典命中的句子 → 2 个变体（与原句不同且彼此不同）', async () => {
+    const { paraphraseSelection } = await import('./aiActions');
+    const vs = await paraphraseSelection('The method is very good and quite fast.');
+    expect(vs.length).toBe(2);
+    expect(vs.every((v) => v !== 'The method is very good and quite fast.')).toBe(true);
+    expect(vs[0]).not.toBe(vs[1]);
+    expect(vs[0]).toContain('favorable');
+  });
+
+  it('离线：无词典命中 → 空数组 + note 提示', async () => {
+    const { paraphraseSelection } = await import('./aiActions');
+    const vs = await paraphraseSelection('Escherichia coli grows rapidly.');
+    expect(vs).toEqual([]);
+  });
+
+  it('真实模型：多行回复 → 解析为去重变体（剥编号前缀）', async () => {
+    activateRealProvider();
+    const { paraphraseSelection } = await import('./aiActions');
+    const reply = [
+      '1. The method is substantially effective.',
+      '2. This approach performs favorably.',
+      '3. The approach is markedly rapid.',
+    ].join('\n');
+    globalThis.fetch = vi.fn(async () => new Response(sseOfText(reply))) as unknown as typeof fetch;
+    const vs = await paraphraseSelection('The method is very good and quite fast.');
+    expect(vs).toHaveLength(3);
+    expect(vs[0]).toBe('The method is substantially effective.');
+    expect(vs.every((v) => !/^\d+[.、)]/.test(v))).toBe(true);
+  });
+});
