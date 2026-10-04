@@ -220,6 +220,53 @@ export const PAPER_TOOLS: ToolDef[] = [
       required: ['journal'],
     },
   },
+  // —— v3.7.0：Cursor 级 AI 工具（读文件/搜索/列表/创建） ——
+  {
+    name: 'project.read_file',
+    description: '读取项目中指定文件的完整内容（.tex/.bib/.md）。用于查看特定文件的实际文本而非摘要。',
+    permission: 'read',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: str('项目内文件路径，如 main.tex 或 sections/intro.tex'),
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'project.find_in_files',
+    description: '跨全部项目文件搜索指定文本（如 citekey、label、命令），返回文件名:行号:匹配行。',
+    permission: 'read',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: str('要搜索的文本（如 vaswani2017 或 \\label{eq:score}）'),
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'project.list_files',
+    description: '列出项目中全部文件（路径 + 每个文件的行数）。用于了解项目结构。',
+    permission: 'read',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'tex.create_file',
+    description: '创建新的 .tex 文件并写入初始内容（用于拆分章节、添加新文件）。写级操作，需人工审批。',
+    permission: 'write',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: str('新文件路径，如 sections/method.tex'),
+        content: str('文件初始内容（LaTeX 源码）'),
+      },
+      required: ['path', 'content'],
+    },
+  },
 ];
 
 export const PAPER_TOOLS_BY_NAME: ReadonlyMap<string, ToolDef> = new Map(

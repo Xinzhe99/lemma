@@ -37,6 +37,10 @@ export const ENABLED_TOOL_NAMES = [
   'snapshot.create',
   'tex.compile',
   'submission.checklist',
+  'project.read_file',
+  'project.find_in_files',
+  'project.list_files',
+  'tex.create_file',
 ] as const;
 
 export const ENABLED_TOOLS: ToolDef[] = PAPER_TOOLS.filter((t) =>
@@ -231,6 +235,63 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         };
       }
       return { matched: true, query, venue };
+    },
+    // —— v3.7.0：Cursor 级 AI 工具（读文件/搜索/列表/创建） ——
+    'project.read_file': async (args) => {
+      const path = String(args.path ?? '').trim();
+      const ws = useWorkspaceStore.getState();
+      const content = ws.files[path];
+      if (content === undefined) {
+        return { error: `文件不存在：${path}`, available: Object.keys(ws.files) };
+      }
+      const lines = content.split('\n');
+      return {
+        path,
+        totalLines: lines.length,
+        content: lines.length > 200 ? lines.slice(0, 200).join('\n') + '\n...(截断，共 ' + lines.length + ' 行)' : content,
+      };
+    },
+    'project.find_in_files': async (args) => {
+      const query = String(args.query ?? '').trim();
+      if (!query) return { error: '未提供搜索文本' };
+      const files = useWorkspaceStore.getState().files;
+      const hits: { file: string; line: number; text: string }[] = [];
+      for (const [path, content] of Object.entries(files)) {
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length && hits.length < 50; i++) {
+          if ((lines[i] ?? '').includes(query)) {
+            hits.push({ file: path, line: i + 1, text: (lines[i] ?? '').trim().slice(0, 120) });
+          }
+        }
+      }
+      return { query, totalHits: hits.length, hits };
+    },
+    'project.list_files': async () => {
+      const files = useWorkspaceStore.getState().files;
+      const list = Object.entries(files).map(([path, content]) => ({
+        path,
+        lines: content.split('\n').length,
+        type: path.endsWith('.tex') ? 'tex' : path.endsWith('.bib') ? 'bib' : 'other',
+      }));
+      return { total: list.length, files: list };
+    },
+    'tex.create_file': async (args) => {
+      const path = String(args.path ?? '').trim();
+      const content = String(args.content ?? '');
+      if (!path || !content.trim()) return { created: false, reason: '需要 path 和 content' };
+      const ws = useWorkspaceStore.getState();
+      if (ws.files[path] !== undefined) return { created: false, reason: `文件已存在：${path}（用 tex.edit 修改）` };
+      const decision = await approval({
+        file: path,
+        before: '',
+        after: content,
+        kind: 'tool-edit',
+        label: `AI 创建文件（${path}）`,
+        via: 'agent 工具调用',
+      });
+      if (!decision.approved) return { created: false, reason: decision.note };
+      ws.createFile(path, content);
+      return { created: true, path, note: decision.note };
     },
   });
 }

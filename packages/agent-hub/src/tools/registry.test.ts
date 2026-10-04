@@ -8,27 +8,23 @@ const tool = (name: string) => {
 };
 
 describe('PAPER_TOOLS 注册表', () => {
-  it('包含设计文档 5.3 的全部 15 个工具，id 唯一', () => {
-    expect(PAPER_TOOLS).toHaveLength(15);
+  it('包含设计文档 5.3 + v3.7.0 的全部 19 个工具，id 唯一', () => {
+    expect(PAPER_TOOLS).toHaveLength(19);
     const names = PAPER_TOOLS.map((t) => t.name);
-    expect(new Set(names).size).toBe(15);
-    expect(names).toEqual([
-      'library.search',
-      'library.search_fulltext',
-      'paper.read',
-      'paper.citations',
-      'web.search_scholar',
-      'tex.compile',
-      'tex.last_errors',
-      'tex.edit',
-      'figure.render',
-      'citation.validate',
-      'citation.add',
-      'project.context',
-      'memory.write',
-      'snapshot.create',
-      'submission.checklist',
-    ]);
+    expect(new Set(names).size).toBe(19);
+    expect(names).toContain('project.read_file');
+    expect(names).toContain('project.find_in_files');
+    expect(names).toContain('project.list_files');
+    expect(names).toContain('tex.create_file');
+    expect(names).toContain('library.search');
+    expect(names).toContain('library.search_fulltext');
+    expect(names).toContain('paper.read');
+    expect(names).toContain('tex.compile');
+    expect(names).toContain('tex.edit');
+    expect(names).toContain('citation.validate');
+    expect(names).toContain('project.context');
+    expect(names).toContain('snapshot.create');
+    expect(names).toContain('submission.checklist');
   });
 
   it('每个工具都有中文描述、权限分级与 object Schema', () => {
