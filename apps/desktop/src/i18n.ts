@@ -182,6 +182,7 @@ const dict: MessageDict = {
   'cmd.agentPrompts': { zh: '提示词库（管理高频指令）', en: 'Prompt library (manage recurring instructions)' },
   'cmd.styleReport': { zh: '风格分析报告（长句/被动语态/可读性）', en: 'Style report (long sentences/passive/readability)' },
   'cmd.normalizeDoc': { zh: '格式规范化（智能引号/破折号/空格一键清理）', en: 'Normalize document (smart quotes/dashes/spaces)' },
+  'cmd.mathPalette': { zh: '数学符号面板（希腊字母/运算符/箭头，点击插入）', en: 'Math symbol palette (Greek/operators/arrows, click to insert)' },
   'cmd.collabMerge': { zh: '协作补丁（CRDT 离线合并，无需服务器）', en: 'Collab patch (offline CRDT merge, no server)' },
   'cmd.citeSuggest': { zh: '智能引用推荐（当前段落 → 文献库检索）', en: 'Smart citation suggest (paragraph → library search)' },
   'research.taskPrompt': { zh: '研究任务（将拆为多个子任务并行调研）', en: 'Research task (will be split into parallel sub-tasks)' },

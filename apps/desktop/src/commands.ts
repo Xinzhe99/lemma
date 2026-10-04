@@ -326,6 +326,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setCollabDialogOpen(true),
     },
     {
+      id: 'insert.mathPalette',
+      title: ctx.t('cmd.mathPalette'),
+      hint: ctx.t('hint.edit'),
+      run: () => useUiStore.getState().setMathPaletteOpen(true),
+    },
+    {
       id: 'edit.normalizeDoc',
       title: ctx.t('cmd.normalizeDoc'),
       hint: ctx.t('hint.edit'),

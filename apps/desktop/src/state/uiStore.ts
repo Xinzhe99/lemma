@@ -77,6 +77,7 @@ interface UiState {
   collabDialogOpen: boolean;
   /** 智能引用推荐（v1.7.0） */
   citeSuggestOpen: boolean;
+  mathPaletteOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -117,6 +118,7 @@ interface UiState {
   setStyleReportOpen(open: boolean): void;
   setCollabDialogOpen(open: boolean): void;
   setCiteSuggestOpen(open: boolean): void;
+  setMathPaletteOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -154,6 +156,7 @@ export const useUiStore = create<UiState>((set) => ({
   styleReportOpen: false,
   collabDialogOpen: false,
   citeSuggestOpen: false,
+  mathPaletteOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -188,6 +191,7 @@ export const useUiStore = create<UiState>((set) => ({
   setStyleReportOpen: (open) => set({ styleReportOpen: open }),
   setCollabDialogOpen: (open) => set({ collabDialogOpen: open }),
   setCiteSuggestOpen: (open) => set({ citeSuggestOpen: open }),
+  setMathPaletteOpen: (open) => set({ mathPaletteOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),
