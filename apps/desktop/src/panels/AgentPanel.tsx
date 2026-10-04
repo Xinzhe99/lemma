@@ -19,6 +19,7 @@ import {
   WorkflowRun,
   WorkflowRunView,
   useAgentHubStore,
+  getPersona,
   type CompletedRun,
   type WorkflowStepUiStatus,
 } from '@lemma/agent-hub';
@@ -497,7 +498,7 @@ export function AgentPanel() {
     const startedAt = Date.now();
     const outputsAcc: Record<string, string> = {}; // completeRun 用（React state 在异步回调里不可靠）
 
-    const contextMd = (await buildContextPackMd(def.description)) + CITATION_RULE;
+    const contextMd = (await buildContextPackMd(def.description)) + CITATION_RULE + getPersona(useSettingsStore.getState().aiPersona).systemAddendum;
     const { provider, model } = resolveProvider();
     const run = new WorkflowRun(def, {
       async runStep(step, ctx) {

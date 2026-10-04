@@ -74,6 +74,40 @@ export function pick(lang: Language): PolishDict {
   return L[lang];
 }
 
+/**
+ * 多 Provider 智能路由（v4.0.0 B）：
+ * 有多个 provider 时，按任务复杂度选择：
+ *   - simple（拼写修正、格式化）→ 优先 cheap tier
+ *   - complex（重写、分析、审稿）→ 优先 flagship tier
+ * 只有一个 provider 时行为与 resolveProvider() 完全一致。
+ */
+export type TaskComplexity = 'simple' | 'complex';
+
+export function resolveProviderRouted(complexity: TaskComplexity): ProviderChoice {
+  const s = useSettingsStore.getState();
+  const available = s.providers.filter(
+    (p) => p.baseUrl.trim().length > 0 && p.apiKey.trim().length > 0,
+  );
+  if (available.length <= 1) return resolveProvider();
+
+  const preferredTier = complexity === 'simple' ? 'cheap' : 'flagship';
+  const preferred = available.find((p) => p.tier === preferredTier);
+  const chosen = preferred ?? available.find((p) => p.id === s.activeProviderId) ?? available[0]!;
+
+  return {
+    provider: new OpenAICompatibleProvider({
+      id: chosen.id,
+      label: chosen.label,
+      baseUrl: chosen.baseUrl.trim(),
+      apiKey: chosen.apiKey.trim(),
+      fetchFn: (url, init) => fetch(url, init),
+    }),
+    model: chosen.model.trim() || 'default',
+    label: `${chosen.label} · ${chosen.model || 'default'}`,
+    real: true,
+  };
+}
+
 export function resolveProvider(): ProviderChoice {
   const s = useSettingsStore.getState();
   const cfg = s.providers.find((p) => p.id === s.activeProviderId);

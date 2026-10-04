@@ -41,7 +41,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { bibEntries } from '../projectDoc';
 import { setJumpHandler, stashPendingJump, takePendingJump, notifyCursor } from '../editorJump';
 import { setInsertHandler } from '../editorInsert';
-import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection, resolveProvider } from '../aiActions';
+import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection, resolveProvider, resolveProviderRouted } from '../aiActions';
 import { inlineCompletionExtension } from '@lemma/editor';
 import { runAgentTurn } from '../agentTools';
 import { StatusBar } from './StatusBar';
@@ -186,14 +186,38 @@ export function EditorArea() {
    */
   const requestInlineCompletion = useCallback(
     async (before: string, signal: AbortSignal): Promise<string | null> => {
-      const { real, model, provider } = resolveProvider();
+      const { real, model, provider } = resolveProviderRouted('simple');
       if (!real) return null;
       if (signal.aborted) return null;
+
+      // v4.0.0 A：注入项目上下文——术语表 + 附近引用键 + 当前节标题
+      const ws = useWorkspaceStore.getState();
+      const file = ws.activeTab ?? '';
+      const content = ws.files[file] ?? '';
+      // 当前节标题（最近一个 \section/\subsection）
+      const sectionMatch = [...before.matchAll(/\\(?:sub)*section\{([^}]+)\}/g)].pop();
+      const sectionTitle = sectionMatch?.[1] ?? '';
+      // 附近引用的 citekey（最近 500 字符内）
+      const nearbyCites = [...before.matchAll(/\\cite[pt]?\*?\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/g)]
+        .flatMap((m) => (m[1] ?? '').split(',').map((k) => k.trim()))
+        .filter(Boolean)
+        .slice(-5);
+      // 术语表（缩写定义）
+      const glossaryTerms = [...content.matchAll(/\\textbf\{([A-Z][A-Za-z\s]+)\}\s*\(?\s*([A-Z]{2,6})/g)]
+        .slice(0, 8)
+        .map((m) => `${m[2]} = ${m[1]}`)
+        .join('; ');
+
+      const contextParts: string[] = ['你是学术写作助手。续写接下来的 1-2 句。只输出续写内容，不要解释、不要 markdown 围栏。保持学术语气和 LaTeX 命令格式。'];
+      if (sectionTitle) contextParts.push(`当前节：${sectionTitle}`);
+      if (nearbyCites.length > 0) contextParts.push(`已引用文献：${nearbyCites.join(', ')}（续写中引用请只用这些键）`);
+      if (glossaryTerms) contextParts.push(`术语表：${glossaryTerms}`);
+
       try {
         const reply = await runAgentTurn({
           provider,
           model,
-          system: '你是学术写作助手。根据给定的 LaTeX 上下文，续写接下来的 1-2 句。只输出续写内容，不要解释、不要 markdown 代码块围栏。保持学术语气和 LaTeX 命令格式。',
+          system: contextParts.join('\n'),
           history: [],
           user: before,
           signal,
