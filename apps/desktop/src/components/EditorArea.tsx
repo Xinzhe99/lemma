@@ -41,7 +41,9 @@ import { useSettingsStore } from '../state/settingsStore';
 import { bibEntries } from '../projectDoc';
 import { setJumpHandler, stashPendingJump, takePendingJump, notifyCursor } from '../editorJump';
 import { setInsertHandler } from '../editorInsert';
-import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection } from '../aiActions';
+import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection, resolveProvider } from '../aiActions';
+import { inlineCompletionExtension } from '@lemma/editor';
+import { runAgentTurn } from '../agentTools';
 import { StatusBar } from './StatusBar';
 
 const TEXT_EXT = /\.(tex|bib|md|txt|sty|cls|bst)$/i;
@@ -177,6 +179,35 @@ export function EditorArea() {
     }
   }, []);
 
+  /**
+   * 内联 AI 补全请求（v3.5.0 A）：光标前文本 → AI 续写建议。
+   * 只在配置了真实模型服务时工作（resolveProvider().real === true）。
+   * 返回 null = 无建议（AI 不可用 / 超时 / 返回为空）。
+   */
+  const requestInlineCompletion = useCallback(
+    async (before: string, signal: AbortSignal): Promise<string | null> => {
+      const { real, model, provider } = resolveProvider();
+      if (!real) return null;
+      if (signal.aborted) return null;
+      try {
+        const reply = await runAgentTurn({
+          provider,
+          model,
+          system: '你是学术写作助手。根据给定的 LaTeX 上下文，续写接下来的 1-2 句。只输出续写内容，不要解释、不要 markdown 代码块围栏。保持学术语气和 LaTeX 命令格式。',
+          history: [],
+          user: before,
+          signal,
+        });
+        if (signal.aborted) return null;
+        const text = reply.trim().replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
+        return text.length >= 2 ? text : null;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
   const paperCard = useCallback(
     (citekey: string): CitationCard | undefined => {
       const p = useLibraryStore.getState().papers.find((x) => x.citekey === citekey);
@@ -222,6 +253,17 @@ export function EditorArea() {
       envAutoCloseExtension(),
       textFormatKeymap(),
       commentToggleKeymap(),
+      // 内联 AI 补全（v3.5.0 A）：Cursor 级 ghost text（配置了真实模型服务时启用）
+      inlineCompletionExtension({
+        requestCompletion: (before, signal) =>
+          requestInlineCompletion(before, signal),
+        delayMs: 1500,
+        contextLength: 500,
+        enabled: () => {
+          const { real } = resolveProvider();
+          return real;
+        },
+      }),
       selectionContextMenu({
         onAIPolish: (t) => void polishSelection(t),
         onAIExpand: (t) => void expandSelection(t),

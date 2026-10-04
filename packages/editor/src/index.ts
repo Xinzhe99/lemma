@@ -193,3 +193,12 @@ export { parseClipboardTable, toLatexTabular, clipboardToTable } from './clipboa
 
 // 文档格式规范化（v3.2.0）
 export { normalizeDocument, countFormatIssues } from './normalize';
+
+// 内联 AI 补全（v3.5.0）
+export {
+  inlineCompletionExtension,
+  dismissInlineCompletion,
+  type CompletionSuggestion,
+  type CompletionRequester,
+  type InlineCompletionOptions,
+} from './inlineCompletion';
