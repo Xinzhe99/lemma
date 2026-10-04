@@ -170,3 +170,16 @@ export {
 
 // BibTeX 缺字段验证（v2.7.0）
 export { validateBibtex, bibValidationExtension, type BibEntry } from './bibValidation';
+
+// 学术句式补全（v2.9.0）
+export {
+  ACADEMIC_PHRASES,
+  matchPhrases,
+  CATEGORY_LABELS,
+  type AcademicPhrase,
+} from './academicPhrases';
+export { academicPhraseCompletionSource } from './academicPhraseCompletion';
+
+// 注释切换 + 选区右键菜单（v2.9.0）
+export { commentToggleKeymap } from './commentToggle';
+export { selectionContextMenu, type SelectionMenuOptions } from './selectionMenu';

@@ -12,6 +12,7 @@ import {
 import type { Extension } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { CITE_COMMANDS, collectLabels } from './outline';
+import { academicPhraseCompletionSource } from '../academicPhraseCompletion';
 import { latexBase } from './language';
 
 /** 引用条目（共享包未定义此形状，WS-A 内定义并导出） */
@@ -474,7 +475,8 @@ export function latexCompletionSource(opts: LatexCompletionOptions = {}): Comple
   return (context) =>
     citeCompletion(context, opts.getCitations)
     ?? refCompletion(context, opts.getProjectLabels)
-    ?? latexSnippetCompletions(context);
+    ?? latexSnippetCompletions(context)
+    ?? academicPhraseCompletionSource(context);
 }
 
 /** LaTeX 全量语言支持：语法、折叠、配对、高亮 + 补全 */

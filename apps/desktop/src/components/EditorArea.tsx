@@ -20,6 +20,8 @@ import {
   sentenceQualityExtension,
   envAutoCloseExtension,
   bibValidationExtension,
+  selectionContextMenu,
+  commentToggleKeymap,
   textFormatKeymap,
   type CitationCard,
 } from '@lemma/editor';
@@ -201,6 +203,8 @@ export function EditorArea() {
       sentenceQualityExtension(),
       envAutoCloseExtension(),
       textFormatKeymap(),
+      commentToggleKeymap(),
+      selectionContextMenu({ onAIPolish: (t) => void polishSelection(t) }),
       citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),

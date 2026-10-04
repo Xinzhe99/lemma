@@ -1,6 +1,6 @@
 [package]
 name = "lemma"
-version = "2.8.0"
+version = "2.9.0"
 description = "Lemma — AI-native end-to-end scholarly writing workstation"
 edition = "2021"
 
