@@ -108,6 +108,31 @@ export function resolveProvider(): ProviderChoice {
 /** 发送会话消息：组装上下文 → 流式回复（真实 provider 带工具多轮）→ 引用核查护栏 */
 let chatAbort: AbortController | null = null;
 
+/**
+ * @mention 文件上下文注入（v3.6.0 A）：
+ * 检测消息中引用的项目文件路径，把文件内容以引用块附在 user prompt 尾部。
+ * AI 看到完整文件内容而非仅文件名——与 Cursor 的 @file 引用行为一致。
+ * 每文件截断 2000 字符，最多注入 3 个文件（防上下文爆炸）。
+ */
+function enrichWithFileContext(text: string): string {
+  const ws = useWorkspaceStore.getState();
+  const referenced: string[] = [];
+  for (const filePath of Object.keys(ws.files)) {
+    if (text.includes(filePath)) referenced.push(filePath);
+  }
+  if (referenced.length === 0) return text;
+
+  const blocks: string[] = [];
+  for (const fp of referenced.slice(0, 3)) {
+    const content = ws.files[fp] ?? '';
+    if (!content.trim()) continue;
+    const truncated = content.length > 2000 ? content.slice(0, 2000) + '\n...(truncated)' : content;
+    blocks.push(`--- 文件: ${fp} ---\n${truncated}\n--- 文件结束 ---`);
+  }
+  if (blocks.length === 0) return text;
+  return `${text}\n\n[引用的文件内容]\n${blocks.join('\n\n')}`;
+}
+
 /** 中止当前会话生成（停止按钮） */
 export function abortChat(): void {
   chatAbort?.abort();
@@ -125,7 +150,12 @@ export async function sendChatMessage(text: string): Promise<void> {
   const history = (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .slice(0, -2);
+  // UI 显示原始消息（用户看到自己输入的内容）
   store().sendMessage(sessionId, text);
+
+  // v3.6.0 A：@mention 文件自动附上内容（Cursor 式上下文注入）——
+  // 检测消息中引用的项目文件，把内容附在发送给 AI 的 user prompt 中
+  const enrichedUser = enrichWithFileContext(text);
 
   const { provider, model, real } = resolveProvider();
   const abort = new AbortController();
@@ -137,7 +167,7 @@ export async function sendChatMessage(text: string): Promise<void> {
       model,
       system,
       history,
-      user: text,
+      user: enrichedUser,
       tools: real ? ENABLED_TOOLS : [],
       signal: abort.signal,
       onDelta: (delta) => store().appendDelta(sessionId, delta),

@@ -319,6 +319,7 @@ export function AgentPanel() {
   // 会话：委托 aiActions（Context Pack + 工具循环 + 引用核查护栏）
   // ------------------------------------------------------------------
 
+  // 发送消息（AI 层的 aiActions.sendChatMessage 处理 @mention 文件内容注入）
   const send = (text: string) => void sendChatMessage(text);
 
   // ------------------------------------------------------------------

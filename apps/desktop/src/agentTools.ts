@@ -264,7 +264,7 @@ export interface AgentTurnOptions extends AgentTurnEventHandlers {
 export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
   const { provider, model, system, history, user, signal } = opts;
   const tools = opts.tools ?? [];
-  const maxToolRounds = opts.maxToolRounds ?? 3;
+  const maxToolRounds = opts.maxToolRounds ?? 8;
   const executor = createAppToolExecutor(opts.approval);
 
   const messages: AgentMessage[] = [
