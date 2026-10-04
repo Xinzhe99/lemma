@@ -186,3 +186,6 @@ export { selectionContextMenu, type SelectionMenuOptions } from './selectionMenu
 
 // 剪贴板转 LaTeX 表格（v3.1.0）
 export { parseClipboardTable, toLatexTabular, clipboardToTable } from './clipboardTable';
+
+// 文档格式规范化（v3.2.0）
+export { normalizeDocument, countFormatIssues } from './normalize';

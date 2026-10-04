@@ -326,6 +326,20 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setCollabDialogOpen(true),
     },
     {
+      id: 'edit.normalizeDoc',
+      title: ctx.t('cmd.normalizeDoc'),
+      hint: ctx.t('hint.edit'),
+      run: () => {
+        const ws = useWorkspaceStore.getState();
+        const file = ws.activeTab;
+        if (!file || !file.endsWith('.tex')) return;
+        void import('@lemma/editor').then(({ normalizeDocument }) => {
+          const { result, changes } = normalizeDocument(ws.files[file] ?? '');
+          if (changes > 0) ws.updateFile(file, result);
+        });
+      },
+    },
+    {
       id: 'edit.styleReport',
       title: ctx.t('cmd.styleReport'),
       hint: ctx.t('hint.view'),
