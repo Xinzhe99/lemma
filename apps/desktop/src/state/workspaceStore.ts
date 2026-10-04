@@ -339,6 +339,24 @@ function snapshot(s: WorkspaceState): WorkspaceSnapshot {
   };
 }
 
+// 30 秒定时强制保存安全网（v2.7.0 ②）：即使无变更触发（防抖窗口外的场景），
+// dirty 状态下每 30s 强制写盘一次。崩溃时最多丢 30 秒工作，而非整个防抖周期。
+setInterval(() => {
+  const st = useWorkspaceStore.getState();
+  if (!st.dirty) return;
+  const json = JSON.stringify(snapshot(st));
+  if (json === lastPersisted) return;
+  lastPersisted = json;
+  getPlatform()
+    .fs.writeFile(WORKSPACE_FILE, json)
+    .then(() => {
+      if (lastPersisted === json) {
+        useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
+      }
+    })
+    .catch(() => undefined);
+}, 30_000);
+
 useWorkspaceStore.subscribe((s) => {
   const json = JSON.stringify(snapshot(s));
   if (json === lastPersisted) return;

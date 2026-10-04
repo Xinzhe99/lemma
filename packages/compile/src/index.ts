@@ -30,3 +30,6 @@ export type { PackagingCheckItem } from './export';
 
 // quickfix
 export { diagnosticHint } from './quickfix';
+
+// 编译错误友好化（v2.7.0）
+export { explainError, formatErrorHint, type ErrorHint } from './errorHints';

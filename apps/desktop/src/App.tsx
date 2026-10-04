@@ -44,6 +44,7 @@ import { QuickOpen, isQuickOpenTrigger } from './components/QuickOpen';
 import { ShortcutsDialog, isShortcutsTrigger } from './components/ShortcutsDialog';
 import { TemplateWizard } from './components/TemplateWizard';
 import { UpdateBar } from './components/UpdateBar';
+import { GoalToast } from './components/GoalToast';
 import { WelcomeTour } from './components/WelcomeTour';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { CitationsPanel } from './panels/CitationsPanel';
@@ -561,6 +562,7 @@ export function App() {
   return (
     <div className="app">
       <UpdateBar />
+      <GoalToast />
       <header className="topbar">
         <div className="brand">Lemma</div>
         <button

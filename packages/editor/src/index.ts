@@ -167,3 +167,6 @@ export {
   type PhraseFreqItem,
   type WordFrequencyReport,
 } from './wordFrequency';
+
+// BibTeX 缺字段验证（v2.7.0）
+export { validateBibtex, bibValidationExtension, type BibEntry } from './bibValidation';

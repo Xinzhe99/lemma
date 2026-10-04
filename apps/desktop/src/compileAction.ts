@@ -22,6 +22,7 @@ import { jumpTo, lastCursor } from './editorJump';
 import { setSynctexIndex, jumpSourceToPdf } from './synctexBridge';
 import { setCompileDiagnosticsList, lintLatex } from '@lemma/editor';
 import { ENGINE_PROBE_COMMANDS, selectEngine, engineArgs, ENGINE_INFO, type EngineKind } from './engineMatrix';
+import { formatErrorHint } from '@lemma/compile';
 
 const idleRunner = {
   async run(): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -316,6 +317,11 @@ function logDiagnostics(entry: string, diagnostics: Diagnostic[]): void {
     s.appendCompileLog(`  [${d.severity}] ${loc} ${d.message}`);
     const hint = diagnosticHint(d);
     if (hint) s.appendCompileLog(t.fixHint(hint));
+    // v2.7.0：错误级诊断追加中文友好提示
+    if (d.severity === 'error') {
+      const friendly = formatErrorHint(d.message);
+      if (friendly) s.appendCompileLog(`    ${friendly}`);
+    }
   }
 }
 

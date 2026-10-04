@@ -2728,3 +2728,14 @@ kbd {
   background: transparent;
   box-shadow: inset 0 -2px 0 0 color-mix(in srgb, var(--warn) 25%, transparent);
 }
+
+/* —— 每日目标达成通知（v2.7.0） —— */
+@keyframes sf-goal-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* —— BibTeX 缺字段提示（v2.7.0） —— */
+.sf-bib-missing-field {
+  box-shadow: inset 2px 0 0 0 var(--warn);
+}

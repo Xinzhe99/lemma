@@ -19,6 +19,7 @@ import {
   citationHoverExtension,
   sentenceQualityExtension,
   envAutoCloseExtension,
+  bibValidationExtension,
   textFormatKeymap,
   type CitationCard,
 } from '@lemma/editor';
@@ -203,6 +204,7 @@ export function EditorArea() {
       citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),
+      ...(activeTab?.toLowerCase().endsWith('.bib') ? [bibValidationExtension()] : []),
     ],
     [cursorTracker, spellcheckEnabled, activeTab, paperCard, openCitePdf],
   );
