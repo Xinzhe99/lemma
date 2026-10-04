@@ -92,6 +92,8 @@ export interface ChatPanelProps {
   insertLatexLabel?: string;
   /** 文案注入（zh 默认，宿主可给 en） */
   labels?: ChatLabels;
+  /** 当前 Provider 徽标（v3.8.0 E：显示在输入框上方） */
+  providerLabel?: string;
 }
 
 export interface MessageListProps {
@@ -125,12 +127,57 @@ function summarizeArgs(args: Record<string, unknown>, max = 120): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+const TOOL_ICONS: Record<string, string> = {
+  'library.search_fulltext': '🔍',
+  'library.search': '🔍',
+  'project.context': '📋',
+  'project.read_file': '📖',
+  'project.find_in_files': '🔎',
+  'project.list_files': '🗂️',
+  'tex.last_errors': '⚠️',
+  'tex.edit': '✏️',
+  'tex.create_file': '📄',
+  'tex.compile': '🔨',
+  'citation.validate': '✅',
+  'citation.add': '📚',
+  'snapshot.create': '📸',
+  'submission.checklist': '📋',
+  'figure.render': '🎨',
+  'memory.write': '🧠',
+  'paper.read': '📄',
+  'paper.citations': '📚',
+  'web.search_scholar': '🌐',
+};
+
+const TOOL_LABELS: Record<string, string> = {
+  'library.search_fulltext': '检索文献库',
+  'library.search': '检索文献',
+  'project.context': '获取项目上下文',
+  'project.read_file': '读取文件',
+  'project.find_in_files': '搜索项目文件',
+  'project.list_files': '查看文件列表',
+  'tex.last_errors': '查看编译错误',
+  'tex.edit': '修改稿件',
+  'tex.create_file': '创建文件',
+  'tex.compile': '编译',
+  'citation.validate': '验证引用',
+  'citation.add': '添加引用',
+  'snapshot.create': '创建快照',
+  'submission.checklist': '查询投稿要求',
+};
+
 export function ToolCallCard({ call, result }: { call: ToolCallRequest; result?: AgentMessage }) {
+  const icon = TOOL_ICONS[call.tool] ?? '🔧';
+  const label = TOOL_LABELS[call.tool] ?? call.tool;
   return (
     <div className="sf-ah-toolcard">
       <div className="sf-ah-toolcard-head">
-        <span className="sf-ah-toolcard-badge">工具</span>
-        <span>{call.tool}</span>
+        <span className="sf-ah-toolcard-badge">{icon}</span>
+        <span>{label}</span>
+        <span style={{ fontSize: 10, color: 'var(--fg-2)' }}>{call.tool}</span>
+        <span style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 'auto' }}>
+          {result ? '✓' : '⏳'}
+        </span>
       </div>
       <div className="sf-ah-toolcard-args">{summarizeArgs(call.args)}</div>
       {result ? (
@@ -290,6 +337,7 @@ export function ChatPanel(props: ChatPanelProps) {
     mentionItems,
     onInsertLatex,
     insertLatexLabel,
+    providerLabel,
     labels: labelOverrides,
   } = props;
   const labels = { ...DEFAULT_LABELS, ...labelOverrides };
@@ -459,6 +507,49 @@ export function ChatPanel(props: ChatPanelProps) {
         labels={labelOverrides}
       />
       <div className="sf-ah-input-wrap">
+        {/* v3.8.0 E：Provider 徽标 + v3.8.0 D：错误重试 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '2px 4px',
+            fontSize: 10.5,
+            color: 'var(--fg-2)',
+          }}
+        >
+          {providerLabel && (
+            <span
+              style={{
+                padding: '1px 6px',
+                borderRadius: 999,
+                border: '1px solid var(--border)',
+                background: 'var(--bg-0)',
+                fontSize: 10,
+                flex: 'none',
+              }}
+            >
+              {providerLabel}
+            </span>
+          )}
+          {session.status === 'error' && onRegenerate && (
+            <button
+              type="button"
+              onClick={() => onRegenerate()}
+              style={{
+                padding: '1px 8px',
+                borderRadius: 999,
+                border: '1px solid var(--err)',
+                background: 'transparent',
+                color: 'var(--err)',
+                fontSize: 10.5,
+                cursor: 'pointer',
+              }}
+            >
+              ↻ 重试
+            </button>
+          )}
+        </div>
         {slashOpen ? (
           <div className="sf-ah-menu sf-ah-menu--slash" role="listbox" aria-label={labels.slashMenuLabel}>
             {slashFiltered.map((it, idx) => (

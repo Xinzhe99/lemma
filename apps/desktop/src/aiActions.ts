@@ -27,7 +27,7 @@ import { buildPlanPrompt, buildStepPrompt, parsePlan, type Plan } from './planMo
 import { useAgentPlansStore } from './state/agentPlans';
 
 export const CITATION_RULE =
-  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。\n\n## 工具使用\n可用工具：library.search_fulltext（检索本地文献库）、project.context（项目上下文）、citation.validate（引用核验）、tex.last_errors（编译日志）、tex.edit（修改稿件，需用户审批 diff 后生效）、citation.add（添加参考文献，需审批）、snapshot.create（创建快照）、tex.compile（触发编译）。写级操作会弹出 diff 审批卡，用户裁决结果会回传给你；被拒绝时请勿重试同一修改。\n\n（演示模式说明：若当前未配置模型服务，会话与工作流各步骤的输出为内置示例数据——每份开头有「演示数据」声明——仅用于零配置体验流程，不代表模型真实能力；配置后即为真实生成。）';
+  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。可用 citation.validate 核验。\n\n## 工具使用\n你可以使用以下工具完成任务，按需多次调用（最多 50 轮）。\n\n### 阅读\n- project.list_files() — 列出项目全部文件（路径 + 行数）\n- project.read_file(path) — 读取指定文件全文（.tex/.bib）\n- project.find_in_files(query) — 跨全部文件搜索指定文本（citekey/label/命令）\n- project.context() — 获取 Context Pack（大纲/术语表/相关文献/记忆）\n- library.search_fulltext(query) — 全文混合检索本地文献库\n\n### 验证\n- citation.validate(keys) — 核验引用键是否在本地文献库\n- tex.last_errors() — 获取最近编译错误日志\n- submission.checklist(journal) — 查询目标期刊投稿要求\n\n### 修改（写级，需用户审批 diff）\n- tex.edit(file, ...) — 修改现有 .tex 文件（diff/content/find-replace）\n- tex.create_file(path, content) — 创建新 .tex 文件\n- citation.add(entry) — 添加参考文献到 .bib\n\n### 执行\n- snapshot.create(label) — 创建文件快照（修改前安全网）\n- tex.compile() — 触发编译并返回结果\n\n写级操作会弹出 diff 审批卡，用户裁决后结果回传给你。被拒绝时请勿重试同一修改。\n\n### 工作建议\n- 先用 project.list_files 了解项目结构，再 read_file 读相关文件\n- 用 find_in_files 查找引用位置，用 citation.validate 验证\n- 修改前先 snapshot.create，修改后 tex.compile 验证\n- 复杂任务可以拆分为多个工具调用逐步完成\n\n（演示模式说明：若当前未配置模型服务，输出为内置示例数据——每份开头有「演示数据」声明。）';
 
 export interface ProviderChoice {
   provider: ChatProvider;

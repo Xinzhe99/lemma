@@ -881,6 +881,7 @@ ${proposal.after.slice(0, 800)}`,
               if (lastUser) void sendChatMessage(lastUser.content);
             }}
             onEditResend={(text) => send(text)}
+            providerLabel={providerLabel}
             onInsertLatex={insertLatexBlock}
             insertLatexLabel={t.insertLatexBtn}
             slashItems={[
