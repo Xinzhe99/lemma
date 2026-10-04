@@ -10,6 +10,7 @@ export interface SelectionMenuOptions {
   onAIPolish?: (text: string) => void;
   onAIExpand?: (text: string) => void;
   onAICondense?: (text: string) => void;
+  onPasteTable?: () => void;
 }
 
 interface MenuItem {
@@ -42,6 +43,7 @@ export function selectionContextMenu(opts: SelectionMenuOptions = {}): Extension
       if (opts.onAIPolish) items.push({ label: '✦ AI 润色', run: (_, t) => opts.onAIPolish?.(t) });
       if (opts.onAIExpand) items.push({ label: '✦ AI 扩写', run: (_, t) => opts.onAIExpand?.(t) });
       if (opts.onAICondense) items.push({ label: '✦ AI 缩写', run: (_, t) => opts.onAICondense?.(t) });
+      if (opts.onPasteTable) items.push({ label: '📋 粘贴为表格', run: () => opts.onPasteTable?.() });
 
       // 移除旧菜单
       document.querySelectorAll('.sf-context-menu').forEach((el) => el.remove());

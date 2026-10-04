@@ -14,6 +14,7 @@ import {
   quickFixExtension,
   compileDiagnosticsExtension,
   collectLabels,
+  clipboardToTable,
   spellcheckExtension,
   thesaurusExtension,
   citationHoverExtension,
@@ -159,6 +160,23 @@ export function EditorArea() {
   // quickFixExtension 追加在末位：多个 hover 源同点堆叠时位于最内层（最贴近文本，更具体）；
   // 编译诊断扩展绑定当前文件名（activeTab 变化需整体重配）
   // 引用悬停数据源：citekey → 文献卡（标题/首作者/年份/阅读状态/有无 PDF）
+  /** 从剪贴板读取表格数据并插入为 LaTeX tabular（v3.1.0 ①） */
+  const pasteTableFromClipboard = useCallback(async (): Promise<void> => {
+    try {
+      const clipText = await navigator.clipboard.readText();
+      const latex = clipboardToTable(clipText);
+      if (!latex) return;
+      const ws = useWorkspaceStore.getState();
+      const file = ws.activeTab;
+      if (!file || !file.endsWith('.tex')) return;
+      const before = ws.files[file] ?? '';
+      const after = before.endsWith('\n') ? before + latex + '\n' : before + '\n\n' + latex + '\n';
+      ws.updateFile(file, after);
+    } catch {
+      // 剪贴板读取失败（权限/无表格数据）—— 静默
+    }
+  }, []);
+
   const paperCard = useCallback(
     (citekey: string): CitationCard | undefined => {
       const p = useLibraryStore.getState().papers.find((x) => x.citekey === citekey);
@@ -204,7 +222,12 @@ export function EditorArea() {
       envAutoCloseExtension(),
       textFormatKeymap(),
       commentToggleKeymap(),
-      selectionContextMenu({ onAIPolish: (t) => void polishSelection(t), onAIExpand: (t) => void expandSelection(t), onAICondense: (t) => void condenseSelection(t) }),
+      selectionContextMenu({
+        onAIPolish: (t) => void polishSelection(t),
+        onAIExpand: (t) => void expandSelection(t),
+        onAICondense: (t) => void condenseSelection(t),
+        onPasteTable: () => void pasteTableFromClipboard(),
+      }),
       citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),

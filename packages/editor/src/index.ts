@@ -183,3 +183,6 @@ export { academicPhraseCompletionSource } from './academicPhraseCompletion';
 // 注释切换 + 选区右键菜单（v2.9.0）
 export { commentToggleKeymap } from './commentToggle';
 export { selectionContextMenu, type SelectionMenuOptions } from './selectionMenu';
+
+// 剪贴板转 LaTeX 表格（v3.1.0）
+export { parseClipboardTable, toLatexTabular, clipboardToTable } from './clipboardTable';
