@@ -20,6 +20,8 @@ import { useProposalStore } from './state/proposalStore';
 import { bibCitekeys } from './projectDoc';
 import { resolveCompileEntry } from './compileAction';
 import { CliAgentProvider, isCliAgentAvailable } from './cliAgent';
+import { getPersona } from '@lemma/agent-hub';
+import type { AgentMessage } from '@lemma/shared';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from './agentTools';
 import { rejectPendingApproval } from './approval';
 import { buildPolishPrompt, extractLatexBody, rulePolish } from './polish';
@@ -105,8 +107,30 @@ export function resolveProvider(): ProviderChoice {
   return { provider: demo, model: 'demo', label: demo.label, real: false };
 }
 
-/** 发送会话消息：组装上下文 → 流式回复（真实 provider 带工具多轮）→ 引用核查护栏 */
+/** 发送会话消息：组装上下文 → 流式回复（真实 provider 带工具多轮）→ 引用护栏 */
 let chatAbort: AbortController | null = null;
+
+// ---------------------------------------------------------------------------
+// 长对话智能截断（v3.9.0 C）：上下文窗口有限，历史消息太多时需要裁剪。
+// 策略：保留最近 10 条完整消息 + 更早的只保留前 3 轮对话的摘要。
+// ---------------------------------------------------------------------------
+
+const MAX_FULL_HISTORY = 10;
+const MAX_CHAR_PER_MSG = 3000;
+
+export function smartTruncateHistory(messages: AgentMessage[]): AgentMessage[] {
+  if (messages.length <= MAX_FULL_HISTORY) return messages;
+  const recent = messages.slice(-MAX_FULL_HISTORY);
+  const older = messages.slice(0, -MAX_FULL_HISTORY);
+  // 更早的消息截断到前 500 字（保留开头上下文）
+  const truncatedOlder = older.map((m) => ({
+    ...m,
+    content: m.content.length > 500 ? m.content.slice(0, 500) + '\n…(已截断)' : m.content,
+    id: `${m.id}-trunc`,
+  }));
+  // 最多保留 6 条截断的旧消息
+  return [...truncatedOlder.slice(-6), ...recent];
+}
 
 /**
  * @mention 文件上下文注入（v3.6.0 A）：
@@ -146,10 +170,14 @@ export async function sendChatMessage(text: string): Promise<void> {
   const session = store().sessions.find((s) => s.id === sessionId);
   if (session?.status === 'streaming') return;
 
-  const system = (await buildContextPackMd(text)) + CITATION_RULE;
-  const history = (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .slice(0, -2);
+  // v3.9.0 A：AI 角色注入——不同角色有不同的行为方式
+  const persona = getPersona(useSettingsStore.getState().aiPersona);
+  const system = (await buildContextPackMd(text)) + CITATION_RULE + persona.systemAddendum;
+  const history = smartTruncateHistory(
+    (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(0, -2),
+  );
   // UI 显示原始消息（用户看到自己输入的内容）
   store().sendMessage(sessionId, text);
 
@@ -686,9 +714,11 @@ export async function runPlannedTask(userRequest: string): Promise<void> {
   const contextMd = await buildContextPackMd(userRequest);
   const system = contextMd + CITATION_RULE;
   // 与 sendChatMessage 一致：历史取除最近一轮外的 user/assistant 消息
-  const history = (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .slice(0, -2);
+  const history = smartTruncateHistory(
+    (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(0, -2),
+  );
   store().sendMessage(sessionId, userRequest.trim());
 
   const { provider, model } = resolveProvider();

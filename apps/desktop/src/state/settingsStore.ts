@@ -86,6 +86,9 @@ export interface SettingsState {
   /** LaTeX 引擎偏好 */
   enginePreference: LatexEnginePreference;
   setEnginePreference(pref: LatexEnginePreference): void;
+  /** AI 角色（v3.9.0） */
+  aiPersona: 'default' | 'reviewer' | 'coach' | 'translator';
+  setAiPersona(id: 'default' | 'reviewer' | 'coach' | 'translator'): void;
   /** 实时预览（Live 模式：短防抖 + 平滑 PDF 刷新） */
   livePreview: boolean;
   setLivePreview(on: boolean): void;
@@ -105,6 +108,8 @@ interface PersistedSettings {
   cliAgent: CliAgentConfig;
   autoCompile: boolean;
   enginePreference: LatexEnginePreference;
+  /** AI 角色（v3.9.0） */
+  aiPersona: 'default' | 'reviewer' | 'coach' | 'translator';
   livePreview: boolean;
 }
 
@@ -131,6 +136,9 @@ function readPersisted(): PersistedSettings | null {
           ? v.enginePreference
           : 'auto',
       livePreview: v.livePreview !== false,
+      aiPersona: v.aiPersona === 'reviewer' || v.aiPersona === 'coach' || v.aiPersona === 'translator'
+        ? v.aiPersona
+        : 'default',
     };
   } catch {
     return null;
@@ -148,6 +156,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   agentEngine: initial?.agentEngine ?? 'auto',
   autoCompile: initial?.autoCompile ?? true,
   enginePreference: initial?.enginePreference ?? 'auto',
+  aiPersona: initial?.aiPersona ?? 'default',
   livePreview: initial?.livePreview ?? true,
   cliAgent: initial?.cliAgent ?? { ...DEFAULT_CLI_AGENT },
 
@@ -198,6 +207,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ enginePreference });
   },
 
+  setAiPersona(aiPersona) {
+    set({ aiPersona });
+  },
+
   setLivePreview(livePreview) {
     set({ livePreview });
   },
@@ -224,6 +237,7 @@ useSettingsStore.subscribe((s) => {
         cliAgent: s.cliAgent,
         autoCompile: s.autoCompile,
         enginePreference: s.enginePreference,
+        aiPersona: s.aiPersona,
         livePreview: s.livePreview,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));

@@ -83,3 +83,6 @@ export { CostBadge, formatCost } from './ui/CostBadge';
 export type { CostBadgeProps } from './ui/CostBadge';
 
 export const AGENT_HUB_PACKAGE_VERSION = '1.1.0';
+
+// AI 角色（v3.9.0）
+export { AI_PERSONAS, getPersona, type AIPersona, type AIPersonaId } from './personas';

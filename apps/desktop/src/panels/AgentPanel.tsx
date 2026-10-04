@@ -254,6 +254,8 @@ export function AgentPanel() {
   const session = sessions.find((s) => s.id === activeSessionId) ?? sessions[0] ?? null;
 
   const providerLabel = useMemo(() => resolveProvider().label, [providers, activeProviderId]);
+  const aiPersona = useSettingsStore((s) => s.aiPersona);
+  const setAiPersona = useSettingsStore((s) => s.setAiPersona);
   const plans = useAgentPlansStore((s) => s.plans);
   const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
   const libraryPapers = useLibraryStore((s) => s.papers);
@@ -612,6 +614,18 @@ export function AgentPanel() {
     <div className="sf-agent">
       <div className="sf-agent-provider">
         <span className="sf-chip dim">{providerLabel}</span>
+        <select
+          className="sf-cli-input"
+          style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '2px 8px', fontSize: 11, background: 'var(--bg-0)' }}
+          value={aiPersona}
+          onChange={(e) => setAiPersona(e.target.value as typeof aiPersona)}
+          title="切换 AI 角色——不同角色有不同的行为方式"
+        >
+          <option value="default">🤖 默认助手</option>
+          <option value="reviewer">🔍 严格审稿人</option>
+          <option value="coach">👨‍🏫 写作教练</option>
+          <option value="translator">🌐 翻译专家</option>
+        </select>
         <button className="sf-link-btn" onClick={() => void previewContext()}>
           Context Pack
         </button>
