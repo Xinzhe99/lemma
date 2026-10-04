@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
+import { PomodoroTimer } from './PomodoroTimer';
 import { useUpdateStore } from '../state/updateStore';
 import { useUiStore } from '../state/uiStore';
 import { useWritingStatsStore } from '../state/writingStats';
@@ -218,6 +219,7 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
       >
         {autoCompile ? `⟳ ${L.autoCompile}` : `⏸ ${L.autoCompile}`}
       </button>
+      <PomodoroTimer />
       <span className="sf-statusbar-spacer" />
       <span className="sf-statusbar-item">
         {L.words} {words}

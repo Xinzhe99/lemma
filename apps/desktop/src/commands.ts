@@ -51,6 +51,22 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setTemplateWizardOpen(true),
     },
     {
+      id: 'library.exportBib',
+      title: ctx.t('cmd.exportBib'),
+      hint: ctx.t('hint.view'),
+      run: () => {
+        void import('./exportBib').then(({ exportLibraryBib }) => exportLibraryBib(false));
+      },
+    },
+    {
+      id: 'library.exportBibCited',
+      title: ctx.t('cmd.exportBibCited'),
+      hint: ctx.t('hint.view'),
+      run: () => {
+        void import('./exportBib').then(({ exportLibraryBib }) => exportLibraryBib(true));
+      },
+    },
+    {
       id: 'project.exportZip',
       title: ctx.t('cmd.exportZip'),
       hint: ctx.t('hint.view'),

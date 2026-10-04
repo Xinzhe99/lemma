@@ -335,6 +335,24 @@ export const LATEX_SNIPPETS: readonly LatexSnippet[] = [
   },
 ];
 
+/** 从文档中解析 \\newcommand 定义的用户自定义命令（v2.6.0 ②） */
+const NEWCOMMAND_RE = /\\newcommand\*?\s*(?:\{\\([a-zA-Z@]+)\}|\\([a-zA-Z@]+))\s*\{([^}]*)\}/g;
+
+export interface UserCommand {
+  name: string;
+  definition: string;
+}
+
+export function parseUserCommands(text: string): UserCommand[] {
+  const out: UserCommand[] = [];
+  for (const m of text.matchAll(NEWCOMMAND_RE)) {
+    const name = m[1] ?? m[2];
+    const definition = m[3] ?? '';
+    if (name) out.push({ name, definition });
+  }
+  return out;
+}
+
 /** 预构建 snippet 补全项（apply 为 snippet 展开函数） */
 const SNIPPET_COMPLETIONS: ReadonlyMap<string, Completion> = new Map(
   LATEX_SNIPPETS.map((s) => [
@@ -432,6 +450,18 @@ export function latexSnippetCompletions(context: CompletionContext): CompletionR
   for (const s of LATEX_SNIPPETS) {
     if (!fuzzyMatch(query, s.label)) continue;
     options.push(SNIPPET_COMPLETIONS.get(s.label)!);
+  }
+  // 用户自定义命令（\newcommand 定义，detail 显示展开体）（v2.6.0 ②）
+  const userCmds = parseUserCommands(context.state.doc.toString());
+  for (const uc of userCmds) {
+    if (!fuzzyMatch(query, uc.name)) continue;
+    if (options.some((o) => o.label === uc.name)) continue; // 与内置重名跳过
+    options.push({
+      label: uc.name,
+      detail: uc.definition.slice(0, 50) || '(user command)',
+      type: 'keyword',
+      boost: 10, // 用户自定义优先于内置
+    });
   }
   // 前缀命中优先，其余按字母序
   const rank = (label: string) => (label.startsWith(query) ? 0 : 1);

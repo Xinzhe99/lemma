@@ -39,3 +39,6 @@ export { annotationToCard } from './annotationToNote';
 
 export type { PdfReaderProps, PdfAskAction, PdfReaderLang } from './reader/PdfReader';
 export { PdfReader } from './reader/PdfReader';
+
+// BibTeX 导出（v2.6.0）
+export { toBibtex } from './bibtexExport';

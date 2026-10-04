@@ -205,6 +205,8 @@ const dict: MessageDict = {
   'cmd.template': { zh: '从模板新建项目（6 套起步模板，含中文 ctex）', en: 'New project from template (6 starter templates, incl. Chinese ctex)' },
   'cmd.importZip': { zh: '导入 Overleaf / LaTeX 项目 zip', en: 'Import Overleaf / LaTeX project zip' },
   'cmd.exportZip': { zh: '导出项目 zip（含 figures 图片）', en: 'Export project zip (incl. figures)' },
+  'cmd.exportBib': { zh: '导出文献库为 BibTeX (.bib)', en: 'Export library as BibTeX (.bib)' },
+  'cmd.exportBibCited': { zh: '只导出稿件引用的文献 (.bib)', en: 'Export only cited references (.bib)' },
   'cmd.importBibtex': { zh: '导入 BibTeX 到文献库', en: 'Import BibTeX into library' },
   'cmd.fetchMetadata': { zh: '按 DOI / arXiv ID 抓取文献元数据', en: 'Fetch metadata by DOI / arXiv ID' },
   'cmd.openPdf': { zh: '打开本地 PDF 阅读（标注 + 选中即问）', en: 'Open local PDF (annotations + ask-on-selection)' },
