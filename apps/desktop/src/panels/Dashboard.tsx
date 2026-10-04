@@ -21,6 +21,8 @@ import { useEffect, useMemo, type CSSProperties } from 'react';
 import { DigestPanel } from './DigestPanel';
 import { GettingStarted } from '../components/GettingStarted';
 import { ProjectStats } from '../components/ProjectStats';
+import { WritingChartPanel } from './WritingChartPanel';
+import { ReadingQueuePanel } from './ReadingQueuePanel';
 import { computeHealth, healthTone, type HealthIssueKind, type HealthTone } from '../healthScore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
@@ -488,6 +490,12 @@ export function Dashboard() {
 
       {/* —— 项目统计卡（v2.4.0 ④）：一栏看完引用/图表/字数 —— */}
       {hasProject && <ProjectStats />}
+
+      {/* —— 写作进度图（v2.8.0 ②） —— */}
+      <WritingChartPanel />
+
+      {/* —— 阅读队列（v2.8.0 ①） —— */}
+      <ReadingQueuePanel />
 
       {/* —— arXiv 晨报块（整体复用 DigestPanel：自包含，空订阅自带引导） —— */}
       <section className="sf-dash-card sf-dash-digest" style={cardStyle}>
