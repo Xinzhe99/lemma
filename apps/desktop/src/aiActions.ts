@@ -29,7 +29,7 @@ import { buildPlanPrompt, buildStepPrompt, parsePlan, type Plan } from './planMo
 import { useAgentPlansStore } from './state/agentPlans';
 
 export const CITATION_RULE =
-  '\n\n## 引用规则（必须遵守）\n引用文献时只能使用上文「相关文献」中列出的 citekey，格式 [citekey p.页码]；禁止编造未列出的引用。可用 citation.validate 核验。\n\n## 工具使用\n你可以使用以下工具完成任务，按需多次调用（最多 50 轮）。\n\n### 阅读\n- project.list_files() — 列出项目全部文件（路径 + 行数）\n- project.read_file(path) — 读取指定文件全文（.tex/.bib）\n- project.find_in_files(query) — 跨全部文件搜索指定文本（citekey/label/命令）\n- project.context() — 获取 Context Pack（大纲/术语表/相关文献/记忆）\n- library.search_fulltext(query) — 全文混合检索本地文献库\n\n### 验证\n- citation.validate(keys) — 核验引用键是否在本地文献库\n- tex.last_errors() — 获取最近编译错误日志\n- submission.checklist(journal) — 查询目标期刊投稿要求\n\n### 修改（写级，需用户审批 diff）\n- tex.edit(file, ...) — 修改现有 .tex 文件（diff/content/find-replace）\n- tex.create_file(path, content) — 创建新 .tex 文件\n- citation.add(entry) — 添加参考文献到 .bib\n\n### 执行\n- snapshot.create(label) — 创建文件快照（修改前安全网）\n- tex.compile() — 触发编译并返回结果\n\n写级操作会弹出 diff 审批卡，用户裁决后结果回传给你。被拒绝时请勿重试同一修改。\n\n### 工作建议\n- 先用 project.list_files 了解项目结构，再 read_file 读相关文件\n- 用 find_in_files 查找引用位置，用 citation.validate 验证\n- 修改前先 snapshot.create，修改后 tex.compile 验证\n- 复杂任务可以拆分为多个工具调用逐步完成\n\n（演示模式说明：若当前未配置模型服务，输出为内置示例数据——每份开头有「演示数据」声明。）';
+  '\n\n## 核心规则\n1. 引用只能用本地文献库中存在的 citekey，可用 citation.validate 核验\n2. 写级操作（tex.edit / tex.create_file / citation.add）会弹出 diff 审批卡，用户裁决后结果回传给你\n3. 你有 13 个工具和 50 轮调用额度——不要问用户"要不要我做"，直接做\n\n## 工作方式\n你是一个自主的学术写作 Agent。用户用自然语言描述需求，你自己决定用什么工具、什么顺序。例如：\n- "润色引言" → 读文件 → 找问题 → 修改 → 提交审批\n- "帮我找关于 diffusion 的相关论文" → 检索库 → 列出结果\n- "检查引用是否有问题" → 遍历 cite → 逐一验证 → 报告\n- "写一个 method section" → 读大纲 → 读文献 → 起草 → 提交审批\n\n不要一步步问用户确认。做完了再汇报结果。如果信息不够，先用工具获取，而不是反问。';
 
 export interface ProviderChoice {
   provider: ChatProvider;
@@ -167,28 +167,63 @@ export function smartTruncateHistory(messages: AgentMessage[]): AgentMessage[] {
 }
 
 /**
- * @mention 文件上下文注入（v3.6.0 A）：
- * 检测消息中引用的项目文件路径，把文件内容以引用块附在 user prompt 尾部。
- * AI 看到完整文件内容而非仅文件名——与 Cursor 的 @file 引用行为一致。
- * 每文件截断 2000 字符，最多注入 3 个文件（防上下文爆炸）。
+ * @mention 文件上下文注入（v3.6.0 A → v4.1.0 C 增强）：
+ * 1. 显式引用：消息中出现文件路径 → 附上文件内容
+ * 2. 意图检测（v4.1.0）：根据消息关键词自动注入相关上下文——
+ *    "润色/修改/改写" → 当前活跃文件内容
+ *    "引用/cite/文献" → refs.bib 的全部 citekey 列表
+ *    "编译/错误/error" → 最近编译日志尾部
  */
 function enrichWithFileContext(text: string): string {
   const ws = useWorkspaceStore.getState();
+  const blocks: string[] = [];
+
+  // 1. 显式文件引用（@mention 或文件路径）
   const referenced: string[] = [];
   for (const filePath of Object.keys(ws.files)) {
     if (text.includes(filePath)) referenced.push(filePath);
   }
-  if (referenced.length === 0) return text;
-
-  const blocks: string[] = [];
   for (const fp of referenced.slice(0, 3)) {
     const content = ws.files[fp] ?? '';
     if (!content.trim()) continue;
     const truncated = content.length > 2000 ? content.slice(0, 2000) + '\n...(truncated)' : content;
     blocks.push(`--- 文件: ${fp} ---\n${truncated}\n--- 文件结束 ---`);
   }
+
+  // 2. 意图检测（v4.1.0 C）：关键词 → 自动注入
+  const lower = text.toLowerCase();
+
+  // 润色/修改意图 → 自动附上当前活跃文件
+  if (/润色|polish|改写|rewrite|修改|revise|改进|improve/.test(lower)) {
+    const active = ws.activeTab;
+    if (active && ws.files[active] && !referenced.includes(active)) {
+      const content = ws.files[active] ?? '';
+      const truncated = content.length > 2000 ? content.slice(0, 2000) + '\n...(truncated)' : content;
+      blocks.push(`--- 当前编辑文件: ${active} ---\n${truncated}\n--- 文件结束 ---`);
+    }
+  }
+
+  // 引用/文献意图 → 附上 .bib 中的全部 citekey
+  if (/引用|cite|文献|paper|reference|bib/.test(lower)) {
+    const bibPath = Object.keys(ws.files).find((f) => f.endsWith('.bib'));
+    if (bibPath && ws.files[bibPath]) {
+      const keys = [...ws.files[bibPath]!.matchAll(/@\w+\{([^,]+),/g)].map((m) => m[1]).filter(Boolean);
+      if (keys.length > 0) {
+        blocks.push(`--- 可用引用键（${bibPath}，共 ${keys.length} 条）---\n${keys.join(', ')}\n--- 列表结束 ---`);
+      }
+    }
+  }
+
+  // 编译/错误意图 → 附上最近编译日志尾部
+  if (/编译|compile|错误|error|报错|fail/.test(lower)) {
+    const log = ws.compileLog;
+    if (log.length > 0) {
+      blocks.push(`--- 最近编译日志（尾部 15 行）---\n${log.slice(-15).join('\n')}\n--- 日志结束 ---`);
+    }
+  }
+
   if (blocks.length === 0) return text;
-  return `${text}\n\n[引用的文件内容]\n${blocks.join('\n\n')}`;
+  return `${text}\n\n[自动附加上下文]\n${blocks.join('\n\n')}`;
 }
 
 /** 中止当前会话生成（停止按钮） */

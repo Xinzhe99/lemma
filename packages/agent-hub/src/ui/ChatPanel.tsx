@@ -550,6 +550,46 @@ export function ChatPanel(props: ChatPanelProps) {
             </button>
           )}
         </div>
+        {/* v4.1.0 B：快速建议 chips——点击即填入，AI 自主决定怎么做 */}
+        {!streaming && session.messages.length <= 1 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 4,
+              flexWrap: 'wrap',
+              padding: '4px 0',
+            }}
+          >
+            {[
+              { label: '✦ 润色当前文件', text: '请读取当前 .tex 文件并全面润色：改善表达、修正语法、消除冗余，保持原意和引用不变。' },
+              { label: '📚 找相关文献', text: '请在文献库中检索与当前稿件最相关的论文，列出 citekey、标题和相关性说明。' },
+              { label: '🔍 检查引用', text: '请遍历当前稿件中的所有 \\cite 引用，逐一验证是否在本地文献库中，报告悬空引用。' },
+              { label: '✏️ 起草新章节', text: '请根据稿件大纲和文献库，起草下一个缺失的章节。要求：引用只用库内 citekey，学术语气。' },
+              { label: '🔨 编译并修错', text: '请触发编译，检查错误日志，分析并修复所有编译错误。' },
+              { label: '📄 检查投稿要求', text: '请查询当前目标期刊的投稿要求，检查稿件是否满足（页数、格式、引用规范）。' },
+            ].map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => {
+                  setText(chip.text);
+                }}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-0)',
+                  color: 'var(--fg-1)',
+                  fontSize: 11.5,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
         {slashOpen ? (
           <div className="sf-ah-menu sf-ah-menu--slash" role="listbox" aria-label={labels.slashMenuLabel}>
             {slashFiltered.map((it, idx) => (
