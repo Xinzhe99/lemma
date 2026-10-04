@@ -184,6 +184,28 @@ export function App() {
         void import('./compileAction').then(({ runCompile }) => runCompile());
         return;
       }
+      // Ctrl+W：关闭当前编辑器标签（v2.5.0）
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
+        const el = e.target instanceof HTMLElement ? e.target : null;
+        if (el?.closest('.cm-content, input, textarea')) return; // 输入区内不拦截
+        e.preventDefault();
+        const ws = useWorkspaceStore.getState();
+        if (ws.activeTab) ws.closeTab(ws.activeTab);
+        return;
+      }
+      // Ctrl+Tab / Ctrl+Shift+Tab：切换编辑器标签（v2.5.0）
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Tab') {
+        e.preventDefault();
+        const ws = useWorkspaceStore.getState();
+        const tabs = ws.openTabs;
+        if (tabs.length < 2) return;
+        const idx = tabs.indexOf(ws.activeTab ?? '');
+        const next = e.shiftKey
+          ? tabs[(idx - 1 + tabs.length) % tabs.length]!
+          : tabs[(idx + 1) % tabs.length]!;
+        ws.openFile(next);
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         useUiStore.getState().setHistoryOpen(true);

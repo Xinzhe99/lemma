@@ -20,7 +20,7 @@
  *   缺失 / 不一致类仅提示不改（诚实边界）；文献库条目（libraryStore）不受影响。
  */
 
-import { useRef, useState, type ChangeEvent, type InputHTMLAttributes } from 'react';
+import { useRef, useState, type ChangeEvent, type InputHTMLAttributes , useMemo} from 'react';
 import { BookOpen, Download, Paperclip, Trash2 } from 'lucide-react';
 import {
   applyFilter,
@@ -40,10 +40,10 @@ import {
 import type { Paper, ReadStatus } from '@lemma/shared';
 import { analyzeBib, applyBibFixes, diffLineStats, type BibIssue } from '../bibCleaner';
 import { confirmDialog } from '../dialogs';
+import { useWorkspaceStore } from '../state/workspaceStore';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useUiStore, type LibraryMode } from '../state/uiStore';
-import { useWorkspaceStore } from '../state/workspaceStore';
 import {
   collectionNamesFor,
   matchPdfToPaper,
@@ -377,6 +377,22 @@ export function LibraryPanel() {
   const c = COPY[language];
 
   const papers = useLibraryStore((s) => s.papers);
+
+  // 稿件引用计数（v2.5.0 ③：每篇文献在当前项目 .tex 中被 \cite 了几次）
+  const files = useWorkspaceStore((s) => s.files);
+  const citedCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const [path, content] of Object.entries(files)) {
+      if (!path.toLowerCase().endsWith('.tex')) continue;
+      for (const m of content.matchAll(/\cite[pt]?\*?\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/g)) {
+        for (const key of (m[1] ?? '').split(',')) {
+          const k = key.trim();
+          if (k) map.set(k, (map.get(k) ?? 0) + 1);
+        }
+      }
+    }
+    return map;
+  }, [files]);
   const pdfAttachments = useLibraryStore((s) => s.pdfAttachments);
   const indexReady = useLibraryStore((s) => s.indexReady);
   const indexMode = useLibraryStore((s) => s.indexMode);
@@ -822,6 +838,15 @@ export function LibraryPanel() {
                         aria-label={p.citekey}
                       />
                       <code className="sf-lib-key">{p.citekey}</code>
+                      {citedCountMap.get(p.citekey) !== undefined && (
+                        <span
+                          className="sf-chip dim"
+                          style={{ fontSize: 9.5, flex: 'none', padding: '0 5px' }}
+                          title={`在稿件中被引用 ${citedCountMap.get(p.citekey)} 次`}
+                        >
+                          ×{citedCountMap.get(p.citekey)}
+                        </span>
+                      )}
                       <span className="sf-lib-title" title={p.title}>
                         {p.title}
                       </span>

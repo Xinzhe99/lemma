@@ -158,3 +158,12 @@ export { sentenceQualityExtension } from './sentenceQuality';
 // LaTeX 环境自动闭合 + 文本格式化快捷键（v2.4.0）
 export { envAutoCloseExtension } from './envAutoClose';
 export { textFormatKeymap } from './textFormat';
+
+// 词汇频率分析（v2.5.0）
+export {
+  analyzeWordFrequency,
+  STOPWORDS,
+  type WordFreqItem,
+  type PhraseFreqItem,
+  type WordFrequencyReport,
+} from './wordFrequency';

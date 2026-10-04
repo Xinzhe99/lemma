@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   analyzeStyle,
   FK_TARGET_RANGE,
+  analyzeWordFrequency,
   LONG_PARAGRAPH_WORDS,
   LONG_SENTENCE_WORDS,
 } from '@lemma/editor';
@@ -118,6 +119,10 @@ export function StyleReportDialog({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const report = useMemo(() => (file ? analyzeStyle(files[file] ?? '') : null), [file, files]);
+  const wordFreq = useMemo(
+    () => (file ? analyzeWordFrequency(files[file] ?? '') : null),
+    [file, files],
+  );
 
   const fkTone: 'ok' | 'warn' | undefined =
     report == null || report.sentences === 0
@@ -266,6 +271,32 @@ export function StyleReportDialog({ onClose }: { onClose: () => void }) {
               </section>
 
               <p style={{ margin: '14px 0 0', fontSize: 11, color: 'var(--fg-2)' }}>{L.note}</p>
+
+              {wordFreq && wordFreq.topWords.length > 0 && (
+                <section style={{ marginTop: 14 }}>
+                  <strong style={{ fontSize: 12.5 }}>词汇使用（前 {wordFreq.topWords.length} 个高频词）</strong>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {wordFreq.topWords.map((w) => (
+                      <span key={w.word} className="sf-chip dim" title={w.word + ': ' + w.count + ' 次'}>
+                        {w.word} ×{w.count}
+                      </span>
+                    ))}
+                  </div>
+                  {wordFreq.repeatedPhrases.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <span style={{ fontSize: 11.5, color: 'var(--fg-2)' }}>重复短语：</span>
+                      {wordFreq.repeatedPhrases.map((ph) => (
+                        <span key={ph.phrase} className="sf-chip warn" style={{ marginLeft: 4 }} title={ph.phrase + ': ' + ph.count + ' 次'}>
+                          "{ph.phrase}" ×{ph.count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--fg-2)' }}>
+                    词汇丰富度：{wordFreq.uniqueWords} 个不同词 / 共 {wordFreq.totalWords} 词
+                  </p>
+                </section>
+              )}
             </>
           )}
         </div>
