@@ -17,6 +17,7 @@ import {
 } from '@lemma/agent-hub';
 import type { AgentMessage, ToolCallRequest, ToolDef } from '@lemma/shared';
 import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@lemma/knowledge';
+import type { GlossaryTerm } from '@lemma/shared';
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { buildMemoryInjection } from './state/agentMemory';
@@ -65,7 +66,7 @@ function outlineMd(files: Record<string, string>): string {
 // ---------------------------------------------------------------------------
 let packCacheSig = '';
 let packCacheOutline = '';
-let packCacheGlossary: string[] = [];
+let packCacheGlossary: GlossaryTerm[] = [];
 
 function filesSignature(files: Record<string, string>): string {
   const parts: string[] = [];
@@ -73,7 +74,7 @@ function filesSignature(files: Record<string, string>): string {
   return parts.join('|');
 }
 
-function outlineAndGlossary(files: Record<string, string>): { outline: string; glossary: string[] } {
+function outlineAndGlossary(files: Record<string, string>): { outline: string; glossary: GlossaryTerm[] } {
   const sig = filesSignature(files);
   if (sig !== packCacheSig) {
     packCacheSig = sig;

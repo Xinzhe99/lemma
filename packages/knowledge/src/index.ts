@@ -30,3 +30,4 @@ export type { AnnotationDraft, PaperRef } from './notes';
 
 export { extractCitations, validateCitations, sanitizeForExport, REDACTED } from './integrity';
 export type { ExtractedCitation, CitationValidation } from './integrity';
+export type { GlossaryTerm } from '@lemma/shared';

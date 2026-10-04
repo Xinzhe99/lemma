@@ -33,6 +33,7 @@ const provider: ProviderConfig = {
   baseUrl: 'https://embed.test/v1',
   apiKey: 'sk-test',
   model: 'chat-m',
+  tier: 'flagship',
 };
 
 function makePaper(overrides: Partial<Paper> = {}): Paper {
