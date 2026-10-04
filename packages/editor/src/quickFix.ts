@@ -27,28 +27,58 @@ import { checkText, type SpellIssue } from './spellcheck';
 // 忽略集合（会话级）
 // ---------------------------------------------------------------------------
 
-/** 会话级忽略词集合（模块级单例；应用重启 / 页面重载即重置，不持久化到磁盘） */
-const ignoredWords = new Set<string>();
+/**
+ * 自定义词典（v3.0.0 ③ 升级为持久化）：用户标记"此词正确"的集合。
+ * 存储于 localStorage（sf-custom-dict），跨会话保留——专业术语只需标记一次。
+ */
+const DICT_STORAGE_KEY = 'sf-custom-dict';
+
+function loadDict(): Set<string> {
+  const words = new Set<string>();
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(DICT_STORAGE_KEY);
+      if (raw) {
+        for (const w of JSON.parse(raw) as string[]) words.add(w.toLowerCase());
+      }
+    }
+  } catch { /* 坏数据静默跳过 */ }
+  return words;
+}
+
+function saveDict(words: Set<string>): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(DICT_STORAGE_KEY, JSON.stringify([...words]));
+    }
+  } catch { /* 存储失败不打断 */ }
+}
+
+const ignoredWords = loadDict();
 
 /** 归一化：小写 + 折叠连续空白（短语多空格命中与单空格视为同一词） */
 function normalizeWord(word: string): string {
   return word.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/** 把词加入会话级忽略集合（忽略后 quick-fix 浮层不再为该词弹出） */
+/** 把词加入自定义词典（持久化；忽略后 quick-fix 浮层与波浪线均不再触发） */
 export function ignoreWord(word: string): void {
   const key = normalizeWord(word);
-  if (key) ignoredWords.add(key);
+  if (key) {
+    ignoredWords.add(key);
+    saveDict(ignoredWords);
+  }
 }
 
-/** 已忽略词列表（宿主可展示「已忽略」清单；归一化形态） */
+/** 自定义词典列表（宿主可展示；归一化形态） */
 export function getIgnoredWords(): string[] {
   return [...ignoredWords];
 }
 
-/** 清空忽略集合（宿主「重置忽略」入口 / 测试隔离用） */
+/** 清空自定义词典（宿主「重置词典」入口 / 测试隔离用） */
 export function clearIgnoredWords(): void {
   ignoredWords.clear();
+  saveDict(ignoredWords);
 }
 
 /** 词是否已在本会话被忽略（大小写/多空白归一后判断） */

@@ -40,7 +40,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { bibEntries } from '../projectDoc';
 import { setJumpHandler, stashPendingJump, takePendingJump, notifyCursor } from '../editorJump';
 import { setInsertHandler } from '../editorInsert';
-import { polishSelection, quickAsk, paraphraseSelection } from '../aiActions';
+import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection } from '../aiActions';
 import { StatusBar } from './StatusBar';
 
 const TEXT_EXT = /\.(tex|bib|md|txt|sty|cls|bst)$/i;
@@ -204,7 +204,7 @@ export function EditorArea() {
       envAutoCloseExtension(),
       textFormatKeymap(),
       commentToggleKeymap(),
-      selectionContextMenu({ onAIPolish: (t) => void polishSelection(t) }),
+      selectionContextMenu({ onAIPolish: (t) => void polishSelection(t), onAIExpand: (t) => void expandSelection(t), onAICondense: (t) => void condenseSelection(t) }),
       citationHoverExtension(paperCard, openCitePdf),
       quickFixExtension(),
       compileDiagnosticsExtension(activeTab ?? ''),

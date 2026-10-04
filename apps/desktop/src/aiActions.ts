@@ -230,6 +230,98 @@ export async function polishSelection(selection: string): Promise<void> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// AI 扩写 / 缩写（v3.0.0 ①②）：选区级段落操作，与 polishSelection 同架构。
+// ---------------------------------------------------------------------------
+
+type SelectionMode = 'expand' | 'condense';
+
+const MODE_PROMPTS: Record<SelectionMode, (text: string) => string> = {
+  expand: (t) =>
+    `请对以下学术段落进行扩写：添加更多技术细节、解释关键概念、给出具体例子或数据支撑。要求：\n` +
+    `- 保持原意与学术语气\n- 扩充至原文的 1.5-2 倍长度\n- 保留所有 LaTeX 命令原样\n- 不要添加引用（由作者决定引谁）\n\n原文：\n${t}`,
+  condense: (t) =>
+    `请对以下学术段落进行缩写：删除冗余表达、合并重复观点、精简句式。要求：\n` +
+    `- 保留核心论点与关键数据\n- 压缩至原文的 50-70% 长度\n- 保留所有 LaTeX 命令与引用原样\n- 不丢失任何技术信息\n\n原文：\n${t}`,
+};
+
+const MODE_LABELS: Record<SelectionMode, string> = {
+  expand: 'AI 扩写（添加细节）',
+  condense: 'AI 缩写（精简表达）',
+};
+
+/** AI 扩写/缩写的通用实现 */
+async function transformSelection(selection: string, mode: SelectionMode): Promise<void> {
+  const t = pick(useSettingsStore.getState().language);
+  const trimmed = selection.trim();
+  const proposalStore = useProposalStore.getState();
+  if (!trimmed) {
+    proposalStore.setNote(t.emptySelection);
+    return;
+  }
+  const ws = useWorkspaceStore.getState();
+  const file = ws.activeTab;
+  if (!file || !file.endsWith('.tex') || ws.files[file] === undefined) {
+    proposalStore.setNote(t.needTex);
+    return;
+  }
+  const before = ws.files[file]!;
+  if (!before.includes(selection)) {
+    proposalStore.setNote(t.selectionMismatch);
+    return;
+  }
+
+  const { real, model, provider } = resolveProvider();
+  let result: string;
+  let via: string;
+  if (real) {
+    try {
+      const system = await buildContextPackMd(mode === 'expand' ? '学术扩写' : '学术缩写');
+      const reply = await runAgentTurn({
+        provider,
+        model,
+        system,
+        history: [],
+        user: MODE_PROMPTS[mode](selection),
+      });
+      result = extractLatexBody(reply);
+      via = model;
+    } catch (e) {
+      proposalStore.setNote(t.polishFailed(e instanceof Error ? e.message : String(e)));
+      return;
+    }
+  } else {
+    // 离线演示：简单模拟（扩写=加一句解释，缩写=取前半）
+    result = mode === 'expand'
+      ? `${trimmed} This is further supported by the observation that the proposed mechanism consistently yields measurable improvements across evaluation settings.`
+      : trimmed.split('.')[0] + '.';
+    via = '离线演示';
+  }
+
+  if (!result.trim() || result.trim() === trimmed) {
+    proposalStore.setNote(t.noChangeNeeded);
+    return;
+  }
+  proposalStore.setProposal({
+    file,
+    before,
+    after: before.replace(selection, result),
+    kind: 'polish',
+    label: MODE_LABELS[mode],
+    via,
+  });
+}
+
+/** AI 扩写选区：添加更多细节、解释、例子 */
+export async function expandSelection(selection: string): Promise<void> {
+  await transformSelection(selection, 'expand');
+}
+
+/** AI 缩写选区：精简表达，保留核心论点 */
+export async function condenseSelection(selection: string): Promise<void> {
+  await transformSelection(selection, 'condense');
+}
+
 /**
  * 选中句子改写器（v1.6.0 ②）：返回 2–4 个改写变体（由调用方渲染挑选卡）。
  * 真实模型：要求输出 N 行变体并解析；演示/离线：本地规则改写（同义词替换 +
