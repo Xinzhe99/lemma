@@ -11,6 +11,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
 import type { AgentSession } from '../store';
 import { renderMarkdown } from './markdown';
+import { followUpSuggestions } from './followUps';
 
 /** slash 命令菜单项（宿主注入：工作流启动 / 压缩等命令） */
 export interface SlashMenuItem {
@@ -152,6 +153,9 @@ const TOOL_ICONS: Record<string, string> = {
 const TOOL_LABELS: Record<string, string> = {
   'library.search_fulltext': '检索文献库',
   'library.search': '检索文献',
+  'paper.read': '阅读文献全文',
+  'paper.citations': '查询引文网络',
+  'web.search_scholar': '联网检索学术文献',
   'project.context': '获取项目上下文',
   'project.read_file': '读取文件',
   'project.find_in_files': '搜索项目文件',
@@ -418,8 +422,9 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   const selectMention = (item: MentionItem) => {
-    // 把结尾的 @query 替换为引用 label（后接空格，便于继续输入）
-    setText((t) => t.replace(/@[^\s]*$/, `${item.label} `));
+    // 保留 @ 前缀（v4.3.0）：@citekey / @文件路径 是发送端上下文注入的触发记号，
+    // 仅裸 label 不触发任何注入
+    setText((t) => t.replace(/@[^\s]*$/, `@${item.label} `));
   };
 
   const handleInputChange = (v: string) => {
@@ -604,6 +609,29 @@ export function ChatPanel(props: ChatPanelProps) {
             ))}
           </div>
         )}
+        {/* v4.3.0 D：回复后上下文建议——按最后一条回复用过的工具推断下一步 */}
+        {!streaming && session.messages.length > 1 &&
+          followUpSuggestions(session.messages).map((chip) => (
+            <button
+              key={`follow-${chip.label}`}
+              type="button"
+              onClick={() => setText(chip.text)}
+              style={{
+                display: 'inline-block',
+                margin: '2px 4px 2px 0',
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: '1px solid var(--border)',
+                background: 'var(--bg-0)',
+                color: 'var(--fg-1)',
+                fontSize: 11.5,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {chip.label}
+            </button>
+          ))}
         {slashOpen ? (
           <div className="sf-ah-menu sf-ah-menu--slash" role="listbox" aria-label={labels.slashMenuLabel}>
             {slashFiltered.map((it, idx) => (

@@ -167,6 +167,33 @@ export function smartTruncateHistory(messages: AgentMessage[]): AgentMessage[] {
 }
 
 /**
+ * @citekey 论文提及注入（v4.3.0）：检测消息中的 @citekey 记号，把论文题录+摘要
+ * 以引用块附在 user prompt 尾部——AI 直接看到论文内容，无需先调工具。
+ * 每篇摘要截断 1000 字符，最多注入 3 篇（防上下文爆炸）。
+ */
+export function enrichWithPaperMentions(
+  text: string,
+  papers: { citekey: string; title: string; year?: number; venue?: { name?: string }; abstract?: string; pdfPath?: string }[],
+): string {
+  const mentioned = new Set<string>();
+  for (const m of text.matchAll(/@([A-Za-z0-9_.:+-]+)/g)) mentioned.add(m[1]);
+  if (mentioned.size === 0) return text;
+  const blocks: string[] = [];
+  for (const paper of papers) {
+    if (!mentioned.has(paper.citekey)) continue;
+    const head = `${paper.title}（${paper.year ?? '年份未知'}${paper.venue?.name ? `，${paper.venue.name}` : ''}）`;
+    const abstract = (paper.abstract ?? '').trim();
+    const body = abstract.length > 1000 ? `${abstract.slice(0, 1000)}…(已截断)` : abstract || '（无摘要）';
+    blocks.push(
+      `--- 文献 @${paper.citekey} ---\n${head}\n摘要：${body}${paper.pdfPath ? '\n（库内已附 PDF：可用 paper.read 工具读取全文）' : ''}\n--- 文献结束 ---`,
+    );
+    if (blocks.length >= 3) break;
+  }
+  if (blocks.length === 0) return text;
+  return `${text}\n\n[提及的文献]\n${blocks.join('\n\n')}`;
+}
+
+/**
  * @mention 文件上下文注入（v3.6.0 A → v4.1.0 C 增强）：
  * 1. 显式引用：消息中出现文件路径 → 附上文件内容
  * 2. 意图检测（v4.1.0）：根据消息关键词自动注入相关上下文——
@@ -222,8 +249,10 @@ function enrichWithFileContext(text: string): string {
     }
   }
 
-  if (blocks.length === 0) return text;
-  return `${text}\n\n[自动附加上下文]\n${blocks.join('\n\n')}`;
+  const withFiles =
+    blocks.length === 0 ? text : `${text}\n\n[自动附加上下文]\n${blocks.join('\n\n')}`;
+  // v4.3.0：@citekey 论文提及（题录+摘要）最后叠加
+  return enrichWithPaperMentions(withFiles, useLibraryStore.getState().papers);
 }
 
 /** 中止当前会话生成（停止按钮） */

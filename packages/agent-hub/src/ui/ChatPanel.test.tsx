@@ -156,7 +156,7 @@ describe('@ 引用菜单', () => {
     { id: 'f1', label: 'main.tex', type: 'file' as const },
   ];
 
-  it('输入 @xxx 弹出文献/文件混合菜单，Enter 插入 label', () => {
+  it('输入 @xxx 弹出文献/文件混合菜单，Enter 插入 @label（保留触发记号）', () => {
     const { container, textarea } = setup({ mentionItems: MENTIONS });
     fireEvent.change(textarea, { target: { value: '对比 @vas' } });
     const menu = container.querySelector('.sf-ah-menu--mention');
@@ -165,13 +165,49 @@ describe('@ 引用菜单', () => {
     expect(menu!.querySelectorAll('.sf-ah-menu-item')).toHaveLength(1);
     expect(menu!.querySelector('.sf-ah-menu-badge--paper')?.textContent).toBe('文献');
     fireEvent.keyDown(textarea, { key: 'Enter' });
-    expect(textarea.value).toBe('对比 vaswani2017attention ');
+    expect(textarea.value).toBe('对比 @vaswani2017attention ');
   });
 
   it('无 mentionItems 时该特性静默关闭', () => {
     const { container, textarea } = setup();
     fireEvent.change(textarea, { target: { value: '@' } });
     expect(container.querySelector('.sf-ah-menu')).toBeNull();
+  });
+});
+
+describe('回复后上下文建议（v4.3.0）', () => {
+  it('有工具调用的回复 → 渲染对应建议 chip，点击填入输入框', () => {
+    const session = makeSession({
+      messages: [
+        { id: 'u1', role: 'user', content: '改一下引言', createdAt: 1 },
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: '已修改',
+          createdAt: 2,
+          toolCalls: [{ id: 'c1', tool: 'tex.edit', args: {} } as never],
+        },
+      ],
+    });
+    const utils = render(<ChatPanel session={session} />);
+    const chip = Array.from(utils.container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('编译验证'),
+    );
+    expect(chip).toBeTruthy();
+    fireEvent.click(chip!);
+    const textarea = utils.container.querySelector('.sf-ah-input textarea') as HTMLTextAreaElement;
+    expect(textarea.value).toContain('编译当前项目');
+  });
+
+  it('空会话（仅 1 条消息）不出建议（新会话引导 chips 负责该场景）', () => {
+    const session = makeSession({
+      messages: [{ id: 'a1', role: 'assistant', content: '你好', createdAt: 1 }],
+    });
+    const utils = render(<ChatPanel session={session} />);
+    const chips = Array.from(utils.container.querySelectorAll('button')).filter((b) =>
+      b.textContent?.includes('编译验证'),
+    );
+    expect(chips).toHaveLength(0);
   });
 });
 

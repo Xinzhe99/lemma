@@ -18,6 +18,7 @@ import {
 import type { AgentMessage, ToolCallRequest, ToolDef } from '@lemma/shared';
 import { buildContextPack, extractGlossary, renderContextPackMd, validateCitations } from '@lemma/knowledge';
 import type { GlossaryTerm } from '@lemma/shared';
+import { mergeSearchHits, searchArxiv, searchCrossref, type PaperSearchHit } from '@lemma/library';
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { buildMemoryInjection } from './state/agentMemory';
@@ -30,6 +31,8 @@ import { findVenueProfile, listVenueNames } from './submission/venues';
 /** 本形态已接通的工具名（含写级，写级走人工审批） */
 export const ENABLED_TOOL_NAMES = [
   'library.search_fulltext',
+  'paper.read',
+  'web.search_scholar',
   'project.context',
   'tex.last_errors',
   'citation.validate',
@@ -155,6 +158,114 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
           page: h.page,
           snippet: h.text.slice(0, 200),
         })),
+      };
+    },
+    // v4.3.0：AI 读文献——附件 PDF 抽全文（懒加载 reader 子入口，用到才拉 pdfjs），
+    // 无附件时题录+摘要兜底。pages 过滤 + 12k 字符截断防上下文爆炸。
+    'paper.read': async (args) => {
+      const id = String(args.id ?? '').trim();
+      const lib = useLibraryStore.getState();
+      const paper = lib.papers.find((p) => p.id === id || p.citekey === id);
+      if (!paper) {
+        return {
+          found: false,
+          reason: `文献库中未找到 id/citekey 为「${id}」的文献`,
+          candidates: lib.papers.slice(0, 10).map((p) => p.citekey),
+        };
+      }
+      const base = {
+        found: true,
+        citekey: paper.citekey,
+        title: paper.title,
+        authors: paper.authors.map((a) => [a.given, a.family].filter(Boolean).join(' ')).join(' and '),
+        year: paper.year,
+        venue: paper.venue?.name,
+        readStatus: paper.readStatus,
+        tags: paper.tags,
+      };
+      const attachment = lib.pdfAttachments[paper.id];
+      if (!attachment) {
+        return {
+          ...base,
+          source: 'abstract',
+          abstract: paper.abstract ?? '',
+          note: '该文献未附 PDF——仅返回题录与摘要；如需全文分析，请提示用户在文献库 attach PDF 后重试',
+        };
+      }
+      try {
+        const { loadPdfText } = await import('@lemma/library/reader');
+        const result = await loadPdfText(attachment);
+        const wanted = Array.isArray(args.pages)
+          ? args.pages.map((p) => Number(p)).filter((n) => Number.isInteger(n) && n >= 1)
+          : undefined;
+        const pages = wanted && wanted.length > 0
+          ? result.pages.filter((p) => wanted.includes(p.page))
+          : result.pages;
+        const LIMIT = 12000;
+        const text = pages
+          .map((p) => `【第 ${p.page} 页】\n${p.text}`)
+          .join('\n\n');
+        return {
+          ...base,
+          source: 'pdf',
+          numPages: result.numPages,
+          pages: pages.map((p) => p.page),
+          text: text.length > LIMIT ? `${text.slice(0, LIMIT)}\n…（已截断，如需其余部分请指定 pages 分段读取）` : text,
+        };
+      } catch (e) {
+        return {
+          ...base,
+          source: 'abstract',
+          abstract: paper.abstract ?? '',
+          note: `PDF 解析失败（${e instanceof Error ? e.message : String(e)}），已回退摘要`,
+        };
+      }
+    },
+    // v4.3.0：AI 自主找库外新文献——复用文献库的 arXiv + Crossref 聚合检索
+    // （桌面形态无跨域限制；两路任一失败不拖垮另一路）
+    'web.search_scholar': async (args) => {
+      const query = String(args.query ?? '').trim();
+      if (!query) return { ok: false, reason: '缺少检索词（query）' };
+      const limit = typeof args.limit === 'number' && args.limit > 0 ? Math.min(args.limit, 20) : 10;
+      const http = { fetch: (url: string, init?: RequestInit) => fetch(url, init) };
+      const [arxiv, crossref] = await Promise.allSettled([
+        searchArxiv(query, http, limit),
+        searchCrossref(query, http, limit),
+      ]);
+      const hits: PaperSearchHit[] = [
+        ...(arxiv.status === 'fulfilled' ? arxiv.value : []),
+        ...(crossref.status === 'fulfilled' ? crossref.value : []),
+      ];
+      if (hits.length === 0) {
+        const failures = [arxiv, crossref].filter((r) => r.status === 'rejected')
+          .map((r) => (r as PromiseRejectedResult).reason instanceof Error
+            ? (r as PromiseRejectedResult).reason.message
+            : String((r as PromiseRejectedResult).reason))
+          .join('；');
+        return {
+          ok: false,
+          reason: failures ? `两路检索均无结果或失败：${failures}` : '无结果，建议更换检索词',
+        };
+      }
+      return {
+        ok: true,
+        query,
+        sources: {
+          arxiv: arxiv.status === 'fulfilled' ? arxiv.value.length : -1,
+          crossref: crossref.status === 'fulfilled' ? crossref.value.length : -1,
+        },
+        hits: mergeSearchHits(hits)
+          .slice(0, limit)
+          .map((h) => ({
+            title: h.title,
+            authors: h.authors.map((a) => [a.given, a.family].filter(Boolean).join(' ')).slice(0, 4).join(', '),
+            year: h.year,
+            venue: h.venue?.name,
+            doi: h.doi,
+            arxivId: h.arxivId,
+            abstract: (h.abstract ?? '').slice(0, 400),
+          })),
+        note: '如需入库可调用 citation.add 生成 BibTeX（写级，将走人工审批）',
       };
     },
     'project.context': async () => buildContextPackMd(''),
