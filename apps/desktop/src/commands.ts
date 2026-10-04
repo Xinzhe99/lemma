@@ -326,6 +326,18 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setCollabDialogOpen(true),
     },
     {
+      id: 'library.quickCite',
+      title: ctx.t('cmd.quickCite'),
+      hint: ctx.t('hint.view'),
+      run: () => useUiStore.getState().setQuickCiteOpen(true),
+    },
+    {
+      id: 'help.panel',
+      title: ctx.t('cmd.helpPanel'),
+      hint: ctx.t('hint.view'),
+      run: () => useUiStore.getState().setHelpPanelOpen(true),
+    },
+    {
       id: 'insert.mathPalette',
       title: ctx.t('cmd.mathPalette'),
       hint: ctx.t('hint.edit'),

@@ -413,7 +413,8 @@ export function LibraryPanel() {
   const setDialog = useUiStore((s) => s.setLibraryDialog);
 
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<CitedRetrievedChunk[] | null>(null);
+
+  const [smartFilter, setSmartFilter] = useState<'all' | 'recent' | 'cited' | 'unread'>('all');  const [results, setResults] = useState<CitedRetrievedChunk[] | null>(null);
   const [searching, setSearching] = useState(false);
 
   const [discoverQuery, setDiscoverQuery] = useState('');
@@ -463,8 +464,16 @@ export function LibraryPanel() {
   const attachInputRef = useRef<HTMLInputElement | null>(null);
   const attachTargetRef = useRef<string | null>(null);
 
+  // 智能筛选（v3.4.0 B）：全部 / 最近添加 / 被稿件引用 / 未读
+  const smartFiltered = useMemo(() => {
+    if (smartFilter === 'recent') return [...papers].sort((a, b) => b.addedAt - a.addedAt).slice(0, 20);
+    if (smartFilter === 'cited') return papers.filter((p) => (citedCountMap.get(p.citekey) ?? 0) > 0);
+    if (smartFilter === 'unread') return papers.filter((p) => p.readStatus === 'to-read');
+    return papers;
+  }, [papers, smartFilter, citedCountMap]);
+
   const filtered =
-    mode === 'list' && query.trim() ? applyFilter(papers, query) : papers;
+    mode === 'list' && query.trim() ? applyFilter(smartFiltered, query) : smartFiltered;
 
   const modeLabel: Record<LibraryMode, string> = {
     list: c.modeList,
@@ -748,6 +757,18 @@ export function LibraryPanel() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {/* 智能筛选（v3.4.0 B）：最近添加 / 被引用 / 未读 */}
+            <select
+              className="sf-input"
+              style={{ width: 130, fontSize: 12 }}
+              value={smartFilter}
+              onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
+            >
+              <option value="all">{language === 'zh' ? '全部文献' : 'All papers'}</option>
+              <option value="recent">{language === 'zh' ? '最近添加' : 'Recently added'}</option>
+              <option value="cited">{language === 'zh' ? '被稿件引用' : 'Cited in ms'}</option>
+              <option value="unread">{language === 'zh' ? '未读' : 'Unread'}</option>
+            </select>
             <button className="sf-btn" onClick={() => setDialog('bibtex')}>
               BibTeX
             </button>

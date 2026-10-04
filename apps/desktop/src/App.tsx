@@ -94,6 +94,9 @@ export function App() {
   const styleReportOpen = useUiStore((s) => s.styleReportOpen);
   const collabDialogOpen = useUiStore((s) => s.collabDialogOpen);
   const citeSuggestOpen = useUiStore((s) => s.citeSuggestOpen);
+  const quickCiteOpen = useUiStore((s) => s.quickCiteOpen);
+  const helpPanelOpen = useUiStore((s) => s.helpPanelOpen);
+  const mathPaletteOpen = useUiStore((s) => s.mathPaletteOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -682,6 +685,9 @@ export function App() {
       {styleReportOpen && <LazyFeatureDialog file="StyleReportDialog" onClose={() => useUiStore.getState().setStyleReportOpen(false)} />}
       {collabDialogOpen && <LazyFeatureDialog file="CollabMergeDialog" onClose={() => useUiStore.getState().setCollabDialogOpen(false)} />}
       {citeSuggestOpen && <LazyFeatureDialog file="CitationSuggest" onClose={() => useUiStore.getState().setCiteSuggestOpen(false)} />}
+      {quickCiteOpen && <LazyFeatureDialog file="QuickCiteDialog" onClose={() => useUiStore.getState().setQuickCiteOpen(false)} />}
+      {helpPanelOpen && <LazyFeatureDialog file="HelpPanelDialog" onClose={() => useUiStore.getState().setHelpPanelOpen(false)} />}
+      {mathPaletteOpen && <LazyFeatureDialog file="MathPaletteDialog" onClose={() => useUiStore.getState().setMathPaletteOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -716,11 +722,14 @@ function LazyFeatureDialog({
     | 'PromptLibraryDialog'
     | 'StyleReportDialog'
     | 'CollabMergeDialog'
-    | 'CitationSuggest';
+    | 'CitationSuggest'
+    | 'MathPaletteDialog'
+    | 'QuickCiteDialog'
+    | 'HelpPanelDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,StyleReportDialog,CollabMergeDialog,CitationSuggest,MathPaletteDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,StyleReportDialog,CollabMergeDialog,CitationSuggest,MathPaletteDialog,QuickCiteDialog,HelpPanelDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);
