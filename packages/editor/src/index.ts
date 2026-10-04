@@ -25,6 +25,8 @@ export {
   renderMathPreview,
   clearMathPreviewCache,
   createMathPreviewElement,
+  warmMathPreview,
+  isMathPreviewReady,
   type MathSpan,
   type MathPreviewResult,
   type RenderToStringFn,

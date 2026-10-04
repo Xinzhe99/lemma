@@ -9,7 +9,7 @@
  * WF-3 A5：面板文案 zh/en 自包含字典（不碰全局 i18n.ts）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUILTIN_WORKFLOWS,
   type ChatLabels,
@@ -323,7 +323,24 @@ export function AgentPanel() {
   // ------------------------------------------------------------------
 
   // 发送消息（AI 层的 aiActions.sendChatMessage 处理 @mention 文件内容注入）
-  const send = (text: string) => void sendChatMessage(text);
+  // 稳定回调（v4.2.0）：ChatPanel 内消息行已 memo 化，回调身份恒定才能让
+  // 流式 token 只重渲最后一条消息
+  const send = useCallback((text: string) => void sendChatMessage(text), []);
+
+  // getState() 内取值 → 零依赖：papers/activeSession 变化不产生新回调身份
+  const handleCitekeyClick = useCallback((key: string) => {
+    if (useLibraryStore.getState().papers.some((p) => p.citekey === key)) {
+      useUiStore.getState().setSidebarTab('library');
+    }
+  }, []);
+
+  const handleRegenerate = useCallback(() => {
+    const st = useAgentHubStore.getState();
+    const active = st.sessions.find((s) => s.id === st.activeSessionId);
+    if (!active) return;
+    const lastUser = [...active.messages].reverse().find((m) => m.role === 'user');
+    if (lastUser) void sendChatMessage(lastUser.content);
+  }, []);
 
   // ------------------------------------------------------------------
   // AI 改稿：润色 / 起草 → diff 提案 → 审批
@@ -338,31 +355,38 @@ export function AgentPanel() {
    * 聊天 latex 围栏「插入到稿件」（v1.2.0 ②）：
    * 插入点 = 编辑器光标所在行之前（光标桥在当前 .tex 内）；光标不可用时
    * 回落到当前打开的 .tex 文件末尾。产物走 diff 审批卡（写级操作门控不变）。
+   * useCallback（v4.2.0）：作为 ChatPanel memo 消息行的 prop，身份需稳定
+   * （t 之外无外部值依赖；t 仅语言切换时变化）。
    */
-  const insertLatexBlock = (code: string) => {
-    const ws = useWorkspaceStore.getState();
-    const cur = lastCursor();
-    const file =
-      cur.file && cur.file.endsWith('.tex') && ws.files[cur.file] != null ? cur.file : activeTexFile();
-    if (!file) {
-      setNote(t.noTex);
-      return;
-    }
-    const before = ws.files[file] ?? '';
-    const lines = before.split('\n');
-    const atLine =
-      cur.file === file && cur.line >= 1 && cur.line <= lines.length ? cur.line - 1 : lines.length;
-    const blockLines = code.replace(/\r\n?/g, '\n').trim().split('\n');
-    const after = [...lines.slice(0, atLine), ...blockLines, ...lines.slice(atLine)].join('\n');
-    setProposal({
-      file,
-      before,
-      after,
-      kind: 'draft-section',
-      label: t.insertProposalLabel,
-      via: resolveProvider().model || 'chat',
-    });
-  };
+  const insertLatexBlock = useCallback(
+    (code: string) => {
+      const ws = useWorkspaceStore.getState();
+      const cur = lastCursor();
+      const active = useWorkspaceStore.getState().activeTab;
+      const fallback = active && active.endsWith('.tex') ? active : null;
+      const file =
+        cur.file && cur.file.endsWith('.tex') && ws.files[cur.file] != null ? cur.file : fallback;
+      if (!file) {
+        setNote(t.noTex);
+        return;
+      }
+      const before = ws.files[file] ?? '';
+      const lines = before.split('\n');
+      const atLine =
+        cur.file === file && cur.line >= 1 && cur.line <= lines.length ? cur.line - 1 : lines.length;
+      const blockLines = code.replace(/\r\n?/g, '\n').trim().split('\n');
+      const after = [...lines.slice(0, atLine), ...blockLines, ...lines.slice(atLine)].join('\n');
+      setProposal({
+        file,
+        before,
+        after,
+        kind: 'draft-section',
+        label: t.insertProposalLabel,
+        via: resolveProvider().model || 'chat',
+      });
+    },
+    [t],
+  );
 
   const polishCurrentFile = async () => {
     const file = activeTexFile();
@@ -877,9 +901,7 @@ ${proposal.after.slice(0, 800)}`,
             onSend={(text) => send(text)}
             onStop={() => abortChat()}
             placeholder={t.chatPlaceholder}
-            onCitekeyClick={(key) => {
-              if (libraryPapers.some((p) => p.citekey === key)) useUiStore.getState().setSidebarTab('library');
-            }}
+            onCitekeyClick={handleCitekeyClick}
             onSlashWorkflow={(id) => {
               if (id === '__clear') {
                 if (session) useAgentHubStore.setState({
@@ -890,12 +912,8 @@ ${proposal.after.slice(0, 800)}`,
               }
               useUiStore.getState().launchWorkflow(id);
             }}
-            onRegenerate={() => {
-              if (!session) return;
-              const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
-              if (lastUser) void sendChatMessage(lastUser.content);
-            }}
-            onEditResend={(text) => send(text)}
+            onRegenerate={handleRegenerate}
+            onEditResend={send}
             providerLabel={providerLabel}
             onInsertLatex={insertLatexBlock}
             insertLatexLabel={t.insertLatexBtn}

@@ -13,6 +13,15 @@ import { PatchView } from './DiffApprovalCard';
 import { WorkflowRunView } from './WorkflowRunView';
 import type { AgentSession } from '../store';
 
+/** memo 包装组件（v4.2.0 渲染优化引入）就地展开其内层函数组件 */
+function isMemoType(type: unknown): type is { type: unknown } {
+  return (
+    typeof type === 'object' &&
+    type !== null &&
+    (type as { $$typeof?: symbol }).$$typeof === Symbol.for('react.memo')
+  );
+}
+
 /** 深度遍历元素树（函数组件就地调用以展开其渲染结果；仅适用于无 hooks 的展示组件） */
 function collect(node: ReactNode): ReactElement[] {
   const out: ReactElement[] = [];
@@ -23,6 +32,10 @@ function collect(node: ReactNode): ReactElement[] {
       const el = n as unknown as { type: unknown; props: Record<string, unknown> };
       if (typeof el.type === 'function') {
         walk((el.type as (p: unknown) => ReactNode)(el.props));
+        return;
+      }
+      if (isMemoType(el.type)) {
+        walk((el.type.type as (p: unknown) => ReactNode)(el.props));
         return;
       }
       out.push(n as ReactElement);
@@ -42,6 +55,8 @@ function textOf(node: ReactNode): string {
       const el = n as unknown as { type: unknown; props: Record<string, unknown> };
       if (typeof el.type === 'function') {
         walk((el.type as (p: unknown) => ReactNode)(el.props));
+      } else if (isMemoType(el.type)) {
+        walk((el.type.type as (p: unknown) => ReactNode)(el.props));
       } else {
         walk(el.props.children as ReactNode);
       }

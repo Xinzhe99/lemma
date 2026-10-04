@@ -6,7 +6,33 @@
  * 即「未被转义的 % 起、至行尾」）内的字符不参与定界符识别。
  */
 
-import { renderToString as katexRenderToString } from 'katex';
+// KaTeX 按需加载（v4.2.0）：渲染引擎约 300KB，仅 hover 预览需要——不进启动
+// chunk。宿主启动空闲时调 warmMathPreview() 预热；未就绪期间渲染返回 pending
+// （不缓存），调用方展示原始 TeX + 加载提示，下一次 hover 即为完整渲染。
+type KatexRenderToString = (tex: string, options: {
+  displayMode: boolean;
+  throwOnError: boolean;
+  strict: boolean;
+}) => string;
+
+let katexRender: KatexRenderToString | null = null;
+let katexWarm: Promise<void> | null = null;
+
+/** 预加载 KaTeX（幂等；App 启动空闲时调用） */
+export function warmMathPreview(): Promise<void> {
+  if (!katexWarm) {
+    katexWarm = import('katex').then((m) => {
+      katexRender = m.renderToString as unknown as KatexRenderToString;
+    });
+  }
+  return katexWarm;
+}
+
+/** 测试辅助：KaTeX 是否已加载 */
+export function isMathPreviewReady(): boolean {
+  return katexRender !== null;
+}
+
 import { stripLineComment } from './outline';
 
 /** 一段数学公式在源码中的位置与内容（tex 为定界符内原文，已 trim；from/to 含定界符本身） */
@@ -122,17 +148,21 @@ export function extractMathSpans(doc: string): MathSpan[] {
 /** 可注入的 renderToString（测试用 spy 断言缓存命中时不重复调用） */
 export type RenderToStringFn = (tex: string, options: { displayMode: boolean }) => string;
 
-const defaultRenderToString: RenderToStringFn = (tex, options) =>
-  katexRenderToString(tex, {
+const defaultRenderToString: RenderToStringFn = (tex, options) => {
+  if (!katexRender) throw new Error('KaTeX 尚未加载（应先经 warmMathPreview 预热或处于 pending 分支）');
+  return katexRender(tex, {
     displayMode: options.displayMode,
     throwOnError: true,
     strict: false, // 中文等非 ASCII 内容不告警
   });
+};
 
 /** 渲染结果：成功时 html 为 KaTeX 输出；失败时 error 为原始错误信息（html 为空） */
 export interface MathPreviewResult {
   html: string;
   error: string | null;
+  /** KaTeX 尚在加载：html/error 均空，结果未入缓存（就绪后再次调用即真渲染） */
+  pending?: boolean;
 }
 
 const previewCache = new Map<string, MathPreviewResult>();
@@ -155,6 +185,10 @@ export function renderMathPreview(
   const key = `${tex}|${display ? '1' : '0'}`;
   const cached = previewCache.get(key);
   if (cached) return cached;
+  // KaTeX 未就绪且未注入渲染器：pending 不缓存，就绪后重新调用即真渲染
+  if (renderToString === defaultRenderToString && !katexRender) {
+    return { html: '', error: null, pending: true };
+  }
   let result: MathPreviewResult;
   try {
     result = { html: renderToString(tex, { displayMode: display }), error: null };
@@ -176,7 +210,18 @@ export function createMathPreviewElement(
 ): HTMLElement {
   const dom = document.createElement('div');
   dom.className = 'sf-math-preview';
-  const { html, error } = renderMathPreview(tex, display, renderToString);
+  const { html, error, pending } = renderMathPreview(tex, display, renderToString);
+  if (pending) {
+    // 引擎加载窗口期：展示原始 TeX + 提示（下一次 hover 即完整渲染）
+    const raw = document.createElement('code');
+    raw.className = 'sf-math-preview-raw';
+    raw.textContent = tex;
+    const msg = document.createElement('div');
+    msg.className = 'sf-math-preview-error';
+    msg.textContent = '公式渲染引擎加载中…';
+    dom.append(raw, msg);
+    return dom;
+  }
   if (error === null) {
     dom.innerHTML = html;
   } else {

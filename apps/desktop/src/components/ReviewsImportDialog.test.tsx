@@ -56,7 +56,7 @@ const { loadPdfText } = vi.hoisted(() => ({
     },
   ),
 }));
-vi.mock('@lemma/library', () => ({ loadPdfText }));
+vi.mock('@lemma/library/reader', () => ({ loadPdfText }));
 
 import { ReviewsImportDialog } from './ReviewsImportDialog';
 import { useSettingsStore } from '../state/settingsStore';

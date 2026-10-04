@@ -56,16 +56,50 @@ function outlineMd(files: Record<string, string>): string {
     .join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// Context Pack 缓存（v4.2.0）：outline + glossary 只依赖文件内容，与 query 无关。
+// 每条 chat 消息 / 每次 AI 操作都重建一遍是大开销（全文件解析 ×2）；这里按
+// 「文件路径 + 内容长度」做廉价签名 memo——文件未变时直接复用，变了才重算。
+// 签名含 length：任何编辑几乎必然改变长度，即时失效；同长度异内容的最坏情形
+// 只是 glossary 落后一拍，对 AI 上下文无害。
+// ---------------------------------------------------------------------------
+let packCacheSig = '';
+let packCacheOutline = '';
+let packCacheGlossary: string[] = [];
+
+function filesSignature(files: Record<string, string>): string {
+  const parts: string[] = [];
+  for (const path of Object.keys(files).sort()) parts.push(`${path}:${files[path].length}`);
+  return parts.join('|');
+}
+
+function outlineAndGlossary(files: Record<string, string>): { outline: string; glossary: string[] } {
+  const sig = filesSignature(files);
+  if (sig !== packCacheSig) {
+    packCacheSig = sig;
+    packCacheOutline = outlineMd(files);
+    packCacheGlossary = extractGlossary(combinedDoc(files));
+  }
+  return { outline: packCacheOutline, glossary: packCacheGlossary };
+}
+
+/** 测试辅助：清空 outline/glossary memo */
+export function resetContextPackCache(): void {
+  packCacheSig = '';
+  packCacheOutline = '';
+  packCacheGlossary = [];
+}
+
 /** 组装 Context Pack 并渲染为 prompt-ready markdown（chat / 工具 / 工作流共用） */
 export async function buildContextPackMd(query: string): Promise<string> {
-  const files = useWorkspaceStore.getState().files;
+  const { outline, glossary } = outlineAndGlossary(useWorkspaceStore.getState().files);
   const search = useLibraryStore.getState().searchKnowledge;
   const chunks = await search(query, 5);
   // Agent 记忆注入点：审批历史学到的偏好 + 近期采纳统计（agentMemory store；空记忆时为 ''）
   const memoryInjection = buildMemoryInjection();
   const pack = buildContextPack({
-    outline: outlineMd(files),
-    glossary: extractGlossary(combinedDoc(files)),
+    outline,
+    glossary,
     relatedChunks: chunks,
     projectMemory: [
       '演示项目约定：所有 AI 修改须经 diff 审批后落盘，引用必须本地可验证。',

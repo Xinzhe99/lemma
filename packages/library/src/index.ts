@@ -29,8 +29,11 @@ export { escapeBibtex, paperToBibtex, papersToBibtex, annotationsToMarkdown } fr
 
 export type { PdfPageText } from './pdf/extract';
 export { extractSections } from './pdf/extract';
+// pdfjs 运行时拆分（v4.2.0）：loadPdfText / configurePdfWorker / PdfReader 迁往
+// './reader' 子入口，barrel 只保留类型与 worker URL 注入（纯模块）——
+// 任何 barrel 导入都不再把 pdfjs-dist 拖进启动 chunk。
 export type { PdfTextResult, PdfTextPage } from './pdf/pdfjs';
-export { configurePdfWorker, loadPdfText } from './pdf/pdfjs';
+export { setPdfWorkerUrl, getPdfWorkerUrl } from './pdf/workerRef';
 
 export type { Bm25Doc, Bm25Scored, Bm25Index } from './bm25';
 export { tokenize, buildBm25 } from './bm25';
@@ -38,7 +41,6 @@ export { tokenize, buildBm25 } from './bm25';
 export { annotationToCard } from './annotationToNote';
 
 export type { PdfReaderProps, PdfAskAction, PdfReaderLang } from './reader/PdfReader';
-export { PdfReader } from './reader/PdfReader';
 
 // BibTeX 导出（v2.6.0）
 export { toBibtex } from './bibtexExport';

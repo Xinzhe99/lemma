@@ -2,12 +2,14 @@
 /**
  * mathPreview 测试：定界符扫描（四类定界符 / 转义 / 注释 / 跨行）+ KaTeX 渲染缓存。
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearMathPreviewCache,
   createMathPreviewElement,
   extractMathSpans,
+  isMathPreviewReady,
   renderMathPreview,
+  warmMathPreview,
   type MathSpan,
 } from './mathPreview';
 
@@ -141,7 +143,34 @@ describe('extractMathSpans', () => {
   });
 });
 
+describe('KaTeX 按需加载（pending 窗口，须在预热前运行）', () => {
+  it('未预热时默认渲染器返回 pending 且 html/error 为空', () => {
+    const r = renderMathPreview('x+y', false);
+    expect(r.pending).toBe(true);
+    expect(r.html).toBe('');
+    expect(r.error).toBeNull();
+  });
+
+  it('pending 浮层展示原始 TeX + 加载提示', () => {
+    const dom = createMathPreviewElement('x+y', false);
+    expect(dom.querySelector('code')?.textContent).toBe('x+y');
+    expect(dom.textContent).toContain('加载中');
+  });
+
+  it('注入渲染器不受预热状态影响（仍同步渲染）', () => {
+    const r = renderMathPreview('x+y', false, (tex) => `<k>${tex}</k>`);
+    expect(r.pending).toBeUndefined();
+    expect(r.html).toBe('<k>x+y</k>');
+  });
+});
+
 describe('renderMathPreview（KaTeX 渲染 + 缓存）', () => {
+  // v4.2.0：KaTeX 改为按需加载——真实渲染断言前先预热（注入 spy 的用例不受影响）
+  beforeAll(async () => {
+    await warmMathPreview();
+    expect(isMathPreviewReady()).toBe(true);
+  });
+
   beforeEach(() => {
     clearMathPreviewCache();
   });
@@ -186,6 +215,12 @@ describe('renderMathPreview（KaTeX 渲染 + 缓存）', () => {
 
     const bad = renderMathPreview('\\thisIsNotACommand', false);
     expect(bad.error).not.toBeNull();
+  });
+
+  it('pending 期间的结果未污染缓存：预热后同公式真渲染', () => {
+    const ok = renderMathPreview('x+y', false);
+    expect(ok.pending).toBeUndefined();
+    expect(ok.html).toContain('katex');
   });
 
   it('clearMathPreviewCache 后重新渲染', () => {

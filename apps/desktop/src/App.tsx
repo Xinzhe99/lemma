@@ -3,7 +3,7 @@
  * 六条工作流已集成：WS-A 编辑器、WS-B 编译、WS-C 文献库与阅读、WS-D Agent 中枢、WS-E 知识底座、WS-F 应用设施。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BookOpen,
   Brain,
@@ -46,15 +46,27 @@ import { TemplateWizard } from './components/TemplateWizard';
 import { UpdateBar } from './components/UpdateBar';
 import { GoalToast } from './components/GoalToast';
 import { WelcomeTour } from './components/WelcomeTour';
-import { OutlinePanel } from './panels/OutlinePanel';
-import { CitationsPanel } from './panels/CitationsPanel';
-import { GlossaryPanel } from './panels/GlossaryPanel';
-import { LibraryPanel } from './panels/LibraryPanel';
 import { AgentPanel } from './panels/AgentPanel';
 import { hydrateAgentSessions, attachAgentSessionPersist } from './state/agentSessionPersist';
 import { attachAutoCompile } from './compileAction';
 import { parseProjectZip } from '@lemma/compile';
-import { PdfReader } from '@lemma/library';
+
+// PDF 阅读器分包（v4.2.0）：pdfjs-dist 体积大且非启动必需——默认不加载，
+// 打开 PDF 时才拉取 reader 子入口；主线程空闲后在后台预热分包，首次打开近乎即时。
+const LazyPdfReader = lazy(async () => {
+  const mod = await import('@lemma/library/reader');
+  return { default: mod.PdfReader };
+});
+
+function warmPdfChunk(): void {
+  const load = () => {
+    void import('@lemma/library/reader');
+    // editor 包已在主 bundle（AgentPanel 等），此处只触发 katex 子 chunk 预热
+    void import('@lemma/editor').then(({ warmMathPreview }) => warmMathPreview());
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(load, { timeout: 8000 });
+  else setTimeout(load, 3000);
+}
 import { jumpPdfToSource, onPdfGoto } from './synctexBridge'; // WS-2 编译同步闭环（App 窄 carve-out）
 
 const TOAST_MS = 2400;
@@ -132,6 +144,8 @@ export function App() {
     const detach = attachAgentSessionPersist();
     // 保存后自动编译（桌面真实引擎；设置 autoCompile 可关）
     const detachAutoCompile = attachAutoCompile();
+    // 空闲预热：PDF 阅读器 + KaTeX 公式引擎分包（见 warmPdfChunk）
+    warmPdfChunk();
     return () => {
       detach();
       detachAutoCompile();
@@ -314,9 +328,9 @@ export function App() {
         ) : sidebarTab === 'files' ? (
           <FileTree />
         ) : sidebarTab === 'outline' ? (
-          <OutlinePanel />
+          <LazyPanel file="OutlinePanel" labelKey="nav.outline" />
         ) : sidebarTab === 'citations' ? (
-          <CitationsPanel />
+          <LazyPanel file="CitationsPanel" labelKey="nav.citations" />
         ) : sidebarTab === 'knowledge' ? (
           <>
             <div className="sf-subtabs" role="tablist">
@@ -346,7 +360,7 @@ export function App() {
               </button>
             </div>
             {knowledgeTab === 'glossary' ? (
-              <GlossaryPanel />
+              <LazyPanel file="GlossaryPanel" labelKey="knowledge.glossary" />
             ) : knowledgeTab === 'memory' ? (
               <LazyPanel file="MemoryPanel" labelKey="knowledge.memory" />
             ) : (
@@ -358,7 +372,7 @@ export function App() {
         ) : sidebarTab === 'comments' ? (
           <LazyPanel file="CommentsPanel" labelKey="nav.comments" />
         ) : (
-          <LibraryPanel />
+          <LazyPanel file="LibraryPanel" labelKey="nav.library" />
         )}
       </div>
     </aside>
@@ -473,7 +487,8 @@ export function App() {
         ref={splitRef}
       >
         {pdfView && (centerView === 'pdf' || centerView === 'split') ? (
-          <PdfReader
+          <Suspense fallback={<div className="placeholder sf-panel-loading">{t('panel.loading')}</div>}>
+            <LazyPdfReader
             key={pdfView.name}
             data={pdfView.data}
             language={language}
@@ -502,6 +517,7 @@ export function App() {
             gotoPage={pdfGotoPage}
             gotoTick={pdfGotoTick || undefined}
           />
+          </Suspense>
         ) : null}
         {centerView === 'split' && pdfView && (
           <div

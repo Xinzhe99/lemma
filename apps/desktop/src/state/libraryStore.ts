@@ -116,6 +116,12 @@ function chooseEmbedder(): void {
   const cfg = s.providers.find((p) => p.id === s.activeProviderId);
   const model = s.embeddingModel.trim();
   if (cfg && cfg.baseUrl.trim() && cfg.apiKey.trim() && model) {
+    const sig = `${cfg.baseUrl.trim()}|${model}`;
+    if (sig !== apiEmbedCacheSig) {
+      // 服务或模型变更：旧向量与新向量不可比，缓存整体失效
+      apiEmbedCacheSig = sig;
+      apiEmbedCache.clear();
+    }
     embedder = new OpenAICompatEmbeddings({
       url: cfg.baseUrl.trim(),
       apiKey: cfg.apiKey.trim(),
@@ -144,6 +150,80 @@ async function embedWithFallback(texts: string[]): Promise<number[][]> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 嵌入缓存 + 重建合并（v4.2.0 性能优化）：
+//  - API 嵌入对同文本确定性输出，按「服务+模型+文本」缓存向量——增删单篇时
+//    全量 rebuild 只对新增文本调用嵌入服务，延迟与费用随库增长大幅下降；
+//    本地 TF-IDF 嵌入的 idf 随语料 fit 变化，不缓存以保精确（本就很快）；
+//  - 批量导入会连续触发 N 次重建，250ms 窗口内合并为一次。
+// ---------------------------------------------------------------------------
+const apiEmbedCache = new Map<string, number[]>();
+let apiEmbedCacheSig = '';
+const API_EMBED_CACHE_MAX = 4096;
+
+function embedCacheKey(text: string): string {
+  // 仅作缓存键（无安全需求）：长度 + FNV 变体哈希足够区分
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return `${text.length}:${h}`;
+}
+
+/** 逐文本查缓存，缺失的按批调用嵌入服务后回填（api 模式才启用缓存） */
+async function embedAllCached(texts: string[]): Promise<number[][]> {
+  const cacheable = embedderMode === 'api';
+  const out: (number[] | undefined)[] = texts.map((t) =>
+    cacheable ? apiEmbedCache.get(embedCacheKey(t)) : undefined,
+  );
+  const missing: number[] = [];
+  for (let i = 0; i < texts.length; i++) if (out[i] === undefined) missing.push(i);
+  for (let i = 0; i < missing.length; i += EMBED_BATCH) {
+    const idxBatch = missing.slice(i, i + EMBED_BATCH);
+    const vectors = await embedWithFallback(idxBatch.map((j) => texts[j]));
+    idxBatch.forEach((j, k) => (out[j] = vectors[k]));
+  }
+  // 中途回退到哈希（embedderMode 已非 api）则本轮全部不缓存，避免与语义向量混存
+  if (cacheable && embedderMode === 'api') {
+    for (let i = 0; i < texts.length; i++) {
+      const key = embedCacheKey(texts[i]);
+      if (!apiEmbedCache.has(key)) {
+        if (apiEmbedCache.size >= API_EMBED_CACHE_MAX) {
+          // Map 保持插入序：删最旧条目做 FIFO 淘汰
+          apiEmbedCache.delete(apiEmbedCache.keys().next().value as string);
+        }
+        apiEmbedCache.set(key, out[i] as number[]);
+      }
+    }
+  }
+  return out as number[][];
+}
+
+let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+let rebuildPending: Paper[] | null = null;
+
+/** 合并短时间内的多次重建请求（批量导入逐篇触发 → 只全量重建一次） */
+function scheduleRebuild(papers: Paper[]): void {
+  rebuildPending = papers;
+  if (rebuildTimer !== null) return;
+  rebuildTimer = setTimeout(() => {
+    rebuildTimer = null;
+    const pending = rebuildPending;
+    rebuildPending = null;
+    if (!pending) return;
+    void rebuildIndex(pending).then(() =>
+      useLibraryStore.setState({ indexReady: true, indexMode: embedderMode }),
+    );
+  }, 250);
+}
+
+/** 测试辅助：清空嵌入缓存与待合并重建 */
+export function resetLibraryCaches(): void {
+  apiEmbedCache.clear();
+  apiEmbedCacheSig = '';
+  if (rebuildTimer !== null) clearTimeout(rebuildTimer);
+  rebuildTimer = null;
+  rebuildPending = null;
+}
+
 /** API 单次请求的嵌入批大小（防超长请求；本地 provider 无所谓） */
 const EMBED_BATCH = 64;
 
@@ -158,11 +238,7 @@ async function rebuildIndex(papers: Paper[]): Promise<number> {
   let count = 0;
   if (allChunks.length > 0) {
     embedder.fit?.(allChunks.map((c) => c.text));
-    const vectors: number[][] = [];
-    for (let i = 0; i < allChunks.length; i += EMBED_BATCH) {
-      const batch = allChunks.slice(i, i + EMBED_BATCH).map((c) => c.text);
-      vectors.push(...(await embedWithFallback(batch)));
-    }
+    const vectors = await embedAllCached(allChunks.map((c) => c.text));
     next.addChunks(allChunks, vectors);
     count = allChunks.length;
   }
@@ -266,7 +342,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
     if (added.length > 0) {
       set({ papers: [...added, ...get().papers] });
-      void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
+      scheduleRebuild(get().papers);
     }
     return { added: added.length, errors: parsed.errors };
   },
@@ -290,7 +366,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     };
     paper.citekey = disambiguateCitekey(generateCitekey(paper), existing);
     set({ papers: [paper, ...get().papers] });
-    void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
+    scheduleRebuild(get().papers);
     return paper;
   },
 
@@ -312,7 +388,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         addedAt: Date.now(),
       };
       set({ papers: [paper, ...get().papers] });
-      void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
+      scheduleRebuild(get().papers);
       return { ok: true, paper };
     } catch (e) {
       return {
@@ -344,7 +420,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     });
     // 级联清理持久层附件（含尚未 hydrate 回内存的）
     persistQuietly(attachmentBulkDelete(removed.map((p) => p.id)));
-    void rebuildIndex(get().papers).then(() => set({ indexReady: true, indexMode: embedderMode }));
+    scheduleRebuild(get().papers);
   },
 
   setReadStatus(id, status) {

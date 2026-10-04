@@ -6,7 +6,7 @@
  * 说明：MessageList 保持无 hooks（既有测试以元素树遍历方式直接调用），
  * 消息操作（复制反馈 / 编辑重发草稿）的状态由 ChatPanel 持有并经 props 下传。
  */
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
 import type { AgentSession } from '../store';
@@ -166,6 +166,14 @@ const TOOL_LABELS: Record<string, string> = {
   'submission.checklist': '查询投稿要求',
 };
 
+/**
+ * 流式渲染优化（v4.2.0）：memo 化工具卡与消息正文。
+ * store 的 appendDelta/appendToolCall 只替换流式中的最后一条消息对象，其余
+ * 消息保持引用相等——memo 后每个流式 token 只重渲最后一条的 markdown，
+ * 历史消息（含其 markdown 重解析）全部跳过。
+ */
+const ToolCallCardMemo = memo(ToolCallCard);
+
 export function ToolCallCard({ call, result }: { call: ToolCallRequest; result?: AgentMessage }) {
   const icon = TOOL_ICONS[call.tool] ?? '🔧';
   const label = TOOL_LABELS[call.tool] ?? call.tool;
@@ -224,6 +232,9 @@ function MessageBody({
   return <span>{message.content}</span>;
 }
 
+/** 见 ToolCallCardMemo 注释：流式 token 只重渲最后一条消息 */
+const MessageBodyMemo = memo(MessageBody);
+
 /** 消息列表（纯展示、无 hooks：交互状态经 props 下传） */
 export function MessageList(props: MessageListProps) {
   const { session } = props;
@@ -231,6 +242,12 @@ export function MessageList(props: MessageListProps) {
   const labels = { ...DEFAULT_LABELS, ...props.labels };
   const lastAssistantId = lastMessageId(session.messages, 'assistant');
   const lastUserId = lastMessageId(session.messages, 'user');
+  // 工具结果索引（v4.2.0）：O(n) 预建 Map，替代逐工具卡的 messages.find（O(n²)，
+  // 长会话（50 轮 × 多工具）下每个流式 token 都全列表扫描）
+  const toolResults = new Map<string, AgentMessage>();
+  for (const m of session.messages) {
+    if (m.role === 'tool' && m.toolCallId) toolResults.set(m.toolCallId, m);
+  }
   return (
     <div className="sf-ah-msgs">
       {session.messages.map((m, i) => {
@@ -261,19 +278,16 @@ export function MessageList(props: MessageListProps) {
                   <div className="sf-ah-edit-hint">{labels.editHint}</div>
                 </div>
               ) : (
-                <MessageBody
+                <MessageBodyMemo
                   message={m}
                   onCitekeyClick={props.onCitekeyClick}
                   onInsertLatex={props.onInsertLatex}
                   insertLatexLabel={props.insertLatexLabel}
                 />
               )}
-              {m.toolCalls?.map((call) => {
-                const result = session.messages.find(
-                  (x) => x.role === 'tool' && x.toolCallId === call.id,
-                );
-                return <ToolCallCard key={call.id} call={call} result={result} />;
-              })}
+              {m.toolCalls?.map((call) => (
+                <ToolCallCardMemo key={call.id} call={call} result={toolResults.get(call.id)} />
+              ))}
               {streaming && isLast && m.role === 'assistant' ? (
                 <span className="sf-ah-cursor" aria-label="生成中" />
               ) : null}

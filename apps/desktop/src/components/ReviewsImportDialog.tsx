@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { loadPdfText } from '@lemma/library';
+import { loadPdfText } from '@lemma/library/reader';
 import {
   extractDocxText,
   parseReviewsFiles,
