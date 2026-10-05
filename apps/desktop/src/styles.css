@@ -822,12 +822,86 @@ body {
   justify-content: center;
 }
 
-/* 会话列表（左侧栏） */
+/* 会话列表（左侧栏）——v5.6.0 项目→会话两级树 */
 .sf-sessions {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.sf-sessions-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.sf-sessions-actions .sf-pill-btn {
+  flex: 1;
+  justify-content: center;
+}
+.sf-sessions-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sf-sessions-group-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg-1);
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+}
+.sf-sessions-group-head:hover {
+  background: var(--bg-2);
+}
+.sf-sessions-group-head.current {
+  color: var(--fg-0);
+}
+.sf-sessions-group-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sf-sessions-group-count {
+  font-size: 10.5px;
+  color: var(--fg-2);
+  font-weight: 400;
+}
+.sf-sessions-group-actions {
+  margin-left: auto;
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+.sf-sessions-group-head:hover .sf-sessions-group-actions {
+  display: inline-flex;
+}
+.sf-sessions-group-actions button {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+.sf-sessions-group-actions button:hover {
+  color: var(--accent);
+  background: var(--bg-1);
+}
+.sf-sessions-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
 }
 .sf-sessions-new {
   display: flex;
