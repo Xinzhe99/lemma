@@ -733,39 +733,6 @@ export function AgentPanel() {
             {t.promptLib}
           </button>
         </div>
-        {/* v5.2.0/v5.3.0：文档级快捷操作（Prism 式）——一键发送，AI 自主决定怎么做 */}
-        <div className="sf-agent-toolbar-row sf-agent-docs-row">
-          <button
-            className="sf-pill-btn"
-            title="总结当前稿件：结构、论点、缺口"
-            onClick={() =>
-              send('请通读当前稿件并总结：各章节内容与论点链、整体结构评价、以及你发现的缺口或薄弱环节。')
-            }
-          >
-            ✦ 总结全文
-          </button>
-          <button
-            className="sf-pill-btn"
-            title="校对：语法/拼写/一致性/引用规范"
-            onClick={() =>
-              send('请校对当前稿件：逐项检查语法、拼写、术语一致性、时态、引用规范（\\cite 使用与 .bib 一致性）与格式问题，按严重程度列出并给出修改建议（需要改稿时走 diff 审批）。')
-            }
-          >
-            ✦ 校对
-          </button>
-          <button
-            className="sf-pill-btn"
-            title="为当前稿件查找与补充相关文献"
-            onClick={() =>
-              send('请为当前稿件查找相关文献：先检索个人文献库，再联网检索（web.search_scholar）补充最新的相关工作，说明每篇与稿件的关系，值得引用的生成 BibTeX 入库（走审批）。')
-            }
-          >
-            ✦ 查找文献
-          </button>
-          <button className="sf-pill-btn" title="预览将注入 AI 的项目上下文" onClick={() => void previewContext()}>
-            Context Pack
-          </button>
-        </div>
       </div>
 
       {/* 激活器：无 provider 时的快速配置引导卡（保存后自动消失） */}
@@ -843,18 +810,9 @@ export function AgentPanel() {
         </details>
       )}
 
-      {/* AI 改稿（diff 审批闭环）——空闲时收起按钮行，降低视觉噪音（v5.3.0） */}
+      {/* v5.4.0：AI 改稿区只保留产物（审批卡/提示）——预设按钮移除，用户直接对话即可；
+          润色/起草仍可经命令面板触达 */}
       <div className="sf-agent-ai">
-        <div className="sf-agent-ai-actions">
-          <span className="sf-agent-wf-title" style={{ margin: 0 }}>{t.aiTitle}</span>
-          <span style={{ flex: 1 }} />
-          <button className="sf-pill-btn" onClick={() => void polishCurrentFile()} disabled={!!aiBusy}>
-            {aiBusy === '润色' ? t.polishing : t.polish}
-          </button>
-          <button className="sf-pill-btn" onClick={() => void draftNewSection()} disabled={!!aiBusy}>
-            {aiBusy === '起草' ? t.drafting : t.draft}
-          </button>
-        </div>
         {note && <p className="sf-agent-note">{note}</p>}
         {proposal && (
           <DiffApprovalCard2

@@ -549,16 +549,23 @@ body {
   cursor: pointer;
   flex: none;
   transition: color 0.12s;
+  outline: none;
 }
 
 .tab:hover {
   color: var(--fg-1);
 }
 
+.tab:focus,
+.tab:focus-visible {
+  outline: none;
+}
+
+/* v5.4.0 Codex 式激活态：软底色 + 深文字，无彩色描边 */
 .tab.active {
   color: var(--fg-0);
-  background: var(--bg-0);
-  box-shadow: inset 0 2px 0 var(--accent);
+  background: var(--bg-2);
+  box-shadow: none;
 }
 
 .tab-name {
@@ -841,9 +848,10 @@ body {
 .sf-sessions-item:hover {
   background: var(--bg-2);
 }
+/* v5.4.0：仅底色高亮，无彩色描边（Codex 式） */
 .sf-sessions-item.active {
   background: var(--bg-2);
-  border-color: var(--accent);
+  border-color: transparent;
 }
 .sf-sessions-item-title {
   font-size: 12.5px;

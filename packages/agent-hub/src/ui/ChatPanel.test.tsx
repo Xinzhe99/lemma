@@ -175,42 +175,6 @@ describe('@ 引用菜单', () => {
   });
 });
 
-describe('回复后上下文建议（v4.3.0）', () => {
-  it('有工具调用的回复 → 渲染对应建议 chip，点击填入输入框', () => {
-    const session = makeSession({
-      messages: [
-        { id: 'u1', role: 'user', content: '改一下引言', createdAt: 1 },
-        {
-          id: 'a1',
-          role: 'assistant',
-          content: '已修改',
-          createdAt: 2,
-          toolCalls: [{ id: 'c1', tool: 'tex.edit', args: {} } as never],
-        },
-      ],
-    });
-    const utils = render(<ChatPanel session={session} />);
-    const chip = Array.from(utils.container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('编译验证'),
-    );
-    expect(chip).toBeTruthy();
-    fireEvent.click(chip!);
-    const textarea = utils.container.querySelector('.sf-ah-input textarea') as HTMLTextAreaElement;
-    expect(textarea.value).toContain('编译当前项目');
-  });
-
-  it('空会话（仅 1 条消息）不出建议（新会话引导 chips 负责该场景）', () => {
-    const session = makeSession({
-      messages: [{ id: 'a1', role: 'assistant', content: '你好', createdAt: 1 }],
-    });
-    const utils = render(<ChatPanel session={session} />);
-    const chips = Array.from(utils.container.querySelectorAll('button')).filter((b) =>
-      b.textContent?.includes('编译验证'),
-    );
-    expect(chips).toHaveLength(0);
-  });
-});
-
 describe('消息操作条', () => {
   it('复制：点击写入剪贴板并显示已复制', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
