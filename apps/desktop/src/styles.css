@@ -594,9 +594,15 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* v5.5.0：编辑器撑满面板（此前 center 居中导致宽面板下两侧留白、看似左右割裂） */
+  align-items: stretch;
+  justify-content: stretch;
   background: var(--bg-0);
+}
+
+.editor-area > .sf-editor-host {
+  flex: 1;
+  min-width: 0;
 }
 
 .sf-editor-placeholder {
@@ -1892,6 +1898,9 @@ kbd {
   align-items: center;
   gap: 4px;
   padding-right: 8px;
+  /* v5.5.0：窄面板下按钮保持自然宽度（标签栏横向滚动），不压缩成竖排 */
+  flex: none;
+  flex-wrap: nowrap;
 }
 .tab-action {
   display: flex;
@@ -1905,6 +1914,8 @@ kbd {
   padding: 3px 8px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
+  flex: none;
+  white-space: nowrap;
 }
 .tab-action:hover {
   color: var(--fg-0);

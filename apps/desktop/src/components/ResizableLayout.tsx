@@ -1,7 +1,7 @@
 /**
- * 三栏可拖拽布局（v5.0.0 Codex 式）：nav rail 固定宽，其余用 react-resizable-panels。
- * 水平组：sidebar 18% | chat（AI 会话，中央主区）| viewer 42%；
- * viewer 内垂直组：查看器（PDF 默认 / LaTeX）| console 22%（可折叠）。
+ * 经典论文 IDE 布局（v5.5.0，Overleaf/Prism 式）：
+ * nav rail 固定宽 → 水平组：sidebar | 中心（编辑器 + PDF 预览并排同步）| AI 会话（最右）。
+ * 中心右列内部垂直组：PDF 预览 | console（可折叠）。
  * 尺寸经 onLayout 存 localStorage（JSON 数组，百分比）。
  */
 
@@ -10,8 +10,11 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 const H_KEY = 'sf-layout-horizontal';
 const V_KEY = 'sf-layout-vertical';
-const H_DEFAULT = [18, 40, 42];
-const V_DEFAULT = [78, 22];
+const C_KEY = 'sf-layout-center';
+// v5.5.0：sidebar | 中心 | agent；中心内 编辑器 | 预览列；预览列内 预览 | console
+const H_DEFAULT = [17, 60, 23];
+const C_DEFAULT = [50, 50];
+const V_DEFAULT = [76, 24];
 
 // defaultSize 需在多次渲染间保持稳定，故模块级读取一次
 function readSizes(key: string, fallback: number[]): number[] {
@@ -31,6 +34,7 @@ function readSizes(key: string, fallback: number[]): number[] {
 
 const hSizes = readSizes(H_KEY, H_DEFAULT);
 const vSizes = readSizes(V_KEY, V_DEFAULT);
+const cSizes = readSizes(C_KEY, C_DEFAULT);
 
 function persist(key: string, sizes: number[]): void {
   try {
@@ -44,11 +48,12 @@ export interface ResizableLayoutProps {
   navRail: ReactNode;
   sidebar: ReactNode;
   editor: ReactNode;
+  preview: ReactNode;
   console: ReactNode;
   agent: ReactNode;
 }
 
-export function ResizableLayout({ navRail, sidebar, editor, console, agent }: ResizableLayoutProps) {
+export function ResizableLayout({ navRail, sidebar, editor, preview, console, agent }: ResizableLayoutProps) {
   return (
     <div className="sf-layout">
       {navRail}
@@ -61,25 +66,38 @@ export function ResizableLayout({ navRail, sidebar, editor, console, agent }: Re
           {sidebar}
         </Panel>
         <PanelResizeHandle className="sf-resizer" />
-        {/* v5.0.0：中央 = AI 会话区（agent）；右侧 = 查看器（editor prop）+ 编译台 */}
-        <Panel defaultSize={hSizes[1]} minSize={24} className="sf-panel sf-chat-panel">
-          {agent}
-        </Panel>
-        <PanelResizeHandle className="sf-resizer" />
-        <Panel defaultSize={hSizes[2]} minSize={24} className="sf-panel">
+        {/* 中心：编辑器 | 预览列（PDF + 编译台）——同步并排显示，不再切换 */}
+        <Panel defaultSize={hSizes[1]} minSize={30} className="sf-panel">
           <PanelGroup
-            direction="vertical"
+            direction="horizontal"
             className="sf-panel-group"
-            onLayout={(sizes) => persist(V_KEY, sizes)}
+            onLayout={(sizes) => persist(C_KEY, sizes)}
           >
-            <Panel defaultSize={vSizes[0]} minSize={30} className="sf-panel">
+            <Panel defaultSize={cSizes[0]} minSize={24} className="sf-panel">
               {editor}
             </Panel>
-            <PanelResizeHandle className="sf-resizer sf-resizer-h" />
-            <Panel defaultSize={vSizes[1]} minSize={6} collapsible className="sf-panel">
-              {console}
+            <PanelResizeHandle className="sf-resizer" />
+            <Panel defaultSize={cSizes[1]} minSize={20} className="sf-panel">
+              <PanelGroup
+                direction="vertical"
+                className="sf-panel-group"
+                onLayout={(sizes) => persist(V_KEY, sizes)}
+              >
+                <Panel defaultSize={vSizes[0]} minSize={30} className="sf-panel">
+                  {preview}
+                </Panel>
+                <PanelResizeHandle className="sf-resizer sf-resizer-h" />
+                <Panel defaultSize={vSizes[1]} minSize={6} collapsible className="sf-panel">
+                  {console}
+                </Panel>
+              </PanelGroup>
             </Panel>
           </PanelGroup>
+        </Panel>
+        <PanelResizeHandle className="sf-resizer" />
+        {/* AI 会话固定在最右 */}
+        <Panel defaultSize={hSizes[2]} minSize={16} className="sf-panel sf-chat-panel">
+          {agent}
         </Panel>
       </PanelGroup>
     </div>

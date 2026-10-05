@@ -90,7 +90,6 @@ export function App() {
   const zipPickerTick = useUiStore((s) => s.zipPickerTick);
   const pdfView = useUiStore((s) => s.pdfView);
   const setPdfView = useUiStore((s) => s.setPdfView);
-  const viewerMode = useUiStore((s) => s.viewerMode);
   const templateWizardOpen = useUiStore((s) => s.templateWizardOpen);
   const historyOpen = useUiStore((s) => s.historyOpen);
   const tableEditorOpen = useUiStore((s) => s.tableEditorOpen);
@@ -386,13 +385,11 @@ export function App() {
   // —— WS-2 编译同步闭环（App 窄 carve-out）：订阅 onPdfGoto 并镜像为 PdfReader 的 goto props ——
   const [pdfGotoPage, setPdfGotoPage] = useState<number | undefined>(undefined);
   const [pdfGotoTick, setPdfGotoTick] = useState(0);
-  const setViewerMode = useUiStore((s) => s.setViewerMode);
   useEffect(
     () =>
       onPdfGoto((g) => {
         setPdfGotoPage(g.page);
         setPdfGotoTick((v) => v + 1);
-        useUiStore.getState().setViewerMode('pdf');
       }),
     [],
   );
@@ -430,99 +427,75 @@ export function App() {
     // 审批卡渲染在中央 AI 会话区（v5.0.0 布局），无需切换视图
   };
 
-  // —— v5.0.0 Codex 式布局：右侧查看器（PDF 默认 / LaTeX 可切） ——
-  const viewer = (
-    <section className="center sf-viewer">
-      <div className="tabbar sf-viewerbar">
-        <button
-          className={`tab ${viewerMode === 'pdf' ? 'active' : ''}`}
-          onClick={() => setViewerMode('pdf')}
-        >
-          {t('center.pdfTab')}
-        </button>
-        <button
-          className={`tab ${viewerMode === 'latex' ? 'active' : ''}`}
-          onClick={() => setViewerMode('latex')}
-        >
-          {t('center.editorTab')}
-        </button>
-        {pdfView && viewerMode === 'pdf' ? (
+  // —— v5.5.0 经典论文 IDE 布局：中心 = 编辑器 + PDF 预览同步并排（不再切换） ——
+  const editorPane = (
+    <section className="center sf-pane-editor">
+      <EditorTabs
+        actions={
           <>
-            <span className="sf-viewerbar-name" title={pdfView.name}>
-              {pdfView.name}
-            </span>
-            <button className="sf-link-btn sf-pdfbar-close" onClick={() => setPdfView(null)}>
-              {t('center.closePdf')}
+            <button
+              className="tab-action"
+              title={t('tab.polishTitle')}
+              onClick={() => requestAgentAction('polish')}
+            >
+              <Sparkles size={13} /> {t('tab.polish')}
+            </button>
+            <button
+              className="tab-action"
+              title={t('tab.historyTitle')}
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History size={13} /> {t('tab.history')}
             </button>
           </>
-        ) : null}
-      </div>
-      <div className="editor-area">
-        {viewerMode === 'pdf' && pdfView ? (
-          <Suspense fallback={<div className="placeholder sf-panel-loading">{t('panel.loading')}</div>}>
-            <LazyPdfReader
-              key={pdfView.name}
-              data={pdfView.data}
-              language={language}
-              annotations={annotationsByFile[useAnnotationStore.getState().resolveKey(pdfView.name)] ?? []}
-              onCreateAnnotation={(a) => {
-                const key = useAnnotationStore.getState().resolveKey(pdfView.name);
-                const paperId = useAnnotationStore.getState().paperIdOf(pdfView.name) ?? '';
-                useAnnotationStore.getState().add(key, { ...a, paperId: paperId || a.paperId });
-              }}
-              onDeleteAnnotation={(id) => {
-                const key = useAnnotationStore.getState().resolveKey(pdfView.name);
-                useAnnotationStore.getState().remove(key, id);
-              }}
-              askActions={[
-                { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
-                { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
-                { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
-                {
-                  label: language === 'en' ? 'Quote → manuscript' : '引述到稿件',
-                  run: (text) => insertPdfQuote(text, pdfView.name),
-                },
-              ]}
-              onPagePoint={(p, x, y) => {
-                jumpPdfToSource(p, x, y);
-              }}
-              gotoPage={pdfGotoPage}
-              gotoTick={pdfGotoTick || undefined}
-            />
-          </Suspense>
-        ) : viewerMode === 'pdf' && !pdfView ? (
-          <div className="sf-viewer-empty">
-            <FileText size={36} strokeWidth={1.5} />
-            <p className="placeholder" style={{ margin: 0, maxWidth: 380 }}>
-              {t('viewer.noPdf')}
-            </p>
-          </div>
-        ) : (
-          <>
-            <EditorTabs
-              actions={
-                <>
-                  <button
-                    className="tab-action"
-                    title={t('tab.polishTitle')}
-                    onClick={() => requestAgentAction('polish')}
-                  >
-                    <Sparkles size={13} /> {t('tab.polish')}
-                  </button>
-                  <button
-                    className="tab-action"
-                    title={t('tab.historyTitle')}
-                    onClick={() => setHistoryOpen(true)}
-                  >
-                    <History size={13} /> {t('tab.history')}
-                  </button>
-                </>
-              }
-            />
-            <EditorArea />
-          </>
-        )}
-      </div>
+        }
+      />
+      <EditorArea />
+    </section>
+  );
+
+  const previewPane = (
+    <section className="center sf-pane-preview">
+      {pdfView ? (
+        <Suspense fallback={<div className="placeholder sf-panel-loading">{t('panel.loading')}</div>}>
+          <LazyPdfReader
+            key={pdfView.name}
+            data={pdfView.data}
+            language={language}
+            annotations={annotationsByFile[useAnnotationStore.getState().resolveKey(pdfView.name)] ?? []}
+            onCreateAnnotation={(a) => {
+              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+              const paperId = useAnnotationStore.getState().paperIdOf(pdfView.name) ?? '';
+              useAnnotationStore.getState().add(key, { ...a, paperId: paperId || a.paperId });
+            }}
+            onDeleteAnnotation={(id) => {
+              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+              useAnnotationStore.getState().remove(key, id);
+            }}
+            askActions={[
+              { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
+              { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
+              { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
+              {
+                label: language === 'en' ? 'Quote → manuscript' : '引述到稿件',
+                run: (text) => insertPdfQuote(text, pdfView.name),
+              },
+            ]}
+            onPagePoint={(p, x, y) => {
+              jumpPdfToSource(p, x, y);
+            }}
+            gotoPage={pdfGotoPage}
+            gotoTick={pdfGotoTick || undefined}
+          />
+        </Suspense>
+      ) : (
+        <div className="sf-viewer-empty">
+          <FileText size={36} strokeWidth={1.5} />
+          <p className="placeholder" style={{ margin: 0, maxWidth: 340 }}>
+            {t('viewer.noPdf')}
+          </p>
+        </div>
+      )}
     </section>
   );
 
@@ -602,7 +575,8 @@ export function App() {
       <ResizableLayout
         navRail={navRail}
         sidebar={sidebar}
-        editor={viewer}
+        editor={editorPane}
+        preview={previewPane}
         console={consolePane}
         agent={agent}
       />
