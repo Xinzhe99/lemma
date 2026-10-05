@@ -34,6 +34,15 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('paste', onPaste);
   }, []);
 
+  // Escape 关闭（对齐 QuickCite/Settings 等对话框的统一交互）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const onFiles = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
@@ -80,7 +89,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="sf-dialog-overlay" role="dialog" aria-label="图像转 LaTeX">
+    <div className="sf-dialog-overlay" role="dialog" aria-label="图像转 LaTeX" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sf-dialog" style={{ width: 620, maxWidth: '92vw' }}>
         <h3>🖼 图像转 LaTeX</h3>
         <p className="dim" style={{ fontSize: 12 }}>

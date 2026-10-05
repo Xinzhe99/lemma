@@ -250,6 +250,7 @@ export function AgentPanel() {
   const [contextPreview, setContextPreview] = useState('');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [sessionListOpen, setSessionListOpen] = useState(false);
+  const [wfListOpen, setWfListOpen] = useState(false); // v5.3.0：工作流列表默认折叠
 
   const checkpointResolve = useRef<((input: string) => void) | null>(null);
 
@@ -639,77 +640,40 @@ export function AgentPanel() {
 
   return (
     <div className="sf-agent">
-      <div className="sf-agent-provider">
-        <span className="sf-chip dim">{providerLabel}</span>
-        <select
-          className="sf-cli-input"
-          style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '2px 8px', fontSize: 11, background: 'var(--bg-0)' }}
-          value={aiPersona}
-          onChange={(e) => setAiPersona(e.target.value as typeof aiPersona)}
-          title="切换 AI 角色——不同角色有不同的行为方式"
-        >
-          <option value="default">🤖 默认助手</option>
-          <option value="reviewer">🔍 严格审稿人</option>
-          <option value="coach">👨‍🏫 写作教练</option>
-          <option value="translator">🌐 翻译专家</option>
-        </select>
-        <button className="sf-link-btn" onClick={() => void previewContext()}>
-          Context Pack
-        </button>
-        {/* v5.2.0：文档级快捷操作（Prism 式「总结/校对/查找文献」）——一键发送，AI 自主决定怎么做 */}
-        <button
-          className="sf-link-btn"
-          title="总结当前稿件：结构、论点、缺口"
-          onClick={() =>
-            send('请通读当前稿件并总结：各章节内容与论点链、整体结构评价、以及你发现的缺口或薄弱环节。')
-          }
-        >
-          总结全文
-        </button>
-        <button
-          className="sf-link-btn"
-          title="校对：语法/拼写/一致性/引用规范"
-          onClick={() =>
-            send('请校对当前稿件：逐项检查语法、拼写、术语一致性、时态、引用规范（\\cite 使用与 .bib 一致性）与格式问题，按严重程度列出并给出修改建议（需要改稿时走 diff 审批）。')
-          }
-        >
-          校对
-        </button>
-        <button
-          className="sf-link-btn"
-          title="为当前稿件查找与补充相关文献"
-          onClick={() =>
-            send('请为当前稿件查找相关文献：先检索个人文献库，再联网检索（web.search_scholar）补充最新的相关工作，说明每篇与稿件的关系，值得引用的生成 BibTeX 入库（走审批）。')
-          }
-        >
-          查找文献
-        </button>
-        <button
-          className="sf-link-btn"
-          onClick={() => {
-            newSession('host', useWorkspaceStore.getState().projectName || undefined);
-            setWorkflow(null);
-          }}
-        >
-          {t.newSession}
-        </button>
-        <button className="sf-link-btn" onClick={() => useUiStore.getState().setPromptsLibOpen(true)}>
-          {t.promptLib}
-        </button>
-        <div className="sf-session-history">
+      {/* v5.3.0 Codex 化工具栏：上行 = 会话操作（角色/新会话/历史/提示词库），下行 = 文档级操作 */}
+      <div className="sf-agent-toolbar">
+        <div className="sf-agent-toolbar-row">
+          <select
+            className="sf-cli-input"
+            style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '2px 10px', fontSize: 11, background: 'var(--bg-0)', color: 'var(--fg-1)' }}
+            value={aiPersona}
+            onChange={(e) => setAiPersona(e.target.value as typeof aiPersona)}
+            title="切换 AI 角色——不同角色有不同的行为方式"
+          >
+            <option value="default">🤖 默认助手</option>
+            <option value="reviewer">🔍 严格审稿人</option>
+            <option value="coach">👨‍🏫 写作教练</option>
+            <option value="translator">🌐 翻译专家</option>
+          </select>
+          <span style={{ flex: 1 }} />
           <button
-            className="sf-link-btn"
+            className="sf-pill-btn"
             onClick={() => {
-              setSessionListOpen((v) => !v);
+              newSession('host', useWorkspaceStore.getState().projectName || undefined);
+              setWorkflow(null);
             }}
           >
-            {t.sessionHistory}
+            {t.newSession}
           </button>
-          {sessionListOpen && (
-            <div className="sf-session-menu">
-              {sessions.length === 0 ? (
-                <div className="sf-session-item dim">{t.sessionHistoryEmpty}</div>
-              ) : (
+          <div className="sf-session-history">
+            <button className="sf-pill-btn" onClick={() => setSessionListOpen((v) => !v)}>
+              {t.sessionHistory}
+            </button>
+            {sessionListOpen && (
+              <div className="sf-session-menu">
+                {sessions.length === 0 ? (
+                  <div className="sf-session-item dim">{t.sessionHistoryEmpty}</div>
+                ) : (
                 // 项目隔离（v1.6.0 ③）：当前项目的会话 + 未标记项目的旧会话
                 [...sessions]
                   .filter((s) => !s.projectName || s.projectName === (useWorkspaceStore.getState().projectName || ''))
@@ -764,6 +728,43 @@ export function AgentPanel() {
               )}
             </div>
           )}
+        </div>
+          <button className="sf-pill-btn" onClick={() => useUiStore.getState().setPromptsLibOpen(true)}>
+            {t.promptLib}
+          </button>
+        </div>
+        {/* v5.2.0/v5.3.0：文档级快捷操作（Prism 式）——一键发送，AI 自主决定怎么做 */}
+        <div className="sf-agent-toolbar-row sf-agent-docs-row">
+          <button
+            className="sf-pill-btn"
+            title="总结当前稿件：结构、论点、缺口"
+            onClick={() =>
+              send('请通读当前稿件并总结：各章节内容与论点链、整体结构评价、以及你发现的缺口或薄弱环节。')
+            }
+          >
+            ✦ 总结全文
+          </button>
+          <button
+            className="sf-pill-btn"
+            title="校对：语法/拼写/一致性/引用规范"
+            onClick={() =>
+              send('请校对当前稿件：逐项检查语法、拼写、术语一致性、时态、引用规范（\\cite 使用与 .bib 一致性）与格式问题，按严重程度列出并给出修改建议（需要改稿时走 diff 审批）。')
+            }
+          >
+            ✦ 校对
+          </button>
+          <button
+            className="sf-pill-btn"
+            title="为当前稿件查找与补充相关文献"
+            onClick={() =>
+              send('请为当前稿件查找相关文献：先检索个人文献库，再联网检索（web.search_scholar）补充最新的相关工作，说明每篇与稿件的关系，值得引用的生成 BibTeX 入库（走审批）。')
+            }
+          >
+            ✦ 查找文献
+          </button>
+          <button className="sf-pill-btn" title="预览将注入 AI 的项目上下文" onClick={() => void previewContext()}>
+            Context Pack
+          </button>
         </div>
       </div>
 
@@ -842,14 +843,15 @@ export function AgentPanel() {
         </details>
       )}
 
-      {/* AI 改稿（diff 审批闭环） */}
+      {/* AI 改稿（diff 审批闭环）——空闲时收起按钮行，降低视觉噪音（v5.3.0） */}
       <div className="sf-agent-ai">
-        <div className="sf-agent-wf-title">{t.aiTitle}</div>
         <div className="sf-agent-ai-actions">
-          <button className="sf-btn" onClick={() => void polishCurrentFile()} disabled={!!aiBusy}>
+          <span className="sf-agent-wf-title" style={{ margin: 0 }}>{t.aiTitle}</span>
+          <span style={{ flex: 1 }} />
+          <button className="sf-pill-btn" onClick={() => void polishCurrentFile()} disabled={!!aiBusy}>
             {aiBusy === '润色' ? t.polishing : t.polish}
           </button>
-          <button className="sf-btn" onClick={() => void draftNewSection()} disabled={!!aiBusy}>
+          <button className="sf-pill-btn" onClick={() => void draftNewSection()} disabled={!!aiBusy}>
             {aiBusy === '起草' ? t.drafting : t.draft}
           </button>
         </div>
@@ -963,7 +965,12 @@ ${proposal.after.slice(0, 800)}`,
       </div>
 
       <div className="sf-agent-workflows">
-        <div className="sf-agent-wf-title">{t.wfTitle}</div>
+        {/* v5.3.0：工作流列表默认折叠（Codex 式收纳）；运行中的工作流始终展开 */}
+        {!workflow && (
+          <button className="sf-pill-btn sf-agent-wf-toggle" onClick={() => setWfListOpen((v) => !v)}>
+            {t.wfTitle} {wfListOpen ? '▾' : '▸'}
+          </button>
+        )}
         {workflow ? (
           <div className="sf-agent-run">
             <div className="sf-agent-run-head">
@@ -1002,8 +1009,8 @@ ${proposal.after.slice(0, 800)}`,
               <ChecklistReport output={workflow.outputs['report']} />
             )}
           </div>
-        ) : (
-          <ul className="sf-agent-wf-list">
+        ) : wfListOpen ? (
+          <ul className="sf-agent-wf-list sf-agent-wf-grid">
             {BUILTIN_WORKFLOWS.map((w) => (
               <li key={w.id}>
                 <button className="sf-btn sf-agent-wf-btn" onClick={() => requestLaunch(w.id)}>
@@ -1012,21 +1019,19 @@ ${proposal.after.slice(0, 800)}`,
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </div>
 
-      {/* WF-3 A3：运行历史（localStorage 持久化，点击恢复产物视图） */}
-      <div className="sf-agent-history">
-        <div className="sf-agent-run-head">
-          <div className="sf-agent-wf-title" style={{ margin: 0 }}>
-            {t.historyTitle}
-          </div>
-          {completedRuns.length > 0 && (
-            <button className="sf-link-btn sf-agent-history-clear" onClick={clearCompletedRuns}>
-              {t.clearHistory}
-            </button>
-          )}
-        </div>
+      {/* WF-3 A3：运行历史（v5.3.0 默认折叠为 details；localStorage 持久化） */}
+      <details className="sf-agent-history" {...(completedRuns.length > 0 ? { open: true } : {})}>
+        <summary className="sf-agent-wf-title" style={{ margin: 0, cursor: 'pointer' }}>
+          {t.historyTitle}
+        </summary>
+        {completedRuns.length > 0 && (
+          <button className="sf-link-btn sf-agent-history-clear" onClick={clearCompletedRuns}>
+            {t.clearHistory}
+          </button>
+        )}
         {completedRuns.length === 0 ? (
           <p className="sf-agent-history-empty">{t.historyEmpty}</p>
         ) : (
@@ -1042,7 +1047,7 @@ ${proposal.after.slice(0, 800)}`,
             ))}
           </ul>
         )}
-      </div>
+      </details>
 
       {/* WF-3 A1：工作流启动表单（替代原生 prompt）；key 保证每次启动重置表单状态 */}
       {launchForm && (

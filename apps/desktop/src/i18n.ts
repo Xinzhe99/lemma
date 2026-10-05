@@ -80,7 +80,7 @@ const dict: MessageDict = {
   'console.pending': { zh: '尚未编译 —— Ctrl+Enter 或命令面板运行编译（浏览器形态为模拟引擎）', en: 'Not compiled yet — Ctrl+Enter or command palette (mock engine in browser)' },
 
   // Agent 面板
-  'agent.title': { zh: 'Agent 面板', en: 'Agent panel' },
+  'agent.title': { zh: 'AI 助手', en: 'AI Assistant' },
   'agent.pending': { zh: 'WS-D 集成待办', en: 'Pending WS-D integration' },
   'agent.provider': { zh: '当前模型服务', en: 'Active provider' },
   'agent.noProvider': { zh: '未配置', en: 'None configured' },

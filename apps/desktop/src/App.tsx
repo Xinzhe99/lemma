@@ -492,7 +492,8 @@ export function App() {
           </Suspense>
         ) : viewerMode === 'pdf' && !pdfView ? (
           <div className="sf-viewer-empty">
-            <p className="placeholder">
+            <FileText size={36} strokeWidth={1.5} />
+            <p className="placeholder" style={{ margin: 0, maxWidth: 380 }}>
               {t('viewer.noPdf')}
             </p>
           </div>

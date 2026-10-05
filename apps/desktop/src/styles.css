@@ -667,6 +667,124 @@ body {
   min-height: 0;
 }
 
+/* ---------- v5.3.0 Codex 化视觉 ---------- */
+
+/* 工具栏：两行分区（会话操作 / 文档操作），统一药丸按钮 */
+.sf-agent-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+}
+.sf-agent-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sf-agent-docs-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sf-agent-docs-row::-webkit-scrollbar {
+  display: none;
+}
+.sf-pill-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--fg-1);
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.sf-pill-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sf-pill-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 建议 chips：单行横向滚动（不换行堆叠） */
+.sf-ah-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 4px 2px;
+  scrollbar-width: none;
+}
+.sf-ah-chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* 工作流网格（展开时两列） */
+.sf-agent-wf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.sf-agent-wf-toggle {
+  align-self: flex-start;
+  color: var(--fg-2);
+}
+.sf-agent-history summary {
+  list-style: none;
+}
+.sf-agent-history summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 空会话引导（消息区居中提示） */
+.sf-ah-empty-hint {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 32px 20px;
+  text-align: center;
+}
+.sf-ah-empty-hint strong {
+  font-size: 13.5px;
+  color: var(--fg-0);
+}
+.sf-ah-empty-hint span {
+  font-size: 12px;
+  color: var(--fg-2);
+  max-width: 300px;
+  line-height: 1.5;
+}
+
+/* 查看器空态：居中 + 图标（Codex 式留白） */
+.sf-viewer-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--fg-2);
+  font-size: 12.5px;
+  padding: 24px;
+  text-align: center;
+}
+.sf-viewer-empty svg {
+  opacity: 0.4;
+}
+
 /* ---------- v5.0.0 Codex 式布局补充 ---------- */
 
 /* 右侧查看器顶栏（PDF / LaTeX 切换） */

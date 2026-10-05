@@ -259,6 +259,13 @@ export function MessageList(props: MessageListProps) {
   }
   return (
     <div className="sf-ah-msgs">
+      {/* v5.3.0：空会话居中引导（Codex 式留白提示），替代一片空白 */}
+      {session.messages.length === 0 && (
+        <div className="sf-ah-empty-hint">
+          <strong>开始与 AI 协作</strong>
+          <span>描述你想做的事——润色、找文献、改稿、修编译错误；AI 会自己调用工具完成。</span>
+        </div>
+      )}
       {session.messages.map((m, i) => {
         const isLast = i === session.messages.length - 1;
         const editing = props.editingId != null && props.editingId === m.id;
@@ -574,16 +581,9 @@ export function ChatPanel(props: ChatPanelProps) {
             </button>
           )}
         </div>
-        {/* v4.1.0 B：快速建议 chips——点击即填入，AI 自主决定怎么做 */}
+        {/* v4.1.0 B / v5.3.0：快速建议 chips——单行横滑（不换行堆叠），点击即填入 */}
         {!streaming && session.messages.length <= 1 && (
-          <div
-            style={{
-              display: 'flex',
-              gap: 4,
-              flexWrap: 'wrap',
-              padding: '4px 0',
-            }}
-          >
+          <div className="sf-ah-chips">
             {[
               { label: '✦ 润色当前文件', text: '请读取当前 .tex 文件并全面润色：改善表达、修正语法、消除冗余，保持原意和引用不变。' },
               { label: '📚 找相关文献', text: '请在文献库中检索与当前稿件最相关的论文，列出 citekey、标题和相关性说明。' },
@@ -596,18 +596,9 @@ export function ChatPanel(props: ChatPanelProps) {
               <button
                 key={chip.label}
                 type="button"
+                className="sf-pill-btn"
                 onClick={() => {
                   setText(chip.text);
-                }}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: 999,
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-0)',
-                  color: 'var(--fg-1)',
-                  fontSize: 11.5,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
                 }}
               >
                 {chip.label}
@@ -615,29 +606,21 @@ export function ChatPanel(props: ChatPanelProps) {
             ))}
           </div>
         )}
-        {/* v4.3.0 D：回复后上下文建议——按最后一条回复用过的工具推断下一步 */}
-        {!streaming && session.messages.length > 1 &&
-          followUpSuggestions(session.messages).map((chip) => (
-            <button
-              key={`follow-${chip.label}`}
-              type="button"
-              onClick={() => setText(chip.text)}
-              style={{
-                display: 'inline-block',
-                margin: '2px 4px 2px 0',
-                padding: '3px 10px',
-                borderRadius: 999,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-0)',
-                color: 'var(--fg-1)',
-                fontSize: 11.5,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {chip.label}
-            </button>
-          ))}
+        {/* v4.3.0 D / v5.3.0：回复后上下文建议——单行横滑药丸（与引导 chips 同款式） */}
+        {!streaming && session.messages.length > 1 && (
+          <div className="sf-ah-chips">
+            {followUpSuggestions(session.messages).map((chip) => (
+              <button
+                key={`follow-${chip.label}`}
+                type="button"
+                className="sf-pill-btn"
+                onClick={() => setText(chip.text)}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
         {slashOpen ? (
           <div className="sf-ah-menu sf-ah-menu--slash" role="listbox" aria-label={labels.slashMenuLabel}>
             {slashFiltered.map((it, idx) => (
