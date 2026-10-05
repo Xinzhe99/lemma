@@ -21,7 +21,7 @@ import type { GlossaryTerm } from '@lemma/shared';
 import { mergeSearchHits, searchArxiv, searchCrossref, type PaperSearchHit } from '@lemma/library';
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
-import { buildMemoryInjection } from './state/agentMemory';
+import { buildMemoryInjection, useAgentMemoryStore } from './state/agentMemory';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from './projectDoc';
 import { requestToolApproval, type ApprovalFn } from './approval';
 import { resolveCompileEntry, runCompile } from './compileAction';
@@ -45,6 +45,7 @@ export const ENABLED_TOOL_NAMES = [
   'project.find_in_files',
   'project.list_files',
   'tex.create_file',
+  'memory.write',
 ] as const;
 
 export const ENABLED_TOOLS: ToolDef[] = PAPER_TOOLS.filter((t) =>
@@ -337,6 +338,29 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       if (before === '') useWorkspaceStore.getState().createFile(path, after);
       else useWorkspaceStore.getState().updateFile(path, after);
       return { applied: true, file: path, note: decision.note };
+    },
+    // v4.4.0：AI 自主记忆——把项目约定/审稿结论/用户偏好写入 agent-memory，
+    // 经 buildMemoryInjection 注入此后每次生成的 Context Pack。写级：走 diff
+    // 审批卡（伪文件「项目记忆」，diff 即新增行），用户可见可拒。
+    'memory.write': async (args) => {
+      const key = String(args.key ?? '').trim();
+      const value = String(args.value ?? '').trim();
+      if (!key || !value) return { written: false, reason: 'key 与 value 均不能为空' };
+      const mem = useAgentMemoryStore.getState();
+      const note = `【${key}】${value}`;
+      const before = mem.styleNotes.length > 0 ? mem.styleNotes.join('\n') : '（项目记忆为空）';
+      const after = [...mem.styleNotes, note].join('\n');
+      const decision = await approval({
+        file: '项目记忆（agent-memory）',
+        before,
+        after,
+        kind: 'tool-edit',
+        label: `AI 写入项目记忆（${key}）`,
+        via: 'agent 工具调用',
+      });
+      if (!decision.approved) return { written: false, reason: decision.note };
+      mem.addStyleNote(note);
+      return { written: true, key, note: '已写入，将注入后续所有会话的上下文' };
     },
     'snapshot.create': async (args) => {
       const ws = useWorkspaceStore.getState();

@@ -56,6 +56,8 @@ export interface Paper {
   doi?: string;
   arxivId?: string;
   pdfPath?: string;
+  /** 附件 PDF 抽取的纯文本（v4.4.0：知识索引全文检索用，截断 30k 字符） */
+  fullText?: string;
   /** GROBID/启发式解析出的结构化全文（分节） */
   sections?: PaperSection[];
   tags: string[];

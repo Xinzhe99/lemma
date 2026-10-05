@@ -25,7 +25,7 @@ import { useT } from './i18n';
 import { applyTheme } from './theme';
 import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
-import { quickAsk } from './aiActions';
+import { quickAsk, sendChatMessage } from './aiActions';
 import { initLibrary } from './state/libraryStore';
 import { useLibraryStore } from './state/libraryStore';
 import { useProposalStore } from './state/proposalStore';
@@ -551,6 +551,20 @@ export function App() {
     <section className="console">
       <div className="console-title">
         <span>{t('console.title')}</span>
+        {/* v4.4.0：编译失败一键 AI 修复——错误日志经意图检测自动注入上下文 */}
+        {compileStatus === 'fail' && compileLog.length > 0 ? (
+          <button
+            className="sf-link-btn"
+            style={{ color: 'var(--accent)', fontWeight: 600 }}
+            onClick={() =>
+              void sendChatMessage(
+                '请分析最近一次编译的错误日志：逐个定位原因，修改源文件修复（走 diff 审批），完成后重新编译验证。',
+              )
+            }
+          >
+            {t('console.aiFix')}
+          </button>
+        ) : null}
         <button className="sf-link-btn" onClick={clearCompileLog}>
           {t('console.clear')}
         </button>

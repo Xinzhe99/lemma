@@ -168,6 +168,7 @@ const TOOL_LABELS: Record<string, string> = {
   'citation.add': '添加引用',
   'snapshot.create': '创建快照',
   'submission.checklist': '查询投稿要求',
+  'memory.write': '写入项目记忆',
 };
 
 /**
@@ -582,6 +583,7 @@ export function ChatPanel(props: ChatPanelProps) {
             {[
               { label: '✦ 润色当前文件', text: '请读取当前 .tex 文件并全面润色：改善表达、修正语法、消除冗余，保持原意和引用不变。' },
               { label: '📚 找相关文献', text: '请在文献库中检索与当前稿件最相关的论文，列出 citekey、标题和相关性说明。' },
+              { label: '🌐 联网找新文献', text: '请联网检索（web.search_scholar）与我的稿件主题相关的最新论文，筛选最相关的几篇说明理由，并把值得引用的生成 BibTeX 加入文献库。' },
               { label: '🔍 检查引用', text: '请遍历当前稿件中的所有 \\cite 引用，逐一验证是否在本地文献库中，报告悬空引用。' },
               { label: '✏️ 起草新章节', text: '请根据稿件大纲和文献库，起草下一个缺失的章节。要求：引用只用库内 citekey，学术语气。' },
               { label: '🔨 编译并修错', text: '请触发编译，检查错误日志，分析并修复所有编译错误。' },

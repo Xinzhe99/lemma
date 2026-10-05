@@ -215,6 +215,38 @@ function scheduleRebuild(papers: Paper[]): void {
   }, 250);
 }
 
+/**
+ * 抽取附件 PDF 全文并写入 paper.fullText（v4.4.0）：
+ * fire-and-forget——成功后 scheduleRebuild 让知识索引升级为全文检索；
+ * 失败保持摘要索引不打断任何流程。截断 30k 字符（约 80 chunk/篇）控制
+ * 索引规模与嵌入成本（API 嵌入有缓存，重复重建不重复计费）。
+ */
+const FULL_TEXT_CAP = 30000;
+
+function extractFullText(paperId: string): void {
+  void (async () => {
+    try {
+      const state = useLibraryStore.getState();
+      const paper = state.papers.find((p) => p.id === paperId);
+      const bytes = state.pdfAttachments[paperId];
+      if (!paper || !bytes || (paper.fullText && paper.fullText.length > 0)) return;
+      const { loadPdfText } = await import('@lemma/library/reader');
+      const result = await loadPdfText(bytes);
+      const fullText = result.pages
+        .map((pg) => pg.text)
+        .join('\n')
+        .slice(0, FULL_TEXT_CAP);
+      if (!fullText.trim()) return;
+      useLibraryStore.setState((s) => ({
+        papers: s.papers.map((p) => (p.id === paperId ? { ...p, fullText } : p)),
+      }));
+      scheduleRebuild(useLibraryStore.getState().papers);
+    } catch {
+      // 抽取失败（损坏 PDF / worker 未就绪）：静默保持摘要索引
+    }
+  })();
+}
+
 /** 测试辅助：清空嵌入缓存与待合并重建 */
 export function resetLibraryCaches(): void {
   apiEmbedCache.clear();
@@ -233,7 +265,8 @@ async function rebuildIndex(papers: Paper[]): Promise<number> {
   // 先收集全库 chunk：df 统计必须覆盖整库（而非单篇），停用词抑制才成立
   const allChunks: TextChunk[] = [];
   for (const paper of papers) {
-    allChunks.push(...chunkPaper(paper, paper.abstract));
+    // v4.4.0：有附件全文时索引全文（否则摘要）——library.search_fulltext 升级为全文检索
+    allChunks.push(...chunkPaper(paper, paper.fullText ?? paper.abstract));
   }
   let count = 0;
   if (allChunks.length > 0) {
@@ -448,6 +481,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     persistQuietly(
       attachmentPut({ paperId, data: new Blob([copy]), name, savedAt: Date.now() }),
     );
+    // v4.4.0：异步抽取全文入索引（成功后知识检索升级为全文级）
+    extractFullText(paperId);
     return true;
   },
 
@@ -564,5 +599,15 @@ useSettingsStore.subscribe((s, prev) => {
 //  2. localStorage → IndexedDB 启动迁移——把 ≥32KB 的 sf-* 大键搬入 IndexedDB 释放配额
 //     （惰性读取方属主的键跳过，见 kvStore 注释；所有 store 的模块级同步读取先于
 //      本异步迁移执行，搬运不与任何模块初始化竞争）。
-persistQuietly(hydrateAttachments());
+persistQuietly(
+  (async () => {
+    await hydrateAttachments();
+    // v4.4.0 回填：旧版本 attach 的附件没有 fullText——逐篇抽取（幂等：已有一律跳过），
+    // 每篇成功后自动 scheduleRebuild，知识索引逐步升级为全文级
+    const { papers, pdfAttachments } = useLibraryStore.getState();
+    for (const paper of papers) {
+      if (pdfAttachments[paper.id] && !paper.fullText) extractFullText(paper.id);
+    }
+  })(),
+);
 void migrateLocalStorageToIdb().catch((e) => console.warn('[storage] 启动迁移失败：', e));

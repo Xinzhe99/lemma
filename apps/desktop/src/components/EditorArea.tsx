@@ -208,7 +208,14 @@ export function EditorArea() {
         .map((m) => `${m[2]} = ${m[1]}`)
         .join('; ');
 
+      // v4.4.0：文档类上下文——beamer 的 frame、acmart 的 footnote 等模板命令
+      // 因文档类而异；section 文件通常无 documentclass，回落查 main.tex
+      const docClass =
+        /\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}/.exec(content)?.[1] ??
+        /\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}/.exec(ws.files['main.tex'] ?? '')?.[1];
+
       const contextParts: string[] = ['你是学术写作助手。续写接下来的 1-2 句。只输出续写内容，不要解释、不要 markdown 围栏。保持学术语气和 LaTeX 命令格式。'];
+      if (docClass) contextParts.push(`文档类：${docClass}`);
       if (sectionTitle) contextParts.push(`当前节：${sectionTitle}`);
       if (nearbyCites.length > 0) contextParts.push(`已引用文献：${nearbyCites.join(', ')}（续写中引用请只用这些键）`);
       if (glossaryTerms) contextParts.push(`术语表：${glossaryTerms}`);

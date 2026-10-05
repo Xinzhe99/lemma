@@ -1,6 +1,6 @@
 {
   "name": "lemma",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "private": true,
   "description": "AI-native end-to-end scholarly writing workstation — IDE for Papers",
   "workspaces": [
