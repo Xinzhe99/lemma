@@ -61,6 +61,10 @@ function warmPdfChunk(): void {
     void import('@lemma/library/reader');
     // editor 包已在主 bundle（AgentPanel 等），此处只触发 katex 子 chunk 预热
     void import('@lemma/editor').then(({ warmMathPreview }) => warmMathPreview());
+    // v5.1.0 开箱即用：闲时预下载内置 Tectonic 引擎 + 预热宏包缓存（幂等、静默）
+    void import('./texSetup').then(({ warmCompileEngineDefault }) =>
+      warmCompileEngineDefault().catch(() => undefined),
+    );
   };
   if (typeof requestIdleCallback === 'function') requestIdleCallback(load, { timeout: 8000 });
   else setTimeout(load, 3000);

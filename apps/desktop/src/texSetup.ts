@@ -13,6 +13,7 @@
  */
 
 import { getPlatform } from './platform/types';
+import { tauriProcRun } from './platform/tauri';
 import { t } from './i18n';
 import { useSettingsStore, type Language } from './state/settingsStore';
 
@@ -163,4 +164,68 @@ export function ensureBuiltinTectonic(): Promise<EnsureBuiltinTectonicResult> {
     });
   }
   return inflight;
+}
+
+// ---------------------------------------------------------------------------
+// v5.1.0 开箱即用闲时预热：
+//   1) 引擎本体（不存在则后台下载 ~30MB，幂等，已装秒回）；
+//   2) 宏包缓存（仅新装引擎时：编译一个最小文档，预热 Tectonic 按需拉取的
+//      格式文件与基础宏包——用户首次真实编译不再等冷缓存）。
+// 全程 fire-and-forget：失败静默（编译探测链仍会在真正编译时兜底重试）。
+// 依赖注入形态便于单测（默认绑定真实桥）。
+// ---------------------------------------------------------------------------
+
+export interface WarmEngineDeps {
+  ensure: () => Promise<EnsureBuiltinTectonicResult>;
+  writeFile: (path: string, content: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
+  run: (cmd: string, args: string[], cwd?: string) => Promise<{ code: number; stdout: string; stderr: string }>;
+  isDesktop: () => boolean;
+}
+
+export type WarmEngineResult = 'cached' | 'warmed' | 'skipped' | 'error';
+
+const WARM_DOC = [
+  '\\documentclass{article}',
+  '\\usepackage{amsmath,graphicx,hyperref,booktabs}',
+  '\\begin{document}',
+  'Warm-up: $\\int_0^1 x^2\\,dx$.',
+  '\\end{document}',
+  '',
+].join('\n');
+
+export async function warmCompileEngine(deps: WarmEngineDeps): Promise<WarmEngineResult> {
+  if (!deps.isDesktop()) return 'skipped';
+  let info: EnsureBuiltinTectonicResult;
+  try {
+    info = await deps.ensure();
+  } catch {
+    return 'error';
+  }
+  if (!isBuiltinTectonicInfo(info)) return 'error';
+  if (info.cached) return 'cached'; // 引擎已在位：无需预热宏包缓存
+  try {
+    await deps.writeFile('sf-engine-warm.tex', WARM_DOC);
+    await deps.run(info.path, ['-X', 'compile', 'sf-engine-warm.tex'], '');
+  } catch {
+    return 'warmed'; // 预热失败不视为错误——真实编译时会再次按需拉取
+  } finally {
+    // 尽力清理预热产物（失败不致命；物化目录不留垃圾）
+    for (const f of ['sf-engine-warm.tex', 'sf-engine-warm.pdf']) {
+      deps.deleteFile(f).catch(() => undefined);
+    }
+  }
+  return 'warmed';
+}
+
+/** 默认绑定：真实平台桥 + App 空闲时调用 */
+export function warmCompileEngineDefault(): Promise<WarmEngineResult> {
+  return warmCompileEngine({
+    ensure: ensureBuiltinTectonic,
+    writeFile: (p, c) => getPlatform().fs.writeFile(p, c),
+    deleteFile: (p) => getPlatform().fs.deleteFile(p),
+    run: (cmd, args, cwd) => tauriProcRun(cmd, args, cwd),
+    isDesktop: () =>
+      typeof window !== 'undefined' && (window as unknown as { __TAURI__?: unknown }).__TAURI__ != null,
+  });
 }
