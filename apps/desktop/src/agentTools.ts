@@ -48,6 +48,8 @@ export const ENABLED_TOOL_NAMES = [
   'project.list_files',
   'tex.create_file',
   'memory.write',
+  'git.log',
+  'git.show',
 ] as const;
 
 export const ENABLED_TOOLS: ToolDef[] = PAPER_TOOLS.filter((t) =>
@@ -357,6 +359,39 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       else useWorkspaceStore.getState().updateFile(path, after);
       scheduleAutoCommit(`添加引用 ${citekey}`); // v5.0.0：AI 改动自动进版本历史
       return { applied: true, file: path, note: decision.note };
+    },
+    // v5.2.0：AI 感知修订历史（Prism 式「在完整上下文含历史修订中工作」）——
+    // 只读工具，浏览器/无 git 形态诚实降级
+    'git.log': async (args) => {
+      const { gitLog, getGitAvailability } = await import('./git/gitService');
+      if (getGitAvailability() !== 'ok') {
+        return { ok: false, reason: '内置 git 不可用（需桌面形态 + 系统 git）' };
+      }
+      const limit = typeof args.limit === 'number' && args.limit > 0 ? Math.min(args.limit, 50) : 20;
+      const commits = await gitLog(limit);
+      return { ok: true, count: commits.length, commits };
+    },
+    'git.show': async (args) => {
+      const hash = String(args.hash ?? '').trim();
+      if (!hash) return { ok: false, reason: '缺少 hash（可先调 git.log）' };
+      const { getGitAvailability, ensureGitRepo } = await import('./git/gitService');
+      if (getGitAvailability() !== 'ok') {
+        return { ok: false, reason: '内置 git 不可用（需桌面形态 + 系统 git）' };
+      }
+      if (!(await ensureGitRepo())) return { ok: false, reason: 'git 仓库初始化失败' };
+      const { tauriProcRun } = await import('./platform/tauri');
+      const stat = await tauriProcRun('git', ['show', '--stat', '--format=%h %ad %s', '--date=iso-strict', hash]);
+      if (stat.code !== 0) {
+        return { ok: false, reason: `git show 失败：${(stat.stderr || stat.stdout).trim().slice(0, 160)}` };
+      }
+      const patch = await tauriProcRun('git', ['show', '--format=', hash]);
+      const full = patch.stdout;
+      const LIMIT = 6000;
+      return {
+        ok: true,
+        stat: stat.stdout.slice(0, 2000),
+        diff: full.length > LIMIT ? `${full.slice(0, LIMIT)}\n…（已截断）` : full,
+      };
     },
     // v4.4.0：AI 自主记忆——把项目约定/审稿结论/用户偏好写入 agent-memory，
     // 经 buildMemoryInjection 注入此后每次生成的 Context Pack。写级：走 diff

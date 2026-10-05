@@ -338,6 +338,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setHelpPanelOpen(true),
     },
     {
+      id: 'insert.imageToLatex',
+      title: ctx.t('cmd.imageToLatex'),
+      hint: ctx.t('hint.edit'),
+      run: () => useUiStore.getState().setImageToLatexOpen(true),
+    },
+    {
       id: 'edit.normalizeDoc',
       title: ctx.t('cmd.normalizeDoc'),
       hint: ctx.t('hint.edit'),

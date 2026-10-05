@@ -108,6 +108,7 @@ export function App() {
   const citeSuggestOpen = useUiStore((s) => s.citeSuggestOpen);
   const quickCiteOpen = useUiStore((s) => s.quickCiteOpen);
   const helpPanelOpen = useUiStore((s) => s.helpPanelOpen);
+  const imageToLatexOpen = useUiStore((s) => s.imageToLatexOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -692,6 +693,7 @@ export function App() {
       {citeSuggestOpen && <LazyFeatureDialog file="CitationSuggest" onClose={() => useUiStore.getState().setCiteSuggestOpen(false)} />}
       {quickCiteOpen && <LazyFeatureDialog file="QuickCiteDialog" onClose={() => useUiStore.getState().setQuickCiteOpen(false)} />}
       {helpPanelOpen && <LazyFeatureDialog file="HelpPanelDialog" onClose={() => useUiStore.getState().setHelpPanelOpen(false)} />}
+      {imageToLatexOpen && <LazyFeatureDialog file="ImageToLatexDialog" onClose={() => useUiStore.getState().setImageToLatexOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -727,11 +729,12 @@ function LazyFeatureDialog({
     | 'CollabMergeDialog'
     | 'CitationSuggest'
     | 'QuickCiteDialog'
-    | 'HelpPanelDialog';
+    | 'HelpPanelDialog'
+    | 'ImageToLatexDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

@@ -656,6 +656,34 @@ export function AgentPanel() {
         <button className="sf-link-btn" onClick={() => void previewContext()}>
           Context Pack
         </button>
+        {/* v5.2.0：文档级快捷操作（Prism 式「总结/校对/查找文献」）——一键发送，AI 自主决定怎么做 */}
+        <button
+          className="sf-link-btn"
+          title="总结当前稿件：结构、论点、缺口"
+          onClick={() =>
+            send('请通读当前稿件并总结：各章节内容与论点链、整体结构评价、以及你发现的缺口或薄弱环节。')
+          }
+        >
+          总结全文
+        </button>
+        <button
+          className="sf-link-btn"
+          title="校对：语法/拼写/一致性/引用规范"
+          onClick={() =>
+            send('请校对当前稿件：逐项检查语法、拼写、术语一致性、时态、引用规范（\\cite 使用与 .bib 一致性）与格式问题，按严重程度列出并给出修改建议（需要改稿时走 diff 审批）。')
+          }
+        >
+          校对
+        </button>
+        <button
+          className="sf-link-btn"
+          title="为当前稿件查找与补充相关文献"
+          onClick={() =>
+            send('请为当前稿件查找相关文献：先检索个人文献库，再联网检索（web.search_scholar）补充最新的相关工作，说明每篇与稿件的关系，值得引用的生成 BibTeX 入库（走审批）。')
+          }
+        >
+          查找文献
+        </button>
         <button
           className="sf-link-btn"
           onClick={() => {

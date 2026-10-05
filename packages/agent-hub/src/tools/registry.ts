@@ -198,6 +198,30 @@ export const PAPER_TOOLS: ToolDef[] = [
     },
   },
   {
+    // v5.2.0：AI 感知修订历史（Prism 式「在完整上下文含历史修订中工作」）
+    name: 'git.log',
+    description: '查看内置 git 提交历史（AI 改动自动提交）——了解稿件演进：谁在何时改了什么。',
+    permission: 'read',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: int('返回条数上限，默认 20'),
+      },
+    },
+  },
+  {
+    name: 'git.show',
+    description: '查看某次提交的变更明细（--stat 文件级 + 首段 diff 摘要）——分析「这段为什么这样写」。',
+    permission: 'read',
+    parameters: {
+      type: 'object',
+      properties: {
+        hash: str('提交 hash（可从 git.log 取 short hash）'),
+      },
+      required: ['hash'],
+    },
+  },
+  {
     name: 'snapshot.create',
     description: '创建 git 快照（AI 落盘修改前自动调用；带语义标签便于回滚）。',
     permission: 'execute',

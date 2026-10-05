@@ -7,7 +7,7 @@
 *一个项目、多个 AI 会话、右侧实时 PDF——像用 Codex 写代码一样写论文。*
 
 [![CI](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml/badge.svg)](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1982%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1990%20passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
@@ -79,7 +79,12 @@ Agent 可调用 **16 个论文域工具**，多轮自主执行（50 轮）：
 | 编译 | `tex.compile` / `tex.last_errors` | 真实编译 + 错误日志回读 |
 | 项目 | `project.context` / `read_file` / `find_in_files` / `list_files` | 大纲 / 术语表 / 文件读取与搜索 |
 | 记忆 | `memory.write` | AI 自主写入项目约定与偏好，注入后续所有会话 |
+| 修订历史 | `git.log` / `git.show` | AI 可读内置 git 的提交历史与变更明细——像 Prism 一样「在含历史修订的完整上下文中工作」 |
 | 其他 | `snapshot.create` / `submission.checklist` | 快照 / 15 个期刊投稿要求查询 |
+
+**Prism 式效率入口**：
+- **文档级快捷操作**：AI 面板工具栏一键「总结全文 / 校对 / 查找文献」
+- **图像转 LaTeX**：公式/表格截图（Ctrl+V 粘贴）→ 视觉模型转 LaTeX → 走 diff 审批插入稿件（支持 GLM-4V / gpt-4o / Qwen-VL 等视觉模型）
 
 **为「AI 自主」配套的体验**：
 
@@ -140,7 +145,7 @@ packages/agent-hub      Agent 中枢（OpenAI 兼容流式 · 工具调用 · �
 packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · 引用护栏）
 ```
 
-**工程数据**：1982 个单元测试（167 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API key 永不入备份/外发）。
+**工程数据**：1990 个单元测试（168 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API key 永不入备份/外发）。
 
 ## 🗺 路线图
 

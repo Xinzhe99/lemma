@@ -145,6 +145,8 @@ const TOOL_ICONS: Record<string, string> = {
   'submission.checklist': '📋',
   'figure.render': '🎨',
   'memory.write': '🧠',
+  'git.log': '🕘',
+  'git.show': '🔬',
   'paper.read': '📄',
   'paper.citations': '📚',
   'web.search_scholar': '🌐',
@@ -169,6 +171,8 @@ const TOOL_LABELS: Record<string, string> = {
   'snapshot.create': '创建快照',
   'submission.checklist': '查询投稿要求',
   'memory.write': '写入项目记忆',
+  'git.log': '查看修订历史',
+  'git.show': '查看提交明细',
 };
 
 /**

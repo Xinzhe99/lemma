@@ -76,6 +76,7 @@ const dict: MessageDict = {
   'console.title': { zh: '编译输出', en: 'Compile output' },
   'console.clear': { zh: '清空', en: 'Clear' },
   'console.aiFix': { zh: '✦ AI 修复编译错误', en: '✦ AI fix compile errors' },
+  'cmd.imageToLatex': { zh: '图像转 LaTeX（公式/表格截图）', en: 'Image to LaTeX (formula/table screenshot)' },
   'console.pending': { zh: '尚未编译 —— Ctrl+Enter 或命令面板运行编译（浏览器形态为模拟引擎）', en: 'Not compiled yet — Ctrl+Enter or command palette (mock engine in browser)' },
 
   // Agent 面板

@@ -92,6 +92,8 @@ interface UiState {
   mathPaletteOpen: boolean;
   quickCiteOpen: boolean;
   helpPanelOpen: boolean;
+  /** v5.2.0：图像转 LaTeX 对话框（Prism 图像转代码） */
+  imageToLatexOpen: boolean;
   /** 全量备份/恢复对话框 */
   backupDialogOpen: boolean;
   /** 专注模式（隐藏侧栏/Agent 面板，沉浸写作） */
@@ -136,6 +138,7 @@ interface UiState {
   setMathPaletteOpen(open: boolean): void;
   setQuickCiteOpen(open: boolean): void;
   setHelpPanelOpen(open: boolean): void;
+  setImageToLatexOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
   setStatsDialogOpen(open: boolean): void;
@@ -177,6 +180,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   mathPaletteOpen: false,
   quickCiteOpen: false,
   helpPanelOpen: false,
+  imageToLatexOpen: false,
   backupDialogOpen: false,
   focusMode: false,
   statsDialogOpen: false,
@@ -215,6 +219,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setMathPaletteOpen: (open) => set({ mathPaletteOpen: open }),
   setQuickCiteOpen: (open) => set({ quickCiteOpen: open }),
   setHelpPanelOpen: (open) => set({ helpPanelOpen: open }),
+  setImageToLatexOpen: (open) => set({ imageToLatexOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
   setStatsDialogOpen: (open) => set({ statsDialogOpen: open }),
