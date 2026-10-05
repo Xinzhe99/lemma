@@ -51,6 +51,7 @@ import { PROVIDER_PRESETS, findPreset } from '../providers/presets';
 import { testProvider, type TestResult } from '../providers/connectionTest';
 import { ReviewPanel, RebuttalPanel } from './ReviewPanel';
 import { useAgentPlansStore } from '../state/agentPlans';
+import { scheduleAutoCommit } from '../git/gitService';
 import { PlanCard } from '../components/PlanCard';
 import { DiffApprovalCard2 } from '../components/DiffApprovalCard2';
 import { useLibraryStore } from '../state/libraryStore';
@@ -471,6 +472,7 @@ export function AgentPanel() {
     const ws = useWorkspaceStore.getState();
     ws.snapshotFile(proposal.file, `${proposal.label}前的快照`);
     ws.updateFile(proposal.file, proposal.after);
+    scheduleAutoCommit(proposal.label); // v5.0.0：AI 改动自动进版本历史
     const token = proposal.token;
     clearProposal();
     setNote(token ? tr().appliedToken : tr().applied(proposal.label));
@@ -833,6 +835,7 @@ export function AgentPanel() {
               const ws = useWorkspaceStore.getState();
               ws.snapshotFile(proposal.file, `${proposal.label}前的快照`);
               ws.updateFile(proposal.file, after);
+              scheduleAutoCommit(proposal.label); // v5.0.0：AI 改动自动进版本历史
               const token = proposal.token;
               recordApproval(proposal, true, accepted === 'all' ? undefined : accepted.length);
               clearProposal();

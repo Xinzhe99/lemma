@@ -1,6 +1,7 @@
 /**
- * 三栏可拖拽布局：nav rail 固定宽，其余用 react-resizable-panels。
- * 水平组：sidebar 18% | center | agent 24%；center 内垂直组：editor | console 22%（可折叠）。
+ * 三栏可拖拽布局（v5.0.0 Codex 式）：nav rail 固定宽，其余用 react-resizable-panels。
+ * 水平组：sidebar 18% | chat（AI 会话，中央主区）| viewer 42%；
+ * viewer 内垂直组：查看器（PDF 默认 / LaTeX）| console 22%（可折叠）。
  * 尺寸经 onLayout 存 localStorage（JSON 数组，百分比）。
  */
 
@@ -9,7 +10,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 const H_KEY = 'sf-layout-horizontal';
 const V_KEY = 'sf-layout-vertical';
-const H_DEFAULT = [18, 58, 24];
+const H_DEFAULT = [18, 40, 42];
 const V_DEFAULT = [78, 22];
 
 // defaultSize 需在多次渲染间保持稳定，故模块级读取一次
@@ -60,7 +61,12 @@ export function ResizableLayout({ navRail, sidebar, editor, console, agent }: Re
           {sidebar}
         </Panel>
         <PanelResizeHandle className="sf-resizer" />
-        <Panel defaultSize={hSizes[1]} minSize={30} className="sf-panel">
+        {/* v5.0.0：中央 = AI 会话区（agent）；右侧 = 查看器（editor prop）+ 编译台 */}
+        <Panel defaultSize={hSizes[1]} minSize={24} className="sf-panel sf-chat-panel">
+          {agent}
+        </Panel>
+        <PanelResizeHandle className="sf-resizer" />
+        <Panel defaultSize={hSizes[2]} minSize={24} className="sf-panel">
           <PanelGroup
             direction="vertical"
             className="sf-panel-group"
@@ -74,10 +80,6 @@ export function ResizableLayout({ navRail, sidebar, editor, console, agent }: Re
               {console}
             </Panel>
           </PanelGroup>
-        </Panel>
-        <PanelResizeHandle className="sf-resizer" />
-        <Panel defaultSize={hSizes[2]} minSize={14} className="sf-panel">
-          {agent}
         </Panel>
       </PanelGroup>
     </div>

@@ -2,184 +2,157 @@
 
 # Lemma
 
-**AI 原生的一站式学术论文写作工作站 · IDE for Papers**
+**写 LaTeX 论文的 Codex · AI-native paper writing workspace**
 
-*Literature discovery → reading → LaTeX writing → compilation → AI review → submission, in one local-first app.*
+*一个项目、多个 AI 会话、右侧实时 PDF——像用 Codex 写代码一样写论文。*
 
 [![CI](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml/badge.svg)](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1165%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1971%20passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
 
-**[✨ 功能总览](#-功能总览) · [🚀 快速开始](#-快速开始) · [🤖 AI 工作流](#-ai-工作流) · [🏗 架构](#-架构) · [🗺 路线图](#-路线图)**
+**[🎯 定位](#-定位为什么是写论文的-codex) · [✨ 核心体验](#-核心体验) · [🤖 AI 能力](#-ai-能力) · [🚀 快速开始](#-快速开始) · [🏗 架构](#%EF%B8%8F-架构)**
 
 </div>
 
 ---
 
-![Lemma 写作视图](docs/screenshots/writing.png)
+![Lemma 主界面：左会话列表 · 中 AI 会话 · 右实时 PDF](docs/layout-pdf-mode.png)
+
+*右侧一键切换 LaTeX 源码模式：*
+
+![LaTeX 模式](docs/layout-latex-mode.png)
 
 ---
 
-## 为什么做这个
+## 🎯 定位：为什么是「写论文的 Codex」
 
-写一篇论文，今天的研究者要在 **8–12 个互不打通的工具**之间切换：Google Scholar 检索、Zotero 管理、Acrobat 阅读标注、Overleaf 写作、ChatGPT 润色、邮件里来回审稿意见……上下文在每一个边界断裂。
+AI 编码工具（Codex / Claude Code / Cursor）已经证明了一件事：**agent 能动手，比只能聊天有用得多**。但论文工具里的 AI 还被关在"对话框"里——看不到你的文献库，跑不了你的编译，改不了你的引用，更不会为改动负责。
 
-更关键的是：AI 编码工具（Cursor / Codex / Claude Code）已经证明"agent 能动手"的价值，但论文工具里的 AI 还被关在"只能聊天"的盒子里——看不到你的文献库，跑不了你的编译，改不了你的引用。
+Lemma 把 Codex 的产品形态完整搬到 LaTeX 论文场景：
 
-**Lemma 把这两件事缝合起来**：一个本地优先的桌面应用，AI Agent 作为一等公民深入每个环节——能读你的文献库、能编译你的论文、能核查你的引用、能模拟你的审稿人。而每一次 AI 修改都以 diff 呈现、由你审批。
-
-## ✨ 功能总览
-
-### 📝 写作环境（Overleaf 级 + 本地编译）
-
-| | |
+| Codex（写代码） | Lemma（写论文） |
 |---|---|
-| LaTeX 编辑器 | 语法高亮、代码折叠、`\cite` / `\ref` 智能补全（数据来自你的文献库）、BibTeX 专用高亮 |
-| 数学实时预览 | 悬停 `$...$` / `\[...\]` 即出 KaTeX 渲染浮层 |
-| 可视化工具 | 表格编辑器（图形网格 → tabular 代码）、插图向导（自动补 `graphicx`）、引用插入向导（语义推荐相关文献） |
-| 质量护栏 | LaTeX linter（环境配对/悬空引用/括号平衡）、拼写与学术用词检查（96 对错拼 + 26 组易混词，语境守卫防误报） |
-| 真实编译 | **全引擎支持**：Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk 自动检测（设置页可锁定偏好）；缺引擎时 Tectonic 自动下载（~30MB 零配置）；**实时预览**（编辑 0.5s 自动重编 + PDF 平滑刷新）；**SyncTeX 双向跳转** |
-| 效率特性 | Ctrl+P 快速打开、Ctrl+Shift+F 全项目搜索、**AI 一键修编译错误**（诊断→diff 审批）、**导出 Word (.docx)**（自动下载内置 pandoc）、专注模式、多项目管理 |
+| 一个 repo 多个会话 | 一个论文项目多个 AI 会话（左侧列表管理，按项目隔离） |
+| 中间是对话，右侧看代码/diff | 中间是对话，右侧**默认实时渲染的 PDF**（一键切 LaTeX 源码） |
+| AI 改代码 → diff 审批 | AI 改稿件 → diff 审批卡，逐 hunk 勾选采纳 |
+| git 版本管理，随时回滚 | **内置 git**：AI 每次采纳的改动自动提交，历史面板一键恢复 |
+| agent 调工具（读文件/跑命令） | agent 调 16 个论文域工具（读 PDF 论文/联网找文献/编译/改稿/加引用…） |
+| 闲时下载更新，确认后重启 | 同款更新体验，重启后会话与项目原地恢复 |
 
-![大纲与图表导航](docs/screenshots/outline.png)
+**不做冗余功能**：没有番茄钟、没有写作打卡、没有花哨面板——保留写作、编译、文献、AI 四件事，做到极致。
 
-### 📚 文献管理（Zotero 级 + AI 检索）
+## ✨ 核心体验
 
-- **文献发现**：arXiv + Crossref 聚合检索一键入库；**arXiv 每日晨报**（订阅研究方向，打开即见近三日新论文）
-- **迁移导入**：BibTeX / RIS / DOI / arXiv ID / **Zotero Better BibTeX JSON**（集合结构保留为标签）；PDF 文件夹批量模糊关联
-- **PDF 阅读**：四色语义标注（方法/发现/质疑/引用）、书签大纲、连续滚动（虚拟化）、选中即问 AI
-- **知识底座**：全库混合检索（BM25 + 向量）、双链笔记卡片（标注一键转卡片）、术语表与一致性检查、写作风格档案
+### 会话中心的写作流
 
-### 🏠 首页指挥台
+- **一个项目，多个会话**：起草一个会话、审稿修改一个会话、rebuttal 一个会话——左侧列表随时切换，重启不丢（本地 IndexedDB 持久化）
+- **右侧默认 PDF，实时渲染**：编辑 0.5s 自动重编译；**重新编译不跳页**——你看的位置就是 AI 改的位置，所见即所得
+- **AI 改动自动定位**：AI 修改稿件并编译成功后，PDF 自动滚动到被修改的对应位置（SyncTeX 正向定位）
+- **一键切换 LaTeX 源码**：需要看代码时点「编辑器」，完整 CodeMirror 6 LaTeX 环境（补全 / 折叠 / 数学预览 / linter）
 
-打开应用第一眼即见"今天该做什么"：今日写作目标与连续天数、**稿件健康度评分**（lint / 拼写 / 术语 / 悬空引用四维聚合 0–100）、投稿倒计时、待处理批注、arXiv 晨报。
+### 内置 git 版本管理
 
-![首页指挥台](docs/screenshots/dashboard.png)
+- **AI 改动自动提交**：每次 diff 审批采纳后 2s 自动 commit——AI 干的每一步都有版本可回滚，像 Codex 一样可靠
+- **历史面板**：左侧「版本」页签查看提交历史，任何版本一键恢复（恢复本身也是新变更，可再回滚）
+- **手动提交**：阶段性进度随时「提交当前进度」
+- 桌面形态使用系统 git（研究人员机器几乎必装）；未检测到时面板明示并停用，不伪装
 
-## 🤖 AI 工作流
+### 编译：开箱即用
 
-7 个内置工作流贯穿"写 → 审 → 辩 → 投"全流程。Agent 可调用论文域工具（检索文献库、读项目上下文、触发编译）；**写级操作（改稿 / 加引用）强制经 diff 审批卡，你裁决后才落盘**，并自动创建快照随时回滚。
+- **无需预装 LaTeX**：全引擎矩阵（Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk）自动检测，缺引擎时 Tectonic 自动下载（~30MB 零配置）
+- **编译失败一键 AI 修复**：控制台「✦ AI 修复编译错误」→ 错误日志自动注入 → AI 逐个定位修复（走 diff 审批）→ 重新编译验证
+- **SyncTeX 双向跳转**：PDF 点正文跳源码行，源码行跳 PDF 位置
 
-| 工作流 | 做什么 |
-|---|---|
-| **W6 三审稿人仿真** | 三个独立 persona（方法严格派 / 领域专家 / 统计复现）并行审稿 + Meta-Review 三档优先级 → 结构化审稿面板 |
-| **W7 Rebuttal 起草** | 逐条解析审稿意见 → direct-fix / partial / argue / cite 四类策略回复 → 经审批插入稿件 |
-| **W12 相关工作综述** | 从你的文献库检索分组 → Related Work 叙事草稿（引用全部本地可验证） |
-| **W3 学术润色** | 目标化润色 + diff 审批 + 自动快照 |
-| **W2 分节起草** | 注入 Context Pack 与相关文献起草章节 |
-| **W10 预提交自检** | 三态清单报告（问题行一键跳转、修复建议一键复制） |
-| **W11 Cover Letter** | 结合期刊定位起草投稿信 |
+## 🤖 AI 能力
 
-**学术诚信护栏**：AI 回复中的每条引用与本地文献库核验，幻觉引用立即标红拦截；所有 AI 修改 latexdiff 留痕；全量备份不含 API key。
+Agent 可调用 **16 个论文域工具**，多轮自主执行（50 轮）：
 
-**零配置也能体验**：内置演示模式（高质量示例数据、明确标注）——装完即看三审稿人仿真的完整形态；配好 key 后 30 秒切换为真实 AI（DeepSeek / GLM / Kimi 等 7 家预设 + 连接测试）。
+| 类别 | 工具 | 说明 |
+|---|---|---|
+| 读文献 | `paper.read` | 读附件 PDF **全文**（分页标注 / 截断保护），无附件时题录+摘要兜底 |
+| 找文献 | `web.search_scholar` | 联网聚合 arXiv + Crossref，检索库外新文献 |
+| | `library.search_fulltext` | 全文级检索个人文献库（附件 PDF 已入索引） |
+| 改稿件 | `tex.edit` / `tex.create_file` | diff / 整文件 / find-replace 三种方式，**强制经 diff 审批** |
+| 加引用 | `citation.add` / `citation.validate` | 生成 BibTeX 入库（走审批）/ 悬空引用核查 |
+| 编译 | `tex.compile` / `tex.last_errors` | 真实编译 + 错误日志回读 |
+| 项目 | `project.context` / `read_file` / `find_in_files` / `list_files` | 大纲 / 术语表 / 文件读取与搜索 |
+| 记忆 | `memory.write` | AI 自主写入项目约定与偏好，注入后续所有会话 |
+| 其他 | `snapshot.create` / `submission.checklist` | 快照 / 15 个期刊投稿要求查询 |
 
-### 🧠 Agent 能力（v1.1.0）
+**为「AI 自主」配套的体验**：
 
-| | |
-|---|---|
-| **计划模式** | 复杂任务先出计划：agent 产出步骤清单卡（目标 + 每步工具声明），**你批准后才逐步执行**——每步独立状态、可跳过失败步 / 重试 / 中止，写级步骤仍过 diff 审批门 |
-| **Chat 富渲染** | 表格 / 代码块 / 引用块完整渲染，`\citekey` 一键点击；斜杠命令注入 10 个内置工作流、@-mention 文献与文件；复制 / 重新生成 / 编辑重发 / ↑ 召回历史 |
-| **diff 审批 v2** | 并排 + 统一双视图、**按 hunk 勾选部分采纳**（字节精确重组）、「解释这组修改」异步说明动机 |
-| **编辑器 quick-fix** | 拼写 / 中式表达波浪线悬停即出候选按钮，点击一键替换；「忽略此词」会话静音 |
-| **Agent 记忆** | 从你的审批与部分采纳历史学习写作偏好，自动注入后续每次生成的 Context Pack；可查看 / 停用 |
-| **并行研究子代理** | 一个调研任务自动拆分多子话题并行检索，容错汇总 |
-| **用量与成本** | 本月调用 / token 成本估算（标注"估算非账单"）/ 月度预算进度 / 近 20 条事件 |
-| **会话持久化（v1.2.0）** | 对话历史落本地 IndexedDB——重启不丢；「历史会话」下拉切换 / 重命名 / 删除 |
-| **聊天代码块一键入稿（v1.2.0）** | agent 回复中的 LaTeX 围栏块带「插入到稿件」按钮，插入光标处并过 diff 审批 |
-| **自定义提示词库（v1.2.0）** | 高频指令沉淀为 `/` 呼出的个人资产，正文自动填入可改后发送 |
-| **风格分析与稿件待办（v1.3.0）** | 一键体检：长句/被动语态/模糊限定词/可读性（FK 年级），逐条点击跳源码行；`% TODO`/`	odo{}` 收进首页待办卡直达 |
+- **智能上下文注入**：说"润色"自动附当前文件，说"引用"自动附 bib 键列表，说"编译错误"自动附日志；`@文件路径` / `@citekey` 提及即注入全文/论文内容
+- **回复后建议 chips**：改完稿 → 「编译验证」；读过论文 → 「总结方法」；检索过 → 「导入文献」——零 API 成本，点击即发
+- **AI 记忆**：审批历史学习写作偏好 + `memory.write` 主动记忆，跨会话生效，越用越懂你的项目
+- **行内补全（ghost text）**：Tab 采纳，注入文档类 / 术语表 / 当前节上下文
+- **四种角色**：默认助手 / 严格审稿人 / 写作教练 / 翻译专家
+- **学术诚信护栏**：AI 回复中的每条引用与本地文献库核验，幻觉引用标红拦截；所有 AI 修改 latexdiff 留痕
 
-![三审稿人仿真](docs/screenshots/reviewer-sim.png)
+**内置工作流**（斜杠命令呼出）：分节起草 / 学术润色 / 三审稿人仿真 / Rebuttal 起草 / 相关工作综述 / Cover Letter / 预提交自检 / Beamer 演示稿 / 页数压缩等 10 个。
 
-### 📤 投稿工作台
-
-15 个内置期刊/会议档案（页数 / 匿名规则 / AI 政策）、打包自检 6 项门控、一键导出 zip、Cover Letter、deadline 倒计时三档预警、期刊推荐。
-
-![投稿工作台](docs/screenshots/submit.png)
+**文献管理**：arXiv + Crossref 聚合检索入库、BibTeX/RIS/Zotero 迁移、PDF 四色语义标注、全库混合检索（BM25 + 向量，附件 PDF 全文入索引）、选中即问 AI。
 
 ## 🚀 快速开始
 
-### 方式一：Web 版（无需安装 Rust）
+### 直接下载（推荐）
+
+| 下载 | 说明 |
+|---|---|
+| [Windows 安装包](https://github.com/Xinzhe99/lemma/releases/latest) | NSIS 向导式 setup.exe |
+| [macOS (Apple Silicon)](https://github.com/Xinzhe99/lemma/releases/latest) | .dmg |
+| [macOS (Intel)](https://github.com/Xinzhe99/lemma/releases/latest) | .dmg |
+
+全部版本见 [Releases](https://github.com/Xinzhe99/lemma/releases)。**应用内自动更新**：闲时静默检查下载，你确认后重启完成升级，会话与项目原地恢复。
+
+### 从源码运行
 
 ```bash
 git clone https://github.com/Xinzhe99/lemma.git
 cd lemma
 npm install
-npm run dev        # 打开 http://localhost:5173
-```
 
-> Web 版为模拟编译、AI 需配置模型服务；完整体验（真实编译 / SyncTeX / 晨报直连）建议桌面版。
+# Web 版（模拟编译，AI 需配置）
+npm run dev
 
-### 方式零：直接下载安装包（Windows，推荐）
-
-| 下载 | 说明 |
-|---|---|
-| [Lemma_2.0.0_x64-setup.exe](https://github.com/Xinzhe99/lemma/releases/download/v2.0.0/Lemma_2.0.0_x64-setup.exe) | Windows 安装包（NSIS 向导式） |
-| [Lemma_2.0.0_aarch64.dmg](https://github.com/Xinzhe99/lemma/releases/download/v2.0.0/Lemma_2.0.0_aarch64.dmg) | macOS（Apple Silicon） |
-| [Lemma_2.0.0_x64.dmg](https://github.com/Xinzhe99/lemma/releases/download/v2.0.0/Lemma_2.0.0_x64.dmg) | macOS（Intel） |
-
-> 历史版本（含绿色版）见 [Releases](https://github.com/Xinzhe99/lemma/releases) 全部列表。
-
-全部版本见 [Releases](https://github.com/Xinzhe99/lemma/releases)。应用内建自动更新：闲时静默检查下载，重启即完成升级。
-
-### 方式二：桌面版（Windows）
-
-**前置**：[Rust](https://rustup.rs) + Node 20+。**无需预装 LaTeX**——首次编译自动下载内置 Tectonic 引擎
-
-```bash
-npm install
+# 桌面版（完整体验：真实编译 / SyncTeX / 内置 git）
 cd apps/desktop
-npm run desktop:dev     # 开发运行（Tauri 窗口）
-npm run desktop:build   # 打安装包（NSIS setup.exe）
+npm run desktop:dev      # 开发运行（Tauri 窗口）
+npm run desktop:build    # 打安装包
 ```
+
+前置：[Rust](https://rustup.rs) + Node 20+。**无需预装 LaTeX 和 git 之外的东西**（LaTeX 引擎自动下载；git 缺失时版本面板自动降级）。
 
 ### 配置 AI（30 秒）
 
-设置 → 模型服务 → 选预设（DeepSeek / 智谱 GLM / Kimi / 硅基流动 / 通义 / OpenAI / 自建）→ 粘贴 API Key → 测试连接。未配置时全部工作流以演示模式运行。
+设置 → 模型服务 → 选预设（DeepSeek / 智谱 GLM / Kimi / 硅基流动 / 通义 / OpenAI / 自建）→ 粘贴 API Key → 测试连接。未配置时以演示模式运行（内置示例数据，明确标注）。
 
-## 🏗 架构
+## 🏗️ 架构
 
 ```
-apps/desktop            应用壳（Tauri 2 + React；Rust 桥：虚拟文件系统 / 密钥 / 进程调用）
+apps/desktop            应用壳（Tauri 2 + React；Rust 桥：虚拟文件系统 / 密钥 / 进程调用 / 更新）
 packages/shared         跨包领域类型
-packages/editor         LaTeX 编辑器（CodeMirror 6 · 补全/大纲/linter/数学预览/表格）
-packages/compile        编译服务（Tectonic/latexmk · log 解析 · 真实 SyncTeX · 模板）
-packages/library        文献库（BibTeX/RIS/Zotero 解析 · PDF 阅读器 · 引用格式）
+packages/editor         LaTeX 编辑器（CodeMirror 6 · 补全/大纲/linter/数学预览）
+packages/compile        编译服务（引擎矩阵 · log 解析 · 真实 SyncTeX · 模板）
+packages/library        文献库 + PDF 阅读器（BibTeX/RIS/Zotero 解析 · 引用格式）
 packages/agent-hub      Agent 中枢（OpenAI 兼容流式 · 工具调用 · 阻塞审批 · 工作流引擎）
 packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · 引用护栏）
 ```
 
-**工程数据**：1165 个单元测试（113 文件）· GitHub Actions CI（web + cargo-check 双 job）· 全站中英双语 · 数据本地优先（IndexedDB，API key 永不入备份/外发）。
+**工程数据**：1971 个单元测试（165 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API key 永不入备份/外发）。
 
 ## 🗺 路线图
 
-- [x] v0.5 数学预览 · SyncTeX · 全项目搜索 · ErrorBoundary · CI
-- [x] v0.6 引用向导 · PDF 大纲与连续滚动 · 备份恢复 · W12 综述
-- [x] v0.7 批注系统 · 写作统计 · 专注模式 · 图表导航 · 拼写检查
-- [x] v0.8 数据持久化 · 模型激活器 · 真实 SyncTeX 校准 · 性能基线 · 安装包
-- [x] v0.9 首页指挥台 · arXiv 晨报 · 离线演示模式 · Zotero 迁移
-- [x] v1.0 审阅包往返（导出/导入给合作者，导师不装软件也能改稿）· Beamer · 投稿文书 · Bib 清理
-- [x] v1.1 计划模式 · Chat 富渲染 · diff 审批 v2 · quick-fix · Agent 记忆 · 并行研究 · 用量成本
-- [x] v1.2 会话持久化 · 聊天 LaTeX 块一键入稿 · 自定义提示词库
-- [x] v1.3 风格分析报告 · 稿件待办扫描
-- [x] v1.4 检索质量升级（TF-IDF 本地嵌入：停用词抑制、内容词放大）
-- [x] v1.5 CLI Agent 桥（codex/claude 本地引擎）· 协作补丁阶段一（CRDT 离线合并）
-- [x] v1.5.1 真实可用性缺陷轮：错误沟槽标注 · 保存后自动编译 · PDF 跟随光标 · TeX 感知字数
-- [x] v1.6 写作高频动作：cite 悬停文献卡 · 句子改写器（3 变体）· 会话按项目隔离
-- [x] v1.7 读-写闭环：PDF+编辑器分屏对照 · 智能引用推荐（TF-IDF 段落→文献库）
-- [x] v1.8 编辑深度：56 个 LaTeX snippet（数学/环境/文本）· PDF 引述→稿件
-- [x] v1.9 进度感知：各节字数/状态徽标 · TODO AI 解决 · 专注写作计时
-- [x] v2.0 引擎矩阵（Tectonic/LuaLaTeX/XeLaTeX/pdfLaTeX/latexmk）· 实时预览（0.5s 防抖）
-- [x] 多人协同一阶段：CRDT 离线补丁往返（.sfpatch，零服务器）
-- [ ] 协同二阶段：实时云房间（Yjs + 信令服务）
-- [x] CLI agent 桥（codex / claude / gemini 作为本地引擎接入）
+- [x] v1.x–v2.x 编辑器/编译/文献/工作流打底（详见 [CHANGELOG.md](CHANGELOG.md)）
+- [x] v3.x–v4.x AI 自主化：16 工具 agent、全文检索、AI 记忆、性能分包（启动 -31%）
+- [x] **v5.0 大改版：Codex 式重构**——会话中心布局 / PDF 默认实时渲染不跳页 / AI 改动自动定位 / 内置 git / 删除非核心功能
+- [ ] 协同写作（CRDT 二阶段：实时云房间）
+- [ ] AI 生图（论文插图向）
 
 ## 🤝 贡献
 
-欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm test`（与 CI 同款门禁）。完整设计文档见 [DESIGN.md](./DESIGN.md)，版本历史见 [CHANGELOG.md](./CHANGELOG.md)。
+欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm test`（与 CI 同款门禁）。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 📄 许可
 

@@ -114,6 +114,28 @@ describe('PdfReader 文档加载（mock pdfjs 透传路径）', () => {
     expect(pdfjsMock.getPage).toHaveBeenCalledWith(1);
     expect(container!.textContent).toContain('1 / 2');
   });
+
+  it('v5.0.0 数据更新（重编译）保持当前页，不弹回第 1 页', async () => {
+    renderReader();
+    await flushLoad();
+    // 先翻到第 2 页
+    const props = baseProps!;
+    act(() => {
+      root!.render(<PdfReader {...props} gotoPage={2} gotoTick={1} />);
+    });
+    await flushMicrotasks();
+    expect(pdfjsMock.getPage).toHaveBeenCalledWith(2);
+    pdfjsMock.getPage.mockClear();
+
+    // 重新编译：同一文档对象换成新 data → 应停留在第 2 页
+    const newData = new ArrayBuffer(8);
+    act(() => {
+      root!.render(<PdfReader {...props} data={newData} />);
+    });
+    await flushLoad();
+    expect(container!.textContent).toContain('2 / 2');
+    expect(pdfjsMock.getPage).not.toHaveBeenCalledWith(1);
+  });
 });
 
 describe('PdfReader gotoPage / gotoTick（源码 → PDF 定位）', () => {

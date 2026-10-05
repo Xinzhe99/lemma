@@ -6,16 +6,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BookOpen,
-  Brain,
   FileText,
+  GitBranch,
   History,
   Library,
-  ListTree,
-  Home,
   MessageSquare,
   MessagesSquare,
-  Quote,
-  Send,
   Settings,
   Sparkles,
 } from 'lucide-react';
@@ -44,9 +40,11 @@ import { QuickOpen, isQuickOpenTrigger } from './components/QuickOpen';
 import { ShortcutsDialog, isShortcutsTrigger } from './components/ShortcutsDialog';
 import { TemplateWizard } from './components/TemplateWizard';
 import { UpdateBar } from './components/UpdateBar';
-import { GoalToast } from './components/GoalToast';
 import { WelcomeTour } from './components/WelcomeTour';
 import { AgentPanel } from './panels/AgentPanel';
+import { SessionsPanel } from './panels/SessionsPanel';
+import { GitPanel } from './panels/GitPanel';
+import { detectGitAvailability } from './git/gitService';
 import { hydrateAgentSessions, attachAgentSessionPersist } from './state/agentSessionPersist';
 import { attachAutoCompile } from './compileAction';
 import { parseProjectZip } from '@lemma/compile';
@@ -88,8 +86,7 @@ export function App() {
   const zipPickerTick = useUiStore((s) => s.zipPickerTick);
   const pdfView = useUiStore((s) => s.pdfView);
   const setPdfView = useUiStore((s) => s.setPdfView);
-  const centerView = useUiStore((s) => s.centerView);
-  const setCenterView = useUiStore((s) => s.setCenterView);
+  const viewerMode = useUiStore((s) => s.viewerMode);
   const templateWizardOpen = useUiStore((s) => s.templateWizardOpen);
   const historyOpen = useUiStore((s) => s.historyOpen);
   const tableEditorOpen = useUiStore((s) => s.tableEditorOpen);
@@ -103,12 +100,10 @@ export function App() {
   const externalDiffOpen = useUiStore((s) => s.externalDiffOpen);
   const usageDialogOpen = useUiStore((s) => s.usageDialogOpen);
   const promptsLibOpen = useUiStore((s) => s.promptsLibOpen);
-  const styleReportOpen = useUiStore((s) => s.styleReportOpen);
   const collabDialogOpen = useUiStore((s) => s.collabDialogOpen);
   const citeSuggestOpen = useUiStore((s) => s.citeSuggestOpen);
   const quickCiteOpen = useUiStore((s) => s.quickCiteOpen);
   const helpPanelOpen = useUiStore((s) => s.helpPanelOpen);
-  const mathPaletteOpen = useUiStore((s) => s.mathPaletteOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -146,6 +141,8 @@ export function App() {
     const detachAutoCompile = attachAutoCompile();
     // 空闲预热：PDF 阅读器 + KaTeX 公式引擎分包（见 warmPdfChunk）
     warmPdfChunk();
+    // v5.0.0 内置 git：启动即探测可用性
+    void detectGitAvailability();
     return () => {
       detach();
       detachAutoCompile();
@@ -266,15 +263,12 @@ export function App() {
     sidebarRef.current?.focus();
   }, [setSidebarTab]);
 
-  const sidebarTabs: { id: typeof sidebarTab; label: string; icon: typeof ListTree }[] = [
-    { id: 'home', label: t('nav.home'), icon: Home },
-    { id: 'outline', label: t('nav.outline'), icon: ListTree },
+  // v5.0.0 Codex 式导航：会话 / 文件 / 版本 / 文献（其余面板经命令面板可达）
+  const sidebarTabs: { id: typeof sidebarTab; label: string; icon: typeof FileText }[] = [
+    { id: 'sessions', label: t('nav.sessions'), icon: MessagesSquare },
     { id: 'files', label: t('nav.files'), icon: FileText },
-    { id: 'citations', label: t('nav.citations'), icon: Quote },
+    { id: 'git', label: t('nav.git'), icon: GitBranch },
     { id: 'library', label: t('nav.library'), icon: Library },
-    { id: 'knowledge', label: t('nav.knowledge'), icon: Brain },
-    { id: 'submit', label: t('nav.submit'), icon: Send },
-    { id: 'comments', label: t('nav.comments'), icon: MessagesSquare },
   ];
 
   const commands = useMemo(
@@ -323,10 +317,16 @@ export function App() {
     <aside className="sidebar">
       <div className="sidebar-title">{sidebarTitle}</div>
       <div className="sidebar-body" ref={sidebarRef} tabIndex={-1}>
-        {sidebarTab === 'home' ? (
-          <LazyPanel file="Dashboard" labelKey="nav.home" />
+        {sidebarTab === 'sessions' ? (
+          <SessionsPanel />
         ) : sidebarTab === 'files' ? (
           <FileTree />
+        ) : sidebarTab === 'git' ? (
+          <GitPanel />
+        ) : sidebarTab === 'library' ? (
+          <LazyPanel file="LibraryPanel" labelKey="nav.library" />
+        ) : sidebarTab === 'home' ? (
+          <LazyPanel file="Dashboard" labelKey="nav.home" />
         ) : sidebarTab === 'outline' ? (
           <LazyPanel file="OutlinePanel" labelKey="nav.outline" />
         ) : sidebarTab === 'citations' ? (
@@ -372,7 +372,7 @@ export function App() {
         ) : sidebarTab === 'comments' ? (
           <LazyPanel file="CommentsPanel" labelKey="nav.comments" />
         ) : (
-          <LazyPanel file="LibraryPanel" labelKey="nav.library" />
+          <LazyPanel file="Dashboard" labelKey="nav.home" />
         )}
       </div>
     </aside>
@@ -381,17 +381,15 @@ export function App() {
   // —— WS-2 编译同步闭环（App 窄 carve-out）：订阅 onPdfGoto 并镜像为 PdfReader 的 goto props ——
   const [pdfGotoPage, setPdfGotoPage] = useState<number | undefined>(undefined);
   const [pdfGotoTick, setPdfGotoTick] = useState(0);
-  // —— 分屏可拖拽（v2.4.0 ③）：比例 + 容器 ref ——
-  const [splitRatio, setSplitRatio] = useState(0.5);
-  const splitRef = useRef<HTMLDivElement>(null);
+  const setViewerMode = useUiStore((s) => s.setViewerMode);
   useEffect(
     () =>
       onPdfGoto((g) => {
         setPdfGotoPage(g.page);
         setPdfGotoTick((v) => v + 1);
-        setCenterView('pdf');
+        useUiStore.getState().setViewerMode('pdf');
       }),
-    [setCenterView],
+    [],
   );
 
   /**
@@ -424,125 +422,100 @@ export function App() {
       label: `引述：${citekey}（PDF 选中 → 稿件）`,
       via: 'PDF quote',
     });
-    // 切回编辑器让用户看到审批卡（Agent 面板在编辑器视图旁）
-    useUiStore.getState().setCenterView(centerView === 'split' ? 'split' : 'editor');
+    // 审批卡渲染在中央 AI 会话区（v5.0.0 布局），无需切换视图
   };
 
-  const editor = (
-    <section className="center">
-      {pdfView ? (
-        <div className="tabbar sf-pdfbar">
-          <button
-            className={`tab ${centerView === 'editor' ? 'active' : ''}`}
-            onClick={() => setCenterView('editor')}
-          >
-            {t('center.editorTab')}
-          </button>
-          <button
-            className={`tab ${centerView === 'pdf' ? 'active' : ''}`}
-            onClick={() => setCenterView('pdf')}
-          >
-            {t('center.pdfTab')} · {pdfView.name}
-          </button>
-          <button
-            className={`tab sf-split-btn ${centerView === 'split' ? 'active' : ''}`}
-            onClick={() => setCenterView(centerView === 'split' ? 'editor' : 'split')}
-            title={t('center.splitHint')}
-          >
-            {t('center.split')}
-          </button>
-          <button className="sf-link-btn sf-pdfbar-close" onClick={() => setPdfView(null)}>
-            {t('center.closePdf')}
-          </button>
-        </div>
-      ) : (
-        <EditorTabs
-          actions={
-            <>
-              <button
-                className="tab-action"
-                title={t('tab.polishTitle')}
-                onClick={() => requestAgentAction('polish')}
-              >
-                <Sparkles size={13} /> {t('tab.polish')}
-              </button>
-              <button
-                className="tab-action"
-                title={t('tab.historyTitle')}
-                onClick={() => setHistoryOpen(true)}
-              >
-                <History size={13} /> {t('tab.history')}
-              </button>
-            </>
-          }
-        />
-      )}
-      <div
-        className={`editor-area ${centerView === 'split' && pdfView ? 'sf-split' : ''}`}
-        style={
-          centerView === 'split' && pdfView
-            ? ({ '--sf-split': `${splitRatio * 100}%` } as React.CSSProperties)
-            : undefined
-        }
-        ref={splitRef}
-      >
-        {pdfView && (centerView === 'pdf' || centerView === 'split') ? (
+  // —— v5.0.0 Codex 式布局：右侧查看器（PDF 默认 / LaTeX 可切） ——
+  const viewer = (
+    <section className="center sf-viewer">
+      <div className="tabbar sf-viewerbar">
+        <button
+          className={`tab ${viewerMode === 'pdf' ? 'active' : ''}`}
+          onClick={() => setViewerMode('pdf')}
+        >
+          {t('center.pdfTab')}
+        </button>
+        <button
+          className={`tab ${viewerMode === 'latex' ? 'active' : ''}`}
+          onClick={() => setViewerMode('latex')}
+        >
+          {t('center.editorTab')}
+        </button>
+        {pdfView && viewerMode === 'pdf' ? (
+          <>
+            <span className="sf-viewerbar-name" title={pdfView.name}>
+              {pdfView.name}
+            </span>
+            <button className="sf-link-btn sf-pdfbar-close" onClick={() => setPdfView(null)}>
+              {t('center.closePdf')}
+            </button>
+          </>
+        ) : null}
+      </div>
+      <div className="editor-area">
+        {viewerMode === 'pdf' && pdfView ? (
           <Suspense fallback={<div className="placeholder sf-panel-loading">{t('panel.loading')}</div>}>
             <LazyPdfReader
-            key={pdfView.name}
-            data={pdfView.data}
-            language={language}
-            annotations={annotationsByFile[useAnnotationStore.getState().resolveKey(pdfView.name)] ?? []}
-            onCreateAnnotation={(a) => {
-              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
-              const paperId = useAnnotationStore.getState().paperIdOf(pdfView.name) ?? '';
-              useAnnotationStore.getState().add(key, { ...a, paperId: paperId || a.paperId });
-            }}
-            onDeleteAnnotation={(id) => {
-              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
-              useAnnotationStore.getState().remove(key, id);
-            }}
-            askActions={[
-              { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
-              { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
-              { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
-              {
-                label: language === 'en' ? 'Quote → manuscript' : '引述到稿件',
-                run: (text) => insertPdfQuote(text, pdfView.name),
-              },
-            ]}
-            onPagePoint={(p, x, y) => {
-              jumpPdfToSource(p, x, y);
-            }}
-            gotoPage={pdfGotoPage}
-            gotoTick={pdfGotoTick || undefined}
-          />
+              key={pdfView.name}
+              data={pdfView.data}
+              language={language}
+              annotations={annotationsByFile[useAnnotationStore.getState().resolveKey(pdfView.name)] ?? []}
+              onCreateAnnotation={(a) => {
+                const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+                const paperId = useAnnotationStore.getState().paperIdOf(pdfView.name) ?? '';
+                useAnnotationStore.getState().add(key, { ...a, paperId: paperId || a.paperId });
+              }}
+              onDeleteAnnotation={(id) => {
+                const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+                useAnnotationStore.getState().remove(key, id);
+              }}
+              askActions={[
+                { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
+                { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
+                { label: language === 'en' ? 'Find refs' : '找文献', run: (text) => quickAsk('find', text) },
+                {
+                  label: language === 'en' ? 'Quote → manuscript' : '引述到稿件',
+                  run: (text) => insertPdfQuote(text, pdfView.name),
+                },
+              ]}
+              onPagePoint={(p, x, y) => {
+                jumpPdfToSource(p, x, y);
+              }}
+              gotoPage={pdfGotoPage}
+              gotoTick={pdfGotoTick || undefined}
+            />
           </Suspense>
-        ) : null}
-        {centerView === 'split' && pdfView && (
-          <div
-            className="sf-split-handle"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const container = splitRef.current;
-              if (!container) return;
-              const startX = e.clientX;
-              const startRatio = splitRatio;
-              const rect = container.getBoundingClientRect();
-              const onMove = (ev: MouseEvent): void => {
-                const delta = (ev.clientX - startX) / rect.width;
-                setSplitRatio(Math.min(0.8, Math.max(0.2, startRatio + delta)));
-              };
-              const onUp = (): void => {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-              };
-              document.addEventListener('mousemove', onMove);
-              document.addEventListener('mouseup', onUp);
-            }}
-          />
+        ) : viewerMode === 'pdf' && !pdfView ? (
+          <div className="sf-viewer-empty">
+            <p className="placeholder">
+              {t('viewer.noPdf')}
+            </p>
+          </div>
+        ) : (
+          <>
+            <EditorTabs
+              actions={
+                <>
+                  <button
+                    className="tab-action"
+                    title={t('tab.polishTitle')}
+                    onClick={() => requestAgentAction('polish')}
+                  >
+                    <Sparkles size={13} /> {t('tab.polish')}
+                  </button>
+                  <button
+                    className="tab-action"
+                    title={t('tab.historyTitle')}
+                    onClick={() => setHistoryOpen(true)}
+                  >
+                    <History size={13} /> {t('tab.history')}
+                  </button>
+                </>
+              }
+            />
+            <EditorArea />
+          </>
         )}
-        {(!pdfView || centerView === 'editor' || centerView === 'split') && <EditorArea />}
       </div>
     </section>
   );
@@ -595,7 +568,6 @@ export function App() {
   return (
     <div className="app">
       <UpdateBar />
-      <GoalToast />
       <header className="topbar">
         <div className="brand">Lemma</div>
         <button
@@ -624,7 +596,7 @@ export function App() {
       <ResizableLayout
         navRail={navRail}
         sidebar={sidebar}
-        editor={editor}
+        editor={viewer}
         console={consolePane}
         agent={agent}
       />
@@ -712,12 +684,10 @@ export function App() {
 
       {usageDialogOpen && <LazyFeatureDialog file="UsagePanel" onClose={() => useUiStore.getState().setUsageDialogOpen(false)} />}
       {promptsLibOpen && <LazyFeatureDialog file="PromptLibraryDialog" onClose={() => useUiStore.getState().setPromptsLibOpen(false)} />}
-      {styleReportOpen && <LazyFeatureDialog file="StyleReportDialog" onClose={() => useUiStore.getState().setStyleReportOpen(false)} />}
       {collabDialogOpen && <LazyFeatureDialog file="CollabMergeDialog" onClose={() => useUiStore.getState().setCollabDialogOpen(false)} />}
       {citeSuggestOpen && <LazyFeatureDialog file="CitationSuggest" onClose={() => useUiStore.getState().setCiteSuggestOpen(false)} />}
       {quickCiteOpen && <LazyFeatureDialog file="QuickCiteDialog" onClose={() => useUiStore.getState().setQuickCiteOpen(false)} />}
       {helpPanelOpen && <LazyFeatureDialog file="HelpPanelDialog" onClose={() => useUiStore.getState().setHelpPanelOpen(false)} />}
-      {mathPaletteOpen && <LazyFeatureDialog file="MathPaletteDialog" onClose={() => useUiStore.getState().setMathPaletteOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -750,16 +720,14 @@ function LazyFeatureDialog({
     | 'ExternalDiffDialog'
     | 'UsagePanel'
     | 'PromptLibraryDialog'
-    | 'StyleReportDialog'
     | 'CollabMergeDialog'
     | 'CitationSuggest'
-    | 'MathPaletteDialog'
     | 'QuickCiteDialog'
     | 'HelpPanelDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,StyleReportDialog,CollabMergeDialog,CitationSuggest,MathPaletteDialog,QuickCiteDialog,HelpPanelDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

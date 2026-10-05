@@ -338,12 +338,6 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setHelpPanelOpen(true),
     },
     {
-      id: 'insert.mathPalette',
-      title: ctx.t('cmd.mathPalette'),
-      hint: ctx.t('hint.edit'),
-      run: () => useUiStore.getState().setMathPaletteOpen(true),
-    },
-    {
       id: 'edit.normalizeDoc',
       title: ctx.t('cmd.normalizeDoc'),
       hint: ctx.t('hint.edit'),
@@ -356,12 +350,6 @@ export function buildCommands(ctx: CommandContext): Command[] {
           if (changes > 0) ws.updateFile(file, result);
         });
       },
-    },
-    {
-      id: 'edit.styleReport',
-      title: ctx.t('cmd.styleReport'),
-      hint: ctx.t('hint.view'),
-      run: () => useUiStore.getState().setStyleReportOpen(true),
     },
     {
       id: 'agent.plan',

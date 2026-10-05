@@ -657,15 +657,189 @@ body {
   word-break: break-all;
 }
 
-/* ---------- Agent 面板 ---------- */
+/* ---------- Agent 面板（v5.0.0：中央 AI 会话区） ---------- */
 .agent-panel {
   width: 100%;
   height: 100%;
   background: var(--bg-1);
-  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* ---------- v5.0.0 Codex 式布局补充 ---------- */
+
+/* 右侧查看器顶栏（PDF / LaTeX 切换） */
+.sf-viewerbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sf-viewerbar-name {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-2);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-viewer-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 会话列表（左侧栏） */
+.sf-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+.sf-sessions-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sf-sessions-new:hover {
+  border-color: var(--accent);
+}
+.sf-sessions-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.sf-sessions-item:hover {
+  background: var(--bg-2);
+}
+.sf-sessions-item.active {
+  background: var(--bg-2);
+  border-color: var(--accent);
+}
+.sf-sessions-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-sessions-item-preview {
+  font-size: 11px;
+  color: var(--fg-2);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-sessions-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--fg-2);
+}
+.sf-sessions-item-meta button {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+.sf-sessions-item-meta button:hover {
+  color: var(--accent);
+  background: var(--bg-1);
+}
+
+/* 版本面板（左侧栏） */
+.sf-gitpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  min-height: 0;
+}
+.sf-gitpanel-commit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sf-gitpanel-commit:hover {
+  border-color: var(--accent);
+}
+.sf-gitpanel-note {
+  font-size: 11px;
+  color: var(--fg-2);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.sf-gitpanel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  min-height: 0;
+}
+.sf-gitpanel-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.sf-gitpanel-subject {
+  font-size: 12px;
+  color: var(--fg-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-gitpanel-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--fg-2);
+}
+.sf-gitpanel-meta button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sf-gitpanel-meta button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .panel-title {

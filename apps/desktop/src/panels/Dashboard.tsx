@@ -21,7 +21,6 @@ import { useEffect, useMemo, type CSSProperties } from 'react';
 import { DigestPanel } from './DigestPanel';
 import { GettingStarted } from '../components/GettingStarted';
 import { ProjectStats } from '../components/ProjectStats';
-import { WritingChartPanel } from './WritingChartPanel';
 import { ReadingQueuePanel } from './ReadingQueuePanel';
 import { computeHealth, healthTone, type HealthIssueKind, type HealthTone } from '../healthScore';
 import { useSettingsStore, type Language } from '../state/settingsStore';
@@ -492,7 +491,6 @@ export function Dashboard() {
       {hasProject && <ProjectStats />}
 
       {/* —— 写作进度图（v2.8.0 ②） —— */}
-      <WritingChartPanel />
 
       {/* —— 阅读队列（v2.8.0 ①） —— */}
       <ReadingQueuePanel />

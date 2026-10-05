@@ -25,6 +25,8 @@ import { buildMemoryInjection, useAgentMemoryStore } from './state/agentMemory';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from './projectDoc';
 import { requestToolApproval, type ApprovalFn } from './approval';
 import { resolveCompileEntry, runCompile } from './compileAction';
+import { queueSourceGoto } from './synctexBridge';
+import { scheduleAutoCommit } from './git/gitService';
 import { applyUnifiedDiff } from './diffApply';
 import { findVenueProfile, listVenueNames } from './submission/venues';
 
@@ -143,6 +145,18 @@ function bibtexEntryOf(entry: Record<string, unknown>): string {
   if (doi) lines.push(`  doi = {${doi}},`);
   lines.push('}');
   return lines.join('\n');
+}
+
+/** 两文本的首个差异行（1 起）；完全相同返回 null——供 AI 改动后的 PDF 定位 */
+export function firstDiffLine(before: string, after: string): number | null {
+  if (before === after) return null;
+  const a = before.split('\n');
+  const b = after.split('\n');
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] !== b[i]) return i + 1;
+  }
+  return null;
 }
 
 /** 创建绑定真实应用数据的工具执行器；写级操作经 approval 阻塞等待人工裁决 */
@@ -313,6 +327,10 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       if (!decision.approved) return { applied: false, reason: decision.note };
       ws.snapshotFile(file, 'AI 工具修改前的快照');
       useWorkspaceStore.getState().updateFile(file, after);
+      // v5.0.0 所见即所得：记录首个变更行，编译成功后 PDF 自动滚到该处
+      const firstChangedLine = firstDiffLine(before, after);
+      if (firstChangedLine !== null) queueSourceGoto(file, firstChangedLine);
+      scheduleAutoCommit('修改稿件'); // v5.0.0：AI 改动自动进版本历史
       return { applied: true, file, note: decision.note };
     },
     'citation.add': async (args) => {
@@ -337,6 +355,7 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       if (!decision.approved) return { applied: false, reason: decision.note };
       if (before === '') useWorkspaceStore.getState().createFile(path, after);
       else useWorkspaceStore.getState().updateFile(path, after);
+      scheduleAutoCommit(`添加引用 ${citekey}`); // v5.0.0：AI 改动自动进版本历史
       return { applied: true, file: path, note: decision.note };
     },
     // v4.4.0：AI 自主记忆——把项目约定/审稿结论/用户偏好写入 agent-memory，

@@ -467,13 +467,16 @@ export function PdfReader({
     };
   }, [gotoTick, gotoPage]);
 
-  // 加载文档（getDocument 会转移 buffer，复制一份）
+  // 加载文档（getDocument 会转移 buffer，复制一份）。
+  // v5.0.0 重编译不跳页：data 变化（重新编译产出新 PDF）时捕获重载前的当前页，
+  // 文档就绪后恢复到 min(旧页, 新页数)——所见即所得，而不是每次都弹回第一页。
+  // 首次加载（页为 1）行为不变。连续模式需在页占位 DOM 就绪后滚回目标页。
   useEffect(() => {
     let cancelled = false;
     let loaded: pdfjsLib.PDFDocumentProxy | null = null;
+    const pageBeforeReload = pageNum;
     setError(null);
     setDoc(null);
-    setPageNum(1);
     setToolbar(null);
     setOutline([]);
     setPageSizes({});
@@ -488,6 +491,16 @@ export function PdfReader({
         }
         loaded = document;
         setDoc(document);
+        const restored = Math.max(1, Math.min(pageBeforeReload, document.numPages));
+        setPageNum(restored);
+        if (viewMode === 'continuous') {
+          // 双 rAF：等新文档的页占位 wrapper 先挂载，再滚动归位
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (!cancelled) scrollToPage(restored);
+            }),
+          );
+        }
       },
       () => {
         if (!cancelled) setError(t('loadFailed'));

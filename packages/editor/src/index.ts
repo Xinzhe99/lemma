@@ -173,17 +173,7 @@ export {
 // BibTeX 缺字段验证（v2.7.0）
 export { validateBibtex, bibValidationExtension, type BibEntry } from './bibValidation';
 
-// 学术句式补全（v2.9.0）
-export {
-  ACADEMIC_PHRASES,
-  matchPhrases,
-  CATEGORY_LABELS,
-  type AcademicPhrase,
-} from './academicPhrases';
-export { academicPhraseCompletionSource } from './academicPhraseCompletion';
-
-// 数学符号 + BibTeX 补全（v3.3.0）
-export { MATH_SYMBOLS, CATEGORY_LABELS as MATH_CATEGORY_LABELS, type SymbolItem, type SymbolCategory } from './mathSymbols';
+// BibTeX 补全（v3.3.0）
 export { BIB_ENTRY_TYPES, BIB_FIELDS, bibCompletionSource } from './bibCompletion';
 
 // 注释切换 + 选区右键菜单（v2.9.0）

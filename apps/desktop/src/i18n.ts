@@ -24,6 +24,12 @@ const dict: MessageDict = {
   'nav.files': { zh: '文件', en: 'Files' },
   'nav.citations': { zh: '引用', en: 'Citations' },
   'nav.library': { zh: '文献库', en: 'Library' },
+  'nav.sessions': { zh: '会话', en: 'Sessions' },
+  'nav.git': { zh: '版本', en: 'Versions' },
+  'viewer.noPdf': {
+    zh: '还没有可预览的 PDF——编译一次（Ctrl+Enter）即可实时预览；AI 修改后的位置会自动定位。',
+    en: 'No PDF yet — compile once (Ctrl+Enter) to live-preview; the view follows AI edits automatically.',
+  },
   'nav.knowledge': { zh: '知识', en: 'Knowledge' },
   'nav.submit': { zh: '投稿', en: 'Submit' },
   'nav.reading': { zh: '文献阅读', en: 'Reading' },

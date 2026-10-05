@@ -19,7 +19,7 @@ import { getPlatform } from './platform/types';
 import { tauriProcRun, tauriReadBase64 } from './platform/tauri';
 import { ensureBuiltinTectonic, getReadyBuiltinTectonicPath, isBuiltinTectonicInfo } from './texSetup';
 import { jumpTo, lastCursor } from './editorJump';
-import { setSynctexIndex, jumpSourceToPdf } from './synctexBridge';
+import { setSynctexIndex, jumpSourceToPdf, flushQueuedSourceGoto } from './synctexBridge';
 import { setCompileDiagnosticsList, lintLatex } from '@lemma/editor';
 import { ENGINE_PROBE_COMMANDS, selectEngine, engineArgs, ENGINE_INFO, type EngineKind } from './engineMatrix';
 import { formatErrorHint } from '@lemma/compile';
@@ -464,6 +464,8 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
       setSynctexIndex(parseSynctex(bytes));
       s.appendCompileLog(t.synctexOk(synctexPath, bytes.length));
       followCursorInPdf();
+      // v5.0.0：AI 改动排队的定位在此 flush——PDF 滚到刚被修改的位置
+      flushQueuedSourceGoto();
     } catch (e) {
       setSynctexIndex(null);
       s.appendCompileLog(t.synctexFail(synctexPath, errText(e)));

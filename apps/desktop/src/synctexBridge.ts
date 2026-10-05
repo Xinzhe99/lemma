@@ -43,3 +43,23 @@ export function onPdfGoto(cb: PdfGotoListener): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
+
+// ---------------------------------------------------------------------------
+// v5.0.0 AI 改动定位：AI 编辑落盘时排队源码位置，下一次编译成功（新 synctex
+// 索引注册后）自动 flush——PDF 滚到「AI 刚改的地方」，所见即所得。
+// ---------------------------------------------------------------------------
+
+let pendingGoto: { file: string; line: number } | null = null;
+
+/** AI 编辑采纳后调用：记录待定位位置（后写覆盖先写，跟最后一次改动走） */
+export function queueSourceGoto(file: string, line: number): void {
+  pendingGoto = { file, line };
+}
+
+/** 编译成功后由 compileAction 调用：索引已更新，执行排队中的定位 */
+export function flushQueuedSourceGoto(): void {
+  if (!pendingGoto || !index) return;
+  const { file, line } = pendingGoto;
+  pendingGoto = null;
+  jumpSourceToPdf(file, line);
+}

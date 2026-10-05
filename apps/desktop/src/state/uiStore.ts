@@ -5,7 +5,17 @@
 
 import { create } from 'zustand';
 
-export type SidebarTab = 'home' | 'outline' | 'files' | 'citations' | 'library' | 'knowledge' | 'submit' | 'comments';
+export type SidebarTab =
+  | 'sessions'
+  | 'files'
+  | 'git'
+  | 'library'
+  | 'home'
+  | 'outline'
+  | 'citations'
+  | 'knowledge'
+  | 'submit'
+  | 'comments';
 /** knowledge 页签内的子页签：术语（静态）/ 笔记（动态加载） */
 export type KnowledgeTab = 'glossary' | 'notes' | 'memory';
 export type LibraryDialog = null | 'bibtex' | 'fetch';
@@ -40,6 +50,8 @@ interface UiState {
   zipPickerTick: number;
   pdfView: PdfView | null;
   centerView: 'editor' | 'pdf' | 'split';
+  /** v5.0.0 右侧查看器模式：PDF（默认，实时渲染）或 LaTeX 源码 */
+  viewerMode: 'pdf' | 'latex';
   /** 命令面板请求启动的内置工作流 id（AgentPanel 消费后清空） */
   workflowLaunch: string | null;
   /** 工作流启动的预填变量（与 workflowLaunch 同生命周期；如 W11 的 journal） */
@@ -100,6 +112,7 @@ interface UiState {
   requestZipPicker(): void;
   setPdfView(view: PdfView | null): void;
   setCenterView(view: 'editor' | 'pdf' | 'split'): void;
+  setViewerMode(mode: 'pdf' | 'latex'): void;
   setWorkflowLaunch(id: string | null): void;
   /** 启动工作流并可附带预填变量（缺省变量的步骤才会在启动器中询问） */
   launchWorkflow(id: string, vars?: Record<string, string>): void;
@@ -131,8 +144,8 @@ interface UiState {
   closeTextDialog(): void;
 }
 
-export const useUiStore = create<UiState>((set) => ({
-  sidebarTab: 'home',
+export const useUiStore = create<UiState>((set, get) => ({
+  sidebarTab: 'sessions',
   knowledgeTab: 'glossary',
   templateWizardOpen: false,
   libraryDialog: null,
@@ -141,6 +154,7 @@ export const useUiStore = create<UiState>((set) => ({
   zipPickerTick: 0,
   pdfView: null,
   centerView: 'editor',
+  viewerMode: 'pdf',
   workflowLaunch: null,
   workflowLaunchVars: null,
   agentAction: null,
@@ -176,7 +190,8 @@ export const useUiStore = create<UiState>((set) => ({
   setLibraryMode: (mode) => set({ libraryMode: mode }),
   requestPdfPicker: () => set((s) => ({ pdfPickerTick: s.pdfPickerTick + 1 })),
   requestZipPicker: () => set((s) => ({ zipPickerTick: s.zipPickerTick + 1 })),
-  setPdfView: (view) => set({ pdfView: view, centerView: view ? 'pdf' : 'editor' }),
+  setPdfView: (view) => set({ pdfView: view, centerView: view ? 'pdf' : 'editor', viewerMode: view ? 'pdf' : get().viewerMode }),
+  setViewerMode: (mode) => set({ viewerMode: mode }),
   setCenterView: (view) => set({ centerView: view }),
   setWorkflowLaunch: (id) => set({ workflowLaunch: id, workflowLaunchVars: null }),
   launchWorkflow: (id, vars) => set({ workflowLaunch: id, workflowLaunchVars: vars ?? null }),
