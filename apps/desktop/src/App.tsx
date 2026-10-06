@@ -254,6 +254,14 @@ export function App() {
         useUiStore.getState().setSearchPanelOpen(true);
         return;
       }
+      // v7.2.0 F1：Ctrl+Shift+H = 搜索替换（打开搜索面板并进入替换模式）
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        useUiStore.getState().setSearchPanelOpen(true);
+        // SearchPanel 挂载后自动切到替换模式（经 URL hash 传递标记）
+        window.location.hash = '#replace';
+        return;
+      }
       if (isShortcutsTrigger(e, e.target)) {
         e.preventDefault();
         setShortcutsOpen(true);

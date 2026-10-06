@@ -161,6 +161,46 @@ export async function gitRestore(hash: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// v7.2.0 F3：一键回滚到上次提交——丢弃工作区所有未提交改动
+// ---------------------------------------------------------------------------
+
+/** 回滚到 HEAD：丢弃工作区与 store 的全部未提交改动（含新增未跟踪文件） */
+export async function gitResetToHead(): Promise<{ fileCount: number }> {
+  if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
+  const co = await tauriProcRun('git', ['checkout', '--', '.']);
+  if (co.code !== 0) {
+    throw new Error(`回滚失败：${(co.stderr || co.stdout).trim().slice(0, 160)}`);
+  }
+  await tauriProcRun('git', ['clean', '-fd']);
+  const tree = await tauriProcRun('git', ['ls-tree', '-r', '--name-only', 'HEAD']);
+  const fs = getPlatform().fs;
+  const ws = useWorkspaceStore.getState();
+  let fileCount = 0;
+  if (tree.code === 0) {
+    const headPaths = new Set(tree.stdout.split('\n').map((x) => x.trim()).filter(Boolean));
+    for (const path of headPaths) {
+      if (!/\.(tex|bib|sty|cls|md|txt)$/i.test(path)) continue;
+      try {
+        const content = await fs.readFile(path);
+        const text = typeof content === 'string' ? content : new TextDecoder().decode(content);
+        if (ws.files[path] !== text) {
+          if (ws.files[path] === undefined) ws.createFile(path, text);
+          else ws.updateFile(path, text);
+        }
+        fileCount++;
+      } catch { /* skip */ }
+    }
+    for (const path of Object.keys(ws.files)) {
+      if (!headPaths.has(path)) {
+        ws.deleteFile(path);
+        fileCount++;
+      }
+    }
+  }
+  return { fileCount };
+}
+
+// ---------------------------------------------------------------------------
 // v6.0.0 F2：修改对照 PDF（latexdiff 本地等价）——git diff → 红蓝标注 tex → 编译
 // ---------------------------------------------------------------------------
 

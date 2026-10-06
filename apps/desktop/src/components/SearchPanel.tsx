@@ -10,7 +10,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { searchProject, type SearchHit } from '../searchProject';
+import { searchProject, replaceInProject, type SearchHit } from '../searchProject';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { jumpTo } from '../editorJump';
@@ -27,6 +27,15 @@ const STRINGS = {
     truncated: '结果较多，仅显示前 500 条',
     caseSensitive: '区分大小写',
     wholeWord: '全字匹配',
+    replaceToggle: '替换',
+    replacePlaceholder: '替换为…',
+    replaceAll: '全部替换',
+    replacePreview: (n: number, files: number) => `将替换 ${n} 处 · ${files} 个文件`,
+    replaceEmpty: '无替换结果',
+    replaceDone: (n: number, files: number) => `✓ 已替换 ${n} 处（${files} 个文件）`,
+    replaceNoQuery: '请输入搜索词',
+    replaceConfirm: '确认替换？',
+    replaceConfirmDesc: (n: number, files: number) => `将在 ${files} 个文件中替换 ${n} 处。此操作可通过版本面板恢复。`,
   },
   en: {
     title: 'Search in project',
@@ -37,6 +46,15 @@ const STRINGS = {
     truncated: 'Too many hits — showing first 500',
     caseSensitive: 'Match case',
     wholeWord: 'Whole word',
+    replaceToggle: 'Replace',
+    replacePlaceholder: 'Replace with…',
+    replaceAll: 'Replace all',
+    replacePreview: (n: number, files: number) => `${n} replacement(s) in ${files} file(s)`,
+    replaceEmpty: 'No replacements',
+    replaceDone: (n: number, files: number) => `✓ Replaced ${n} occurrence(s) in ${files} file(s)`,
+    replaceNoQuery: 'Enter a search term',
+    replaceConfirm: 'Confirm replace?',
+    replaceConfirmDesc: (n: number, files: number) => `${n} replacement(s) in ${files} file(s). Can be undone via version panel.`,
   },
 } as const;
 
@@ -62,9 +80,21 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
+  // v7.2.0 F1：替换模式
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [replacement, setReplacement] = useState('');
+  const [replaceNote, setReplaceNote] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => inputRef.current?.focus(), []);
+  // v7.2.0 F1：Ctrl+Shift+H 进入时自动开替换模式
+  const initialReplace = typeof window !== 'undefined' && window.location.hash === '#replace';
+  useEffect(() => {
+    inputRef.current?.focus();
+    if (initialReplace) {
+      setReplaceMode(true);
+      window.location.hash = '';
+    }
+  }, []);
 
   // 输入防抖 200ms → 实际参与搜索的 query
   useEffect(() => {
@@ -76,6 +106,22 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
     () => searchProject(files, query, { caseSensitive, wholeWord }),
     [files, query, caseSensitive, wholeWord],
   );
+
+  // 替换预览（实时计算，不修改 store）
+  const replacePreview = useMemo(
+    () => (replaceMode && query ? replaceInProject(files, query, replacement, { caseSensitive, wholeWord }) : null),
+    [replaceMode, files, query, replacement, caseSensitive, wholeWord],
+  );
+
+  const doReplaceAll = () => {
+    if (!replacePreview || replacePreview.replacementCount === 0) return;
+    setReplaceNote(L.replaceDone(replacePreview.replacementCount, replacePreview.changedFiles.length));
+    const ws = useWorkspaceStore.getState();
+    for (const file of replacePreview.changedFiles) {
+      const after = replacePreview.newFiles[file];
+      if (after !== undefined) ws.updateFile(file, after);
+    }
+  };
 
   // 按文件分组（保持命中顺序）
   const groups = useMemo(() => {
@@ -150,7 +196,47 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
           >
             {language === 'zh' ? '整词' : 'Word'}
           </button>
+          <button
+            type="button"
+            className={`sf-btn sf-searchpanel-toggle${replaceMode ? ' active' : ''}`}
+            aria-pressed={replaceMode}
+            title={L.replaceToggle}
+            onClick={() => { setReplaceMode((v) => !v); setReplaceNote(''); }}
+          >
+            {L.replaceToggle}
+          </button>
         </div>
+
+        {/* v7.2.0 F1：替换输入行 + 全部替换按钮 */}
+        {replaceMode ? (
+          <div
+            className="sf-searchpanel-toolbar sf-searchpanel-replace-bar"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--border)' }}
+          >
+            <input
+              className="sf-quickopen-input sf-searchpanel-replace-input"
+              style={{ flex: 1, borderBottom: 'none', padding: '6px 2px' }}
+              placeholder={L.replacePlaceholder}
+              value={replacement}
+              spellCheck={false}
+              aria-label={L.replacePlaceholder}
+              onChange={(e) => { setReplacement(e.target.value); setReplaceNote(''); }}
+            />
+            <button
+              type="button"
+              className="sf-btn sf-searchpanel-replace-all"
+              disabled={!replacePreview || replacePreview.replacementCount === 0}
+              onClick={doReplaceAll}
+            >
+              {L.replaceAll}
+            </button>
+          </div>
+        ) : null}
+        {replaceNote ? (
+          <div className="sf-searchpanel-replace-note" style={{ padding: '4px 10px', fontSize: 11, color: 'var(--accent, #10a37f)' }}>
+            {replaceNote}
+          </div>
+        ) : null}
 
         <ul className="sf-quickopen-list sf-searchpanel-results">
           {query !== '' && (
@@ -159,6 +245,12 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
               {result.truncated ? ` · ${L.truncated}` : ''}
             </li>
           )}
+          {/* v7.2.0 F1：替换预览摘要 */}
+          {replaceMode && replacePreview && replacePreview.replacementCount > 0 ? (
+            <li className="sf-quickopen-meta sf-searchpanel-replace-summary" style={{ color: 'var(--accent, #10a37f)' }}>
+              {L.replacePreview(replacePreview.replacementCount, replacePreview.changedFiles.length)}
+            </li>
+          ) : null}
           {groups.map((g) => (
             <Fragment key={g.file}>
               <li className="sf-quickopen-meta sf-searchpanel-file">

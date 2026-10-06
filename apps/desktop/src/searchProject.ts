@@ -161,3 +161,69 @@ export function searchProject(
   }
   return { hits, truncated };
 }
+
+// ---------------------------------------------------------------------------
+// v7.2.0 F1：项目级搜索替换（Ctrl+Shift+H）——纯函数层
+// ---------------------------------------------------------------------------
+
+export interface ReplaceResult {
+  /** 被修改的文件路径列表 */
+  changedFiles: string[];
+  /** 总替换次数（所有文件所有行） */
+  replacementCount: number;
+  /** 每文件的预览（file → [before, after] 行对，前 200 行对） */
+  preview: Array<{ file: string; line: number; before: string; after: string }>;
+}
+
+/** 构建与 searchProject 同一语义的替换正则（大小写/整字一致） */
+function buildReplaceRegex(query: string, caseSensitive: boolean, wholeWord: boolean): RegExp {
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = wholeWord ? `\\b${escaped}\\b` : escaped;
+  return new RegExp(pattern, caseSensitive ? 'g' : 'gi');
+}
+
+/**
+ * 项目级搜索替换（纯函数）：返回替换后的新 files（不修改原对象）。
+ * 与 searchProject 的 findSpans 保持同一匹配语义（大小写/整字）。
+ */
+export function replaceInProject(
+  files: Record<string, string>,
+  query: string,
+  replacement: string,
+  opts: { caseSensitive?: boolean; wholeWord?: boolean } = {},
+): ReplaceResult & { newFiles: Record<string, string> } {
+  const changedFiles: string[] = [];
+  const preview: Array<{ file: string; line: number; before: string; after: string }> = [];
+  let replacementCount = 0;
+  const newFiles: Record<string, string> = {};
+  if (!query) return { changedFiles, replacementCount: 0, preview, newFiles: files };
+
+  const regex = buildReplaceRegex(query, opts.caseSensitive ?? false, opts.wholeWord ?? false);
+  for (const file of Object.keys(files)) {
+    if (isSkippedPath(file)) { newFiles[file] = files[file]!; continue; }
+    const content = files[file]!;
+    if (!content || content.length > MAX_FILE_CHARS) { newFiles[file] = content; continue; }
+    const lines = content.split('\n');
+    let fileChanged = false;
+    const newLines: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (!regex.test(line)) { newLines.push(line); regex.lastIndex = 0; continue; }
+      regex.lastIndex = 0;
+      const after = line.replace(regex, replacement);
+      if (after !== line) {
+        fileChanged = true;
+        replacementCount += line.split(regex).length - 1;
+        if (preview.length < 200) preview.push({ file, line: i + 1, before: line, after });
+      }
+      newLines.push(after);
+    }
+    if (fileChanged) {
+      changedFiles.push(file);
+      newFiles[file] = newLines.join('\n');
+    } else {
+      newFiles[file] = content;
+    }
+  }
+  return { changedFiles, replacementCount, preview, newFiles };
+}

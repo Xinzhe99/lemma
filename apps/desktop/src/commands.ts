@@ -101,6 +101,41 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setSearchPanelOpen(true),
     },
     {
+      id: 'project.replace',
+      title: ctx.t('cmd.searchReplace'),
+      hint: ctx.t('hint.edit'),
+      kbd: 'Ctrl+Shift+H',
+      run: () => useUiStore.getState().setSearchPanelOpen(true),
+    },
+    {
+      id: 'bib.healthCheck',
+      title: ctx.t('cmd.bibHealth'),
+      hint: ctx.t('hint.library'),
+      run: () => {
+        const ws = useWorkspaceStore.getState();
+        void import('./bibHealth').then(({ checkBibHealth }) => {
+          const report = checkBibHealth(ws.files);
+          const err = report.errorCount;
+          const warn = report.warningCount;
+          const total = report.totalEntries;
+          if (err === 0 && warn === 0) {
+            ctx.toast(`✓ 参考文献体检通过：${total} 条 · 无问题`);
+          } else {
+            const dangling = report.issues.filter((i) => i.kind === 'dangling-cite').map((i) => i.citekey);
+            const missing = report.issues.filter((i) => i.kind === 'missing-field').map((i) => `${i.citekey}(${i.message})`);
+            const dupes = report.issues.filter((i) => i.kind === 'duplicate').map((i) => i.citekey);
+            const lines = [
+              `参考文献体检：${total} 条 · ${err} 错误 · ${warn} 警告`,
+              dangling.length > 0 ? `悬空引用：${dangling.slice(0, 5).join(', ')}${dangling.length > 5 ? '…' : ''}` : '',
+              missing.length > 0 ? `缺失字段：${missing.slice(0, 3).join('; ')}${missing.length > 3 ? '…' : ''}` : '',
+              dupes.length > 0 ? `疑似重复：${[...new Set(dupes)].slice(0, 5).join(', ')}` : '',
+            ].filter(Boolean);
+            ctx.toast(lines.join(' · '));
+          }
+        });
+      },
+    },
+    {
       id: 'insert.image',
       title: ctx.t('cmd.insertImage'),
       hint: '编辑',

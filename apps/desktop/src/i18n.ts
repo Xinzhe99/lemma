@@ -78,6 +78,8 @@ const dict: MessageDict = {
   'console.aiFix': { zh: '✦ AI 修复编译错误', en: '✦ AI fix compile errors' },
   'cmd.imageToLatex': { zh: '图像转 LaTeX（公式/表格截图）', en: 'Image to LaTeX (formula/table screenshot)' },
   'cmd.tikzFigure': { zh: 'AI 画图（描述 → TikZ 流程/架构/示意图）', en: 'AI figure (describe → TikZ)' },
+  'cmd.bibHealth': { zh: '参考文献体检（缺失字段/重复/悬空引用）', en: 'Bibliography health check' },
+  'cmd.searchReplace': { zh: '搜索并替换（全项目）', en: 'Search & replace in project' },
   'cmd.readAloud': { zh: '朗读这一节（校对：读出声听问题）', en: 'Read this section aloud (proofreading)' },
   // v7.1.0 新面板/对话框 i18n
   'sessions.newSession': { zh: '新会话', en: 'New session' },

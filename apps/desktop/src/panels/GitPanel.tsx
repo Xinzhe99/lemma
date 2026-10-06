@@ -4,7 +4,7 @@
  * 桌面形态 + 系统 git 可用时工作；否则明示原因（不伪装）。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Diff, FileDiff, GitCommitHorizontal, Link2, History, RotateCcw } from 'lucide-react';
+import { Diff, FileDiff, GitCommitHorizontal, Link2, History, RotateCcw, Undo2 } from 'lucide-react';
 import {
   detectGitAvailability,
   getGitAvailability,
@@ -16,6 +16,7 @@ import {
   gitRestore,
   gitSetRemote,
   buildChangesPdf,
+  gitResetToHead,
   gitShowCommit,
   onAutoCommit,
   subscribeGitAvailability,
@@ -117,6 +118,29 @@ export function GitPanel() {
     try {
       const r = await buildChangesPdf(c.hash, c.subject);
       setNote(`对照 PDF 已生成：${r.fileCount} 个文件 / ${r.lineCount} 行变更（右侧预览）`);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** v7.2.0 F3：一键回滚到上次提交（丢弃全部未提交改动） */
+  const onResetToHead = async () => {
+    if (
+      !(await confirmDialog(
+        '回滚到上次提交？',
+        '所有未提交的修改（含 AI 刚做的改动）将被丢弃。此操作不可撤销。',
+      ))
+    ) {
+      return;
+    }
+    setBusy(true);
+    setNote('');
+    try {
+      const r = await gitResetToHead();
+      setNote(`已回滚到上次提交（${r.fileCount} 个文件同步）`);
+      await refresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     } finally {
@@ -228,6 +252,16 @@ export function GitPanel() {
 
       <button type="button" className="sf-gitpanel-commit" disabled={busy} onClick={() => void onCommit()}>
         <GitCommitHorizontal size={14} /> {t('git.commit', undefined)}
+      </button>
+      <button
+        type="button"
+        className="sf-gitpanel-commit"
+        style={{ color: 'var(--err, #cf222e)' }}
+        disabled={busy}
+        title="丢弃所有未提交改动，回到上次提交状态"
+        onClick={() => void onResetToHead()}
+      >
+        <Undo2 size={14} /> 回滚到上次提交
       </button>
       {note ? <div className="sf-gitpanel-note">{note}</div> : null}
       <div className="sf-gitpanel-list">
