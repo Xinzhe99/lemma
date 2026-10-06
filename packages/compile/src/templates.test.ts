@@ -5,16 +5,30 @@ const EXPECTED_IDS = [
   'generic-article',
   'generic-report',
   'conference-ieee-like',
+  'conference-acm-like',
+  'journal-twocolumn',
   'preprint-ml-like',
-  'chinese-ctex',
+  'preprint-arxiv-like',
+  'journal-elsevier-like',
+  'journal-math-like',
   'journal-springer-like',
+  'survey-article',
+  'thesis-phd-like',
+  'chinese-ctex',
+  'chinese-journal',
+  'presentation-beamer',
+  'presentation-beamer-dark',
+  'letter-cover',
+  'report-technical',
+  'poster-a0',
+  'lecture-notes',
 ];
 
-const CATEGORIES = ['conference', 'journal', 'thesis', 'chinese', 'generic'];
+const CATEGORIES = ['conference', 'journal', 'thesis', 'chinese', 'generic', 'preprint', 'presentation', 'report', 'other'];
 const ENGINES = ['tectonic', 'latexmk', 'mock'];
 
 describe('listTemplates', () => {
-  it('返回全部 6 个内置模板且字段完整', () => {
+  it('返回全部 20 个内置模板且字段完整', () => {
     const list = listTemplates();
     expect(list.map((t) => t.id).sort()).toEqual([...EXPECTED_IDS].sort());
     for (const t of list) {

@@ -1,27 +1,60 @@
 /**
- * 版本面板（v5.0.0 S4 内置 git）：提交历史 / 恢复 / 手动提交。
+ * 版本面板（v5.6.0 内置 git + v5.7.0 差异查看/GitHub 同步）：
+ * 远端同步区（关联 / push / pull）→ 提交历史（差异查看 / 恢复）。
  * 桌面形态 + 系统 git 可用时工作；否则明示原因（不伪装）。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { GitCommitHorizontal, History, RotateCcw } from 'lucide-react';
+import { Diff, GitCommitHorizontal, Link2, History, RotateCcw } from 'lucide-react';
 import {
   detectGitAvailability,
   getGitAvailability,
   gitCommitAll,
+  gitGetRemote,
   gitLog,
+  gitPull,
+  gitPush,
   gitRestore,
+  gitSetRemote,
+  gitShowCommit,
   onAutoCommit,
   subscribeGitAvailability,
   type GitCommitInfo,
 } from '../git/gitService';
-import { confirmDialog } from '../dialogs';
+import { confirmDialog, promptDialog } from '../dialogs';
 import { useWorkspaceStore } from '../state/workspaceStore';
+
+/** 统一 diff 着色渲染（行级 +/=/-） */
+function DiffView({ text }: { text: string }) {
+  return (
+    <pre className="sf-git-diff">
+      {text.split('\n').map((line, i) => (
+        <div
+          key={i}
+          className={
+            line.startsWith('+') && !line.startsWith('+++')
+              ? 'sf-git-diff-add'
+              : line.startsWith('-') && !line.startsWith('---')
+                ? 'sf-git-diff-del'
+                : line.startsWith('@@')
+                  ? 'sf-git-diff-hunk'
+                  : undefined
+          }
+        >
+          {line || ' '}
+        </div>
+      ))}
+    </pre>
+  );
+}
 
 export function GitPanel() {
   const [avail, setAvail] = useState(getGitAvailability());
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [diffFor, setDiffFor] = useState<string | null>(null);
+  const [diff, setDiff] = useState<{ stat: string; diff: string } | null>(null);
+  const [remote, setRemote] = useState<string | null>(null);
   const projectName = useWorkspaceStore((s) => s.projectName);
 
   useEffect(() => {
@@ -32,7 +65,9 @@ export function GitPanel() {
   const refresh = useCallback(async () => {
     if (getGitAvailability() !== 'ok') return;
     try {
-      setCommits(await gitLog(50));
+      const [log, r] = await Promise.all([gitLog(50), gitGetRemote().catch(() => null)]);
+      setCommits(log);
+      setRemote(r);
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }
@@ -49,6 +84,69 @@ export function GitPanel() {
     try {
       const commit = await gitCommitAll();
       setNote(commit ? `已提交：${commit.subject}` : '没有可提交的变更');
+      await refresh();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onShowDiff = async (c: GitCommitInfo) => {
+    if (diffFor === c.hash) {
+      setDiffFor(null);
+      setDiff(null);
+      return;
+    }
+    setDiffFor(c.hash);
+    setDiff(null);
+    try {
+      setDiff(await gitShowCommit(c.hash));
+    } catch (e) {
+      setDiff({ stat: '', diff: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const onLinkRemote = async () => {
+    if (remote) {
+      if (!(await confirmDialog('解除远端关联？', `将移除 origin（${remote}），本地历史保留。`))) return;
+      setRemote(null);
+      setNote('已解除（重启应用后生效）');
+      return;
+    }
+    const input = await promptDialog('关联 GitHub 仓库', 'https://github.com/user/repo.git 或 git@github.com:user/repo.git');
+    const url = input?.trim();
+    if (!url) return;
+    setBusy(true);
+    try {
+      await gitSetRemote(url);
+      setNote('已关联远端');
+      await refresh();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPush = async () => {
+    setBusy(true);
+    setNote('推送中…');
+    try {
+      setNote(await gitPush());
+      await refresh();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPull = async () => {
+    setBusy(true);
+    setNote('拉取中…');
+    try {
+      setNote(await gitPull());
       await refresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
@@ -80,20 +178,37 @@ export function GitPanel() {
   };
 
   if (avail === 'browser') {
-    return (
-      <p className="placeholder">版本管理在桌面应用中可用（浏览器形态无本地 git）。</p>
-    );
+    return <p className="placeholder">版本管理在桌面应用中可用（浏览器形态无本地 git）。</p>;
   }
   if (avail === 'missing') {
-    return (
-      <p className="placeholder">
-        未检测到系统 git——安装 git 后重启应用即可启用内置版本管理。
-      </p>
-    );
+    return <p className="placeholder">未检测到系统 git——安装 git 后重启应用即可启用内置版本管理。</p>;
   }
 
   return (
     <div className="sf-gitpanel">
+      {/* 远端同步（v5.7.0）：Overleaf GitHub Sync 的本地等价 */}
+      <div className="sf-gitpanel-remote">
+        <div className="sf-gitpanel-remote-row">
+          <Link2 size={13} />
+          <span className="sf-gitpanel-remote-url" title={remote ?? undefined}>
+            {remote ?? '未关联远端'}
+          </span>
+          <button type="button" className="sf-gitpanel-mini" title={remote ? '解除关联' : '关联 GitHub 仓库'} disabled={busy} onClick={() => void onLinkRemote()}>
+            {remote ? '解除' : '关联'}
+          </button>
+        </div>
+        {remote ? (
+          <div className="sf-gitpanel-remote-row">
+            <button type="button" className="sf-pill-btn" disabled={busy} onClick={() => void onPush()}>
+              ↑ Push
+            </button>
+            <button type="button" className="sf-pill-btn" disabled={busy} onClick={() => void onPull()}>
+              ↓ Pull
+            </button>
+          </div>
+        ) : null}
+      </div>
+
       <button type="button" className="sf-gitpanel-commit" disabled={busy} onClick={() => void onCommit()}>
         <GitCommitHorizontal size={14} /> 提交当前进度
       </button>
@@ -111,10 +226,31 @@ export function GitPanel() {
               </div>
               <div className="sf-gitpanel-meta">
                 <span>{new Date(c.date).toLocaleString()}</span>
-                <button type="button" title="恢复到此版本" disabled={busy} onClick={() => void onRestore(c)}>
-                  <RotateCcw size={12} /> 恢复
-                </button>
+                <span className="sf-gitpanel-meta-actions">
+                  <button
+                    type="button"
+                    title="查看差异"
+                    disabled={busy}
+                    onClick={() => void onShowDiff(c)}
+                    className={diffFor === c.hash ? 'active' : ''}
+                  >
+                    <Diff size={12} /> 差异
+                  </button>
+                  <button type="button" title="恢复到此版本" disabled={busy} onClick={() => void onRestore(c)}>
+                    <RotateCcw size={12} /> 恢复
+                  </button>
+                </span>
               </div>
+              {diffFor === c.hash && diff ? (
+                diff.stat ? (
+                  <div className="sf-gitpanel-diffwrap">
+                    <div className="sf-gitpanel-stat">{diff.stat}</div>
+                    <DiffView text={diff.diff} />
+                  </div>
+                ) : (
+                  <div className="sf-gitpanel-note">{diff.diff}</div>
+                )
+              ) : null}
             </div>
           ))
         )}

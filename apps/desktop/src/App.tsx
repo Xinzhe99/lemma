@@ -108,6 +108,7 @@ export function App() {
   const quickCiteOpen = useUiStore((s) => s.quickCiteOpen);
   const helpPanelOpen = useUiStore((s) => s.helpPanelOpen);
   const imageToLatexOpen = useUiStore((s) => s.imageToLatexOpen);
+  const tikzFigureOpen = useUiStore((s) => s.tikzFigureOpen);
   const backupDialogOpen = useUiStore((s) => s.backupDialogOpen);
   const focusMode = useUiStore((s) => s.focusMode);
   const statsDialogOpen = useUiStore((s) => s.statsDialogOpen);
@@ -472,6 +473,34 @@ export function App() {
               const key = useAnnotationStore.getState().resolveKey(pdfView.name);
               useAnnotationStore.getState().remove(key, id);
             }}
+            onToggleResolved={(id, resolved) => {
+              const key = useAnnotationStore.getState().resolveKey(pdfView.name);
+              useAnnotationStore.getState().setResolved(key, id, resolved);
+            }}
+            onDraftResponse={() => {
+              // v5.7.0：收集全部未处理批注 → 逐条起草回复（AI 可顺带改稿，走审批）
+              const store = useAnnotationStore.getState();
+              const all: Array<{ file: string; annotation: (typeof store.byFile)[string][number] }> = [];
+              for (const [file, list] of Object.entries(store.byFile)) {
+                for (const a of list) {
+                  if (!a.resolved) all.push({ file, annotation: a });
+                }
+              }
+              if (all.length === 0) {
+                showToast('没有未处理的批注——先在 PDF 中标注，或经「审阅导入」导入导师批注');
+                return;
+              }
+              const items = all
+                .sort((x, y) => x.annotation.page - y.annotation.page)
+                .map(
+                  (x, i) =>
+                    `${i + 1}. 第 ${x.annotation.page} 页：${(x.annotation.quotedText ?? '').slice(0, 120)}\n   批注：${(x.annotation.text ?? '（无文字说明）').slice(0, 300)}`,
+                )
+                .join('\n');
+              void sendChatMessage(
+                `以下是审稿/导师批注（未处理）。请逐条起草回复（direct-fix / clarify / cite / argue 策略），需要改稿的直接修改（走 diff 审批），最后生成 response-letter.tex（含逐条 回复+修改说明 两个文件可拆分）。\n\n${items}`,
+              );
+            }}
             askActions={[
               { label: language === 'en' ? 'Explain' : '解释', run: (text) => quickAsk('explain', text) },
               { label: language === 'en' ? 'Translate' : '翻译', run: (text) => quickAsk('translate', text) },
@@ -669,6 +698,7 @@ export function App() {
       {quickCiteOpen && <LazyFeatureDialog file="QuickCiteDialog" onClose={() => useUiStore.getState().setQuickCiteOpen(false)} />}
       {helpPanelOpen && <LazyFeatureDialog file="HelpPanelDialog" onClose={() => useUiStore.getState().setHelpPanelOpen(false)} />}
       {imageToLatexOpen && <LazyFeatureDialog file="ImageToLatexDialog" onClose={() => useUiStore.getState().setImageToLatexOpen(false)} />}
+      {tikzFigureOpen && <LazyFeatureDialog file="TikzFigureDialog" onClose={() => useUiStore.getState().setTikzFigureOpen(false)} />}
 
       {textDialog && <LazyFeatureDialog file="TextDialog" onClose={closeTextDialog} />}
 
@@ -705,11 +735,12 @@ function LazyFeatureDialog({
     | 'CitationSuggest'
     | 'QuickCiteDialog'
     | 'HelpPanelDialog'
-    | 'ImageToLatexDialog';
+    | 'ImageToLatexDialog'
+    | 'TikzFigureDialog';
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog,TikzFigureDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

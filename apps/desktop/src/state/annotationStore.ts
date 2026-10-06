@@ -57,6 +57,8 @@ interface AnnotationState {
   annotationsForPaper(paperId: string): Annotation[];
   add(fileKey: string, annotation: Annotation): void;
   remove(fileKey: string, id: string): void;
+  /** v5.7.0 审阅往返：勾销/恢复一条批注（幂等） */
+  setResolved(fileKey: string, id: string, resolved: boolean): void;
   clear(fileKey: string): void;
 }
 
@@ -96,6 +98,19 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     set((s) => ({
       byFile: { ...s.byFile, [fileKey]: [...(s.byFile[fileKey] ?? []), annotation] },
     }));
+  },
+
+  setResolved(fileKey, id, resolved) {
+    set((s) => {
+      const list = s.byFile[fileKey];
+      if (!list) return s;
+      return {
+        byFile: {
+          ...s.byFile,
+          [fileKey]: list.map((a) => (a.id === id ? { ...a, resolved } : a)),
+        },
+      };
+    });
   },
 
   remove(fileKey, id) {

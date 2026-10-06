@@ -1048,6 +1048,85 @@ body {
   border-color: var(--accent);
 }
 
+/* v5.7.0：远端同步 + 差异查看 */
+.sf-gitpanel-remote {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sf-gitpanel-remote-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-2);
+  font-size: 11.5px;
+  min-width: 0;
+}
+.sf-gitpanel-remote-url {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sf-gitpanel-mini {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-2);
+  border-radius: 6px;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.sf-gitpanel-mini:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.sf-gitpanel-meta-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.sf-gitpanel-diffwrap {
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.sf-gitpanel-stat {
+  font-size: 10.5px;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  margin-bottom: 4px;
+}
+.sf-git-diff {
+  max-height: 260px;
+  overflow: auto;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--mono, monospace);
+  font-size: 10.5px;
+  line-height: 1.45;
+  margin: 0;
+}
+.sf-git-diff > div {
+  white-space: pre;
+}
+.sf-git-diff-add {
+  color: #1a7f37;
+  background: rgba(26, 127, 55, 0.08);
+}
+.sf-git-diff-del {
+  color: #cf222e;
+  background: rgba(207, 34, 46, 0.08);
+}
+.sf-git-diff-hunk {
+  color: var(--fg-2);
+}
+
 .panel-title {
   display: flex;
   align-items: center;

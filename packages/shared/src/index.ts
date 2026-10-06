@@ -104,6 +104,8 @@ export interface Annotation {
   quotedText?: string;
   /** 备注 markdown */
   text?: string;
+  /** 审阅处理状态（v5.7.0：导师批注逐条勾销） */
+  resolved?: boolean;
   createdAt: number;
 }
 
@@ -159,7 +161,7 @@ export interface TemplateDescriptor {
   id: string;
   name: string; // 展示名（中文）
   venue: string; // 适配场所描述
-  category: 'conference' | 'journal' | 'thesis' | 'chinese' | 'generic';
+  category: 'conference' | 'journal' | 'thesis' | 'chinese' | 'generic' | 'preprint' | 'presentation' | 'report' | 'other';
   engine: CompileEngineKind;
   /** main 文件相对路径 */
   entry: string;

@@ -48,6 +48,10 @@ export interface PdfReaderProps {
   data: ArrayBuffer;
   annotations?: Annotation[];
   onCreateAnnotation?: (annotation: Annotation) => void;
+  /** v5.7.0：勾销/恢复一条批注（审阅逐条处理） */
+  onToggleResolved?: (id: string, resolved: boolean) => void;
+  /** v5.7.0：对未处理批注起草逐条回复（宿主收集并发给 AI） */
+  onDraftResponse?: () => void;
   /** L4：删除标注回调（与 onCreateAnnotation 同源宿主存储；未传则侧栏不显示删除按钮）。 */
   onDeleteAnnotation?: (id: string) => void;
   /** L3：选中浮条尾部渲染的自定义动作按钮。 */
@@ -286,6 +290,8 @@ export function PdfReader({
   data,
   annotations,
   onCreateAnnotation,
+  onToggleResolved,
+  onDraftResponse,
   onDeleteAnnotation,
   askActions,
   onPagePoint,
@@ -310,6 +316,8 @@ export function PdfReader({
   const [noteDraft, setNoteDraft] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [semanticFilter, setSemanticFilter] = useState<HighlightSemantic | 'all'>('all');
+  /** v5.7.0 审阅往返：批注处理状态筛选（待处理/已处理） */
+  const [resolvedFilter, setResolvedFilter] = useState<'all' | 'open' | 'done'>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('single');
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('annotations');
   const [outline, setOutline] = useState<ResolvedOutlineItem[]>([]);
@@ -764,9 +772,12 @@ export function PdfReader({
 
   // L4：侧栏标注列表（按页码、创建时间升序；筛选只作用于列表，不影响覆盖层）
   const sidebarAnnotations = useMemo(() => {
-    const list = [...(annotations ?? [])].sort((a, b) => a.page - b.page || a.createdAt - b.createdAt);
-    return semanticFilter === 'all' ? list : list.filter(a => a.semantic === semanticFilter);
-  }, [annotations, semanticFilter]);
+    let list = [...(annotations ?? [])].sort((a, b) => a.page - b.page || a.createdAt - b.createdAt);
+    if (semanticFilter !== 'all') list = list.filter(a => a.semantic === semanticFilter);
+    if (resolvedFilter === 'open') list = list.filter(a => !a.resolved);
+    if (resolvedFilter === 'done') list = list.filter(a => a.resolved === true);
+    return list;
+  }, [annotations, semanticFilter, resolvedFilter]);
 
   // 连续模式标注覆盖层：没有单页 viewport 对象，按“PDF 用户空间 × scale（y 轴翻转）”
   // 直接换算（与 pdfjs 无旋转 viewport 的 convertToViewportRectangle 一致）。
@@ -870,6 +881,49 @@ export function PdfReader({
           />
         ))}
       </div>
+      {/* v5.7.0：审阅处理状态筛选 + 一键起草回复 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
+        {([
+          ['all', '全部'],
+          ['open', '待处理'],
+          ['done', '已处理'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={resolvedFilter === key}
+            onClick={() => setResolvedFilter(key)}
+            style={{
+              border: resolvedFilter === key ? '2px solid #111827' : '1px solid rgba(0,0,0,0.2)',
+              background: 'transparent',
+              borderRadius: 999,
+              fontSize: 10.5,
+              padding: '1px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        {onDraftResponse ? (
+          <button
+            type="button"
+            onClick={onDraftResponse}
+            title="把未处理批注发给 AI 起草逐条回复"
+            style={{
+              marginLeft: 'auto',
+              border: '1px solid rgba(0,0,0,0.2)',
+              background: 'transparent',
+              borderRadius: 999,
+              fontSize: 10.5,
+              padding: '1px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            ✦ 起草回复
+          </button>
+        ) : null}
+      </div>
       {sidebarAnnotations.length === 0 ? (
         <p style={{ color: '#6b7280', fontSize: 11, margin: 0 }}>{t('noAnnotations')}</p>
       ) : (
@@ -913,8 +967,29 @@ export function PdfReader({
                     }}
                   />
                   <span style={{ color: '#6b7280', flex: '0 0 auto' }}>p.{annotation.page}</span>
-                  <span>{truncated || t('noExcerpt')}</span>
+                  <span style={annotation.resolved ? { textDecoration: 'line-through', color: '#9ca3af' } : undefined}>
+                    {truncated || t('noExcerpt')}
+                  </span>
                 </button>
+                {onToggleResolved && (
+                  <button
+                    type="button"
+                    title={annotation.resolved ? '标记为待处理' : '标记为已处理'}
+                    aria-label={`${annotation.resolved ? '恢复' : '勾销'} p.${annotation.page}`}
+                    onClick={() => onToggleResolved(annotation.id, !annotation.resolved)}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: annotation.resolved ? '#1a7f37' : '#9ca3af',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {annotation.resolved ? '✓' : '○'}
+                  </button>
+                )}
                 {onDeleteAnnotation && (
                   <button
                     type="button"

@@ -142,6 +142,83 @@ export async function gitRestore(hash: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// v5.7.0 F1/F3：提交差异查看 + GitHub 远端同步（走系统 git 与用户自己的凭据）
+// ---------------------------------------------------------------------------
+
+/** 某次提交的变更明细（--stat + patch，截断保护） */
+export async function gitShowCommit(hash: string): Promise<{ stat: string; diff: string }> {
+  if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
+  const stat = await tauriProcRun('git', ['show', '--stat', '--format=%h %ad %s', '--date=iso-strict', hash]);
+  if (stat.code !== 0) throw new Error(`git show 失败：${(stat.stderr || stat.stdout).trim().slice(0, 160)}`);
+  const patch = await tauriProcRun('git', ['show', '--format=', hash]);
+  const full = patch.stdout;
+  const LIMIT = 8000;
+  return {
+    stat: stat.stdout.slice(0, 2000),
+    diff: full.length > LIMIT ? `${full.slice(0, LIMIT)}
+…（已截断，完整差异请用 git show ${hash}）` : full,
+  };
+}
+
+/** 读取远端配置；无远端返回 null */
+export async function gitGetRemote(): Promise<string | null> {
+  if (!(await ensureGitRepo())) return null;
+  const r = await tauriProcRun('git', ['remote', 'get-url', 'origin']);
+  return r.code === 0 ? r.stdout.trim() : null;
+}
+
+/** 关联远端（已有 origin 则改写） */
+export async function gitSetRemote(url: string): Promise<boolean> {
+  if (!(await ensureGitRepo())) return false;
+  const trimmed = url.trim();
+  if (!/^(https:\/\/|git@)/.test(trimmed)) throw new Error('远端地址需为 https:// 或 git@ 开头');
+  const exists = await tauriProcRun('git', ['remote', 'get-url', 'origin']);
+  const args = exists.code === 0
+    ? ['remote', 'set-url', 'origin', trimmed]
+    : ['remote', 'add', 'origin', trimmed];
+  const r = await tauriProcRun('git', args);
+  return r.code === 0;
+}
+
+/** push（首次自动 -u origin HEAD）；失败抛错（含凭据/网络提示） */
+export async function gitPush(): Promise<string> {
+  if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
+  await materializeWorkspace();
+  await tauriProcRun('git', ['add', '-A']);
+  await tauriProcRun('git', [...GIT_IDENTITY, 'commit', '-m', '同步前自动保存']);
+  const upstream = await tauriProcRun('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  const r = upstream.code === 0
+    ? await tauriProcRun('git', ['push'])
+    : await tauriProcRun('git', ['push', '-u', 'origin', 'HEAD']);
+  if (r.code !== 0) {
+    throw new Error(`push 失败：${(r.stderr || r.stdout).trim().slice(0, 300)}（凭据由系统 git 管理：首次会弹浏览器/凭证助手登录）`);
+  }
+  return r.stdout.trim() || '已推送';
+}
+
+/** pull --no-rebase；冲突时同样抛错并提示 */
+export async function gitPull(): Promise<string> {
+  if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
+  const r = await tauriProcRun('git', ['pull', '--no-rebase']);
+  if (r.code !== 0) {
+    throw new Error(`pull 失败：${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+  }
+  // 拉回的文件同步进工作区 store（与恢复同一机制：逐文件回读）
+  const tree = await tauriProcRun('git', ['ls-tree', '-r', '--name-only', 'HEAD']);
+  if (tree.code === 0) {
+    const ws = useWorkspaceStore.getState();
+    for (const path of tree.stdout.split('\n').map((x) => x.trim()).filter(Boolean)) {
+      if (!/\.(tex|bib|sty|cls|md|txt)$/i.test(path)) continue;
+      const show = await tauriProcRun('git', ['show', `HEAD:${path}`]);
+      if (show.code !== 0) continue;
+      if (ws.files[path] === undefined) ws.createFile(path, show.stdout);
+      else if (ws.files[path] !== show.stdout) ws.updateFile(path, show.stdout);
+    }
+  }
+  return r.stdout.trim() || '已拉取';
+}
+
+// ---------------------------------------------------------------------------
 // AI 改动自动提交：防抖合并连续改动（一次任务多轮 tex.edit 只产生一个提交）
 // ---------------------------------------------------------------------------
 

@@ -1,10 +1,24 @@
 import type { ProjectFileMap, ScaffoldVars, TemplateDescriptor } from '@lemma/shared';
 import { chineseCtex } from './chinese-ctex';
+import { chineseJournal } from './chinese-journal';
+import { conferenceAcmLike } from './conference-acm-like';
 import { conferenceIeeeLike } from './conference-ieee-like';
 import { genericArticle } from './generic-article';
 import { genericReport } from './generic-report';
+import { journalElsevierLike } from './journal-elsevier-like';
+import { journalMathLike } from './journal-math-like';
 import { journalSpringerLike } from './journal-springer-like';
+import { journalTwoColumn } from './journal-twocolumn';
+import { lectureNotes } from './lecture-notes';
+import { letterCover } from './letter-cover';
+import { posterA0 } from './poster-a0';
+import { preprintArxivLike } from './preprint-arxiv-like';
 import { preprintMlLike } from './preprint-ml-like';
+import { presentationBeamer } from './presentation-beamer';
+import { presentationBeamerDark } from './presentation-beamer-dark';
+import { reportTechnical } from './report-technical';
+import { surveyArticle } from './survey-article';
+import { thesisPhdLike } from './thesis-phd-like';
 import type { TemplateModule } from './types';
 
 export type { TemplateModule } from './types';
@@ -13,9 +27,23 @@ const TEMPLATES: TemplateModule[] = [
   genericArticle,
   genericReport,
   conferenceIeeeLike,
+  conferenceAcmLike,
+  journalTwoColumn,
   preprintMlLike,
-  chineseCtex,
+  preprintArxivLike,
+  journalElsevierLike,
+  journalMathLike,
   journalSpringerLike,
+  surveyArticle,
+  thesisPhdLike,
+  chineseCtex,
+  chineseJournal,
+  presentationBeamer,
+  presentationBeamerDark,
+  letterCover,
+  reportTechnical,
+  posterA0,
+  lectureNotes,
 ];
 
 /** 内置模板清单（descriptor 为浅拷贝，防止调用方篡改注册表数据） */

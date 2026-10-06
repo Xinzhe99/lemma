@@ -338,6 +338,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setHelpPanelOpen(true),
     },
     {
+      id: 'insert.tikzFigure',
+      title: ctx.t('cmd.tikzFigure'),
+      hint: ctx.t('hint.edit'),
+      run: () => useUiStore.getState().setTikzFigureOpen(true),
+    },
+    {
       id: 'insert.imageToLatex',
       title: ctx.t('cmd.imageToLatex'),
       hint: ctx.t('hint.edit'),

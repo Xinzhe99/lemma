@@ -485,6 +485,17 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
   return { ok: result.success, entry, passes: result.passes, diagnostics: result.diagnostics.length };
 }
 
+/**
+ * v5.7.0：编译指定入口的预览产物（AI 画图 TikZ standalone 等）。
+ * 复用真实编译链（引擎探测 / 物化 / PDF 回读），成功后右侧预览区自动切到该 PDF。
+ * 桌面形态专用；浏览器形态返回模拟失败由调用方提示。
+ */
+export async function compileTexPreview(entry: string): Promise<{ ok: boolean }> {
+  if (getPlatform().kind !== 'tauri') return { ok: false };
+  const real = await runRealCompile(entry, { auto: true });
+  return { ok: real ? real.ok : false };
+}
+
 /** 统一入口：Tauri 环境按探测链使用真实引擎（系统 tectonic → 系统 latexmk → 内置 tectonic，
  *  内置不存在时自动下载，下载失败回退模拟引擎）；浏览器直接模拟。 */
 /**
