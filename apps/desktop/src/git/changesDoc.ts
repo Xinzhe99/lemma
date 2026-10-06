@@ -64,7 +64,9 @@ export function buildChangesTex(diffOutput: string, title = '修改对照'): Cha
       inHunk = false;
       continue;
     }
-    if (raw.startsWith('--- ') || raw.startsWith('+++ ') || raw.startsWith('index ')) continue;
+    // v7.0.0 修复：git 文件头恒为 --- a/path、+++ b/path——此前宽松前缀会把
+    // 内容本身以 -- / ++ 开头的增删行（如 diff 说明行）误判为文件头而吞掉
+    if (raw.startsWith('--- a/') || raw.startsWith('+++ b/') || raw.startsWith('index ')) continue;
     if (raw.startsWith('new file mode') || raw.startsWith('deleted file mode') || raw.startsWith('Binary files')) {
       continue;
     }

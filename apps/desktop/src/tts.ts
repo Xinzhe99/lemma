@@ -48,14 +48,23 @@ function stopKeepAlive(): void {
   }
 }
 
+let currentUtterance: SpeechSynthesisUtterance | null = null;
+
 export function speak(text: string, lang: 'zh' | 'en' = 'zh'): boolean {
   if (!ttsSupported()) return false;
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
   utter.rate = 1.0;
-  utter.onend = () => stopKeepAlive();
-  utter.onerror = () => stopKeepAlive();
+  // v7.0.0 修复：cancel 触发旧 utterance 的 onend 是异步的——不比对身份会把
+  // 新朗读刚启动的 keepAlive 计时器杀掉，长文 15s 后又停摆
+  utter.onend = () => {
+    if (currentUtterance === utter) stopKeepAlive();
+  };
+  utter.onerror = () => {
+    if (currentUtterance === utter) stopKeepAlive();
+  };
+  currentUtterance = utter;
   window.speechSynthesis.speak(utter);
   startKeepAlive();
   return true;

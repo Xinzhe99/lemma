@@ -171,6 +171,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
         });
         const trimmed = path?.trim();
         if (!trimmed) return;
+        // v7.0.0 修复：路径校验——.. / 绝对路径 / 反斜杠会让 safe_rel 拒绝物化，
+        // 编译静默降级为模拟引擎（假成功）
+        if (trimmed.includes('..') || trimmed.startsWith('/') || trimmed.includes('\\')) {
+          ctx.toast('文件路径不合法（含 ..、绝对路径或反斜杠）');
+          return;
+        }
         useWorkspaceStore.getState().createFile(trimmed, '');
         ctx.toast(`${ctx.t('toast.fileCreated')}: ${trimmed}`);
       },
@@ -368,19 +374,31 @@ export function buildCommands(ctx: CommandContext): Command[] {
             return;
           }
           const content = ws.files[file] ?? '';
-          const cursorLine = lastCursor().line ?? 1;
+          // v7.0.0 修复：lastCursor 是全局单例——不比对文件时，切文件后行号错位
+          const cur = lastCursor();
+          const cursorLine = !cur.file || cur.file === file ? cur.line : 1;
           const lines = content.split('\n');
           // 光标向前找最近的 section/subsection 头，朗读到下一个同级或更高级头
           let start = 0;
           for (let i = Math.min(cursorLine - 1, lines.length - 1); i >= 0; i--) {
-            if (/\\(sub)*section\{|\\chapter\{/.test(lines[i]!)) {
+            if (/\\(sub)*section\*?\{|\\chapter\*?\{/.test(lines[i]!)) {
               start = i;
               break;
             }
           }
-          // v6.8.0 修复：\end{document} 视为 level 0（此前 fallback 9 会让 section 朗读越过文末继续读参考文献）
-          const level = (l: string) =>
-            /\\end\{document\}/.test(l) ? 0 : (l.match(/\\sub*section/)?.[0]?.length ?? 9);
+          // v7.0.0 修复：chapter(5)/section(8)/subsection(11)/文末(0) 显式层级——
+          // 此前 chapter 走 fallback 9，章朗读在第一个 section 处截断；星号版 \section*{ 一并匹配
+          const levelOf = (cmd: string): number => {
+            if (cmd.includes('end{document}')) return 0;
+            if (cmd.includes('chapter')) return 5;
+            if (cmd.includes('subsection')) return 11;
+            if (cmd.includes('section')) return 8;
+            return 99;
+          };
+          const level = (l: string) => {
+            const m = /\\(sub)*section\*?\{|\\chapter\*?\{|\\end\{document\}/.exec(l);
+            return m ? levelOf(m[0]) : 99;
+          };
           const startLevel = level(lines[start] ?? '');
           let end = lines.length;
           for (let i = start + 1; i < lines.length; i++) {
@@ -470,6 +488,17 @@ export function buildCommands(ctx: CommandContext): Command[] {
           label: ctx.t('approval.demoEditLabel'),
           via: ctx.t('approval.demoEditVia'),
         });
+        // v7.0.0 修复：此前点「采纳」只 toast 不落盘——修改静默丢失
+        if (decision.approved) {
+          const w = useWorkspaceStore.getState();
+          if (w.files[file] === before) {
+            w.snapshotFile(file, '审批采纳前的快照');
+            w.updateFile(file, after);
+          } else {
+            ctx.toast('文件在审批期间发生了其他修改，本次未应用');
+            return;
+          }
+        }
         ctx.toast(ctx.t('toast.verdict', { note: decision.note }));
       },
     },

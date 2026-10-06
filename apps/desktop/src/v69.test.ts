@@ -47,7 +47,7 @@ describe('gitPull 工作树回读（v6.9.0 数据丢失修复）', () => {
     procMock.mockImplementation(async (_c: string, args: string[]) => {
       const j = args.join(' ');
       if (j.includes('--version')) return { code: 0, stdout: 'git version 2.43', stderr: '' };
-      if (args[0] === 'pull') {
+      if (args.includes('pull')) {
         diskFiles.set('main.tex', (diskFiles.get('main.tex') ?? '') + '+REMOTE');
         return { code: 0, stdout: 'Fast-forward', stderr: '' };
       }
@@ -64,7 +64,8 @@ describe('gitPull 工作树回读（v6.9.0 数据丢失修复）', () => {
     procMock.mockImplementation(async (_c: string, args: string[]) => {
       const j = args.join(' ');
       if (j.includes('--version')) return { code: 0, stdout: 'git version 2.43', stderr: '' };
-      if (args[0] === 'pull') return { code: 1, stdout: '', stderr: 'Your local changes would be overwritten' };
+      if (args.includes('pull')) return { code: 1, stdout: '', stderr: 'Your local changes would be overwritten' };
+      if (args[0] === 'merge') return { code: 0, stdout: '', stderr: '' };
       return { code: 0, stdout: '', stderr: '' };
     });
     await expect(gitPull()).rejects.toThrow('pull 失败');

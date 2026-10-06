@@ -195,9 +195,11 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
         ...state.sessions,
         { id, title: '新会话', messages: [], providerId, status: 'idle' as const, projectName },
       ];
-      // 上限淘汰：从最旧开始移除非本会话的记录（新会话恒保留）
+      // 上限淘汰：从最旧开始移除非本会话/非流式中的记录
+      // v7.0.0 修复：此前只保护新会话 id——正在流式的旧会话被淘汰后，
+      // 后续 appendDelta/finishSession 全部静默 no-op，整条回复蒸发并被持久化固化
       while (sessions.length > SESSIONS_LIMIT) {
-        const idx = sessions.findIndex((s) => s.id !== id);
+        const idx = sessions.findIndex((s) => s.id !== id && s.status !== 'streaming');
         if (idx < 0) break;
         sessions = sessions.filter((_, i) => i !== idx);
       }

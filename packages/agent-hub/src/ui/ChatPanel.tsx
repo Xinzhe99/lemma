@@ -460,9 +460,11 @@ export function ChatPanel(props: ChatPanelProps) {
 
   const addImageAttachment = (file: File | null | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
-    if (imageAttachments.length >= MAX_IMAGES) return;
+    // v7.0.0 修复：上限检查移入函数式更新——此前读渲染闭包旧值，
+    // 一次拖入/多选 8 张图全部绕过 MAX_IMAGES
     const reader = new FileReader();
-    reader.onload = () => setImageAttachments((prev) => [...prev, String(reader.result)]);
+    reader.onload = () =>
+      setImageAttachments((prev) => (prev.length >= MAX_IMAGES ? prev : [...prev, String(reader.result)]));
     reader.readAsDataURL(file);
   };
 
@@ -472,8 +474,11 @@ export function ChatPanel(props: ChatPanelProps) {
       addImageAttachment(file);
       return;
     }
-    if (fileAttachments.length >= MAX_FILES) return;
-    setFileAttachments((prev) => (prev.some((f) => f.name === file.name && f.size === file.size) ? prev : [...prev, file]));
+    setFileAttachments((prev) =>
+      prev.length >= MAX_FILES || prev.some((f) => f.name === file.name && f.size === file.size)
+        ? prev
+        : [...prev, file],
+    );
   };
 
   const onInputPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -487,6 +492,7 @@ export function ChatPanel(props: ChatPanelProps) {
   const speechSupported = speechLanguage !== undefined && isSpeechSupported();
   const [speechPhase, setSpeechPhase] = useState<'idle' | 'recording' | 'transcribing' | 'loading-model'>('idle');
   const speechSessionRef = useRef<SpeechSession | null>(null);
+  const speechStartingRef = useRef(false);
   const [speechError, setSpeechError] = useState('');
 
   const toggleSpeech = async () => {
@@ -504,17 +510,22 @@ export function ChatPanel(props: ChatPanelProps) {
       } catch (err) {
         setSpeechError(err instanceof Error ? err.message : String(err));
       } finally {
+        speechStartingRef.current = false;
         setSpeechPhase('idle');
       }
       return;
     }
-    if (speechPhase !== 'idle') return;
+    if (speechPhase !== 'idle' || speechStartingRef.current) return;
+    // v7.0.0 修复：getUserMedia 权限弹窗期间 phase 仍 idle——同步占位防双击，
+    // 否则第二个会话覆盖 ref，第一个 MediaStream 永不关闭（麦克风常亮）
+    speechStartingRef.current = true;
     try {
       speechSessionRef.current = await startSpeechSession(speechLanguage ?? 'auto', (e) => {
         if (e.phase === 'loading-model') setSpeechPhase('loading-model');
       });
       setSpeechPhase('recording');
     } catch (err) {
+      speechStartingRef.current = false;
       const name = err instanceof DOMException ? err.name : '';
       const friendly =
         name === 'NotFoundError' || name === 'DevicesNotFoundError'
@@ -563,9 +574,9 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   const selectMention = (item: MentionItem) => {
-    // 保留 @ 前缀（v4.3.0）：@citekey / @文件路径 是发送端上下文注入的触发记号，
-    // 仅裸 label 不触发任何注入
-    setText((t) => t.replace(/@[^\s]*$/, `@${item.label} `));
+    // 保留 @ 前缀（v4.3.0）。v7.0.0 修复：替换串走函数形式——label 含 $&/$1 等
+    // 模式串时字符串形式会被 RegExp 展开破坏插入内容
+    setText((t) => t.replace(/@[^\s]*$/, () => `@${item.label} `));
   };
 
   const handleInputChange = (v: string) => {

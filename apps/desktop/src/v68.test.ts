@@ -78,15 +78,16 @@ describe('修复 1：历史剥离 images', () => {
 });
 
 describe('修复 2：停止 ≠ 网络错误', () => {
-  it('AbortError → 回复尾注 [已停止]（无「网络」字样）', async () => {
+  it('用户停止（abortChat 后 AbortError）→ 回复尾注 [已停止]（无「网络」字样）', async () => {
     useSettingsStore.setState({
       providers: [{ id: 'p', label: 'T', baseUrl: 'https://t/v1', apiKey: 'k', model: 'm', tier: 'flagship' }],
       activeProviderId: 'p',
     });
     const mod = await import('./agentTools');
+    const { abortChat } = await import('./aiActions');
     vi.spyOn(mod, 'runAgentTurn').mockImplementation(async () => {
-      const err = new Error('The operation was aborted');
-      err.name = 'AbortError';
+      abortChat(); // 模拟用户在流式中点停止（真实时序：fetch 拒绝 → catch）
+      const err = new Error('请求失败：The operation was aborted');
       throw err;
     });
     await sendChatMessage('hi');

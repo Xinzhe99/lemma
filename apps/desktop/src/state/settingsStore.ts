@@ -155,7 +155,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   providers: initial?.providers ?? [],
   activeProviderId: initial?.activeProviderId ?? null,
   embeddingModel: initial?.embeddingModel ?? '',
-    speechLanguage: 'auto',
+    // v7.0.0 修复：消费 persisted 值（此前硬编码 auto，语言偏好永不跨重启）
+    speechLanguage: initial?.speechLanguage ?? 'auto',
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',
@@ -244,6 +245,8 @@ useSettingsStore.subscribe((s) => {
         enginePreference: s.enginePreference,
         aiPersona: s.aiPersona,
         livePreview: s.livePreview,
+        // v7.0.0 修复：写侧此前遗漏该字段
+        speechLanguage: s.speechLanguage,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }

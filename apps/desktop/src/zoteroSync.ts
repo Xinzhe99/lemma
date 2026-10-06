@@ -10,7 +10,8 @@ import { parseBibtex } from '@lemma/library';
 import { useLibraryStore } from './state/libraryStore';
 
 export const ZOTERO_BBT_LIBRARY_URL = 'http://localhost:23119/better-bibtex/library.bibtex';
-const FETCH_TIMEOUT_MS = 1500;
+// v7.0.0：1.5s 对大库全量导出太紧——同步放宽 10s
+const FETCH_TIMEOUT_MS = 10000;
 
 export type ZoteroSyncResult =
   | { ok: true; added: number; skipped: number; errors: string[]; via: 'fetch' | 'curl' }
@@ -31,7 +32,8 @@ async function fetchViaBrowser(): Promise<string> {
 async function fetchViaCurl(): Promise<string> {
   // 系统自带 curl（Win10+/macOS）：-m 超时 -s 静默；proc_run 仅桌面形态可用
   const { tauriProcRun } = await import('./platform/tauri');
-  const r = await tauriProcRun('curl', ['-s', '-m', '3', ZOTERO_BBT_LIBRARY_URL]);
+  // v7.0.0：-f 让 HTTP 4xx/5xx 走失败；大库全量导出放宽到 25s
+  const r = await tauriProcRun('curl', ['-s', '-f', '-m', '25', ZOTERO_BBT_LIBRARY_URL]);
   if (r.code !== 0 || !r.stdout.trim()) throw new Error('curl 失败或返回为空');
   return r.stdout;
 }
@@ -79,7 +81,7 @@ export async function syncZotero(): Promise<ZoteroSyncResult> {
   return {
     ok: true,
     added: r.added,
-    skipped: before + r.added === before ? parsed.papers.length - r.added : parsed.papers.length - r.added,
+    skipped: parsed.papers.length - r.added,
     errors: r.errors,
     via,
   };

@@ -42,18 +42,29 @@ export function parseProjectZip(bytes: Uint8Array): ParsedProjectZip {
     }
     const text = strFromU8(data);
     files[path] = text;
-    if (base.toLowerCase() === 'main.tex') continue; // 入口候选单独记录
+    // v7.0.0 修复：子目录 main.tex（Overleaf 常见 src/main.tex）此前被排除出
+    // texWithClass 候选且 hasMain 只查根键——两个入口来源同时落空导致导入失败
+    const isMainTex = base.toLowerCase() === 'main.tex';
+    if (isMainTex) {
+      texFiles.push(path);
+      if (/\\documentclass/.test(text)) texWithClass.push(path);
+      continue;
+    }
     if (base.endsWith('.tex') || base.toLowerCase().endsWith('.ltx')) {
       texFiles.push(path);
       if (/\\documentclass/.test(text)) texWithClass.push(path);
     }
   }
 
-  const hasMain = 'main.tex' in files;
+  // v7.0.0：根级优先，其次最浅层的 main.tex，再退 documentclass 候选
+  const rootMain = Object.keys(files).find((p) => p === 'main.tex');
+  const subMain = Object.keys(files)
+    .filter((p) => p.endsWith('/main.tex'))
+    .sort(shortestFirst)[0];
   const entry =
-    hasMain ? 'main.tex'
-    : texWithClass.length > 0 ? texWithClass.sort(shortestFirst)[0]!
-    : texFiles.sort(shortestFirst)[0] ?? '';
+    rootMain ?? subMain ?? (texWithClass.length > 0 ? texWithClass.sort(shortestFirst)[0]! : undefined) ??
+    texFiles.sort(shortestFirst)[0] ??
+    '';
 
   if (!entry) {
     throw new Error('zip 中未找到 .tex 文件——请确认这是 LaTeX 项目压缩包（Overleaf: Menu → Source → Download Source）');

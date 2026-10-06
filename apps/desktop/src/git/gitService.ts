@@ -238,7 +238,10 @@ export async function gitSetRemote(url: string): Promise<boolean> {
 export async function gitPush(): Promise<string> {
   if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
   await materializeWorkspace();
-  await tauriProcRun('git', ['add', '-A']);
+  const add = await tauriProcRun('git', ['add', '-A']);
+  if (add.code !== 0) {
+    throw new Error(`git add 失败：${(add.stderr || add.stdout).trim().slice(0, 160)}`);
+  }
   await tauriProcRun('git', [...GIT_IDENTITY, 'commit', '-m', '同步前自动保存']);
   const upstream = await tauriProcRun('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
   const r = upstream.code === 0
@@ -259,8 +262,12 @@ export async function gitPull(): Promise<string> {
   //  - 本地改动与远端冲突 → git 拒绝（错误可见，本地保留）
   //  - 不冲突 → 工作树 = 远端合并 + 本地未提交改动
   await materializeWorkspace();
-  const r = await tauriProcRun('git', ['pull', '--no-rebase']);
+  // v7.0.0 修复：注入身份（无全局 git 配置的机器 merge 型 pull 必然失败且报错误导人）
+  const r = await tauriProcRun('git', [...GIT_IDENTITY, 'pull', '--no-rebase']);
   if (r.code !== 0) {
+    // v7.0.0 修复：冲突失败的 pull 滞留 MERGE_HEAD——2s 后的自动提交会
+    // 「静默完结合并」（未经确认的 merge commit + 冲突内容被丢弃）。立即中止合并态
+    await tauriProcRun('git', ['merge', '--abort']).catch(() => undefined);
     throw new Error(`pull 失败：${(r.stderr || r.stdout).trim().slice(0, 300)}`);
   }
   // 回读「工作树」而非 HEAD——工作树才包含本地未提交改动 + 拉取合并结果

@@ -336,6 +336,12 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         via: 'agent 工具调用',
       });
       if (!decision.approved) return { applied: false, reason: decision.note };
+      // v7.0.0 修复（数据丢失）：审批等待期间用户可能已编辑同一文件——
+      // after 基于旧 before 计算，直接覆盖会静默吞掉用户改动。内容不一致时拒绝
+      const latest = useWorkspaceStore.getState().files[file];
+      if (latest !== before) {
+        return { applied: false, reason: '文件在审批期间发生了其他修改，为避免覆盖已取消——请重试本次编辑' };
+      }
       ws.snapshotFile(file, 'AI 工具修改前的快照');
       useWorkspaceStore.getState().updateFile(file, after);
       // v5.0.0 所见即所得：记录首个变更行，编译成功后 PDF 自动滚到该处
@@ -365,6 +371,10 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         via: 'agent 工具调用',
       });
       if (!decision.approved) return { applied: false, reason: decision.note };
+      // v7.0.0：同 tex.edit 的陈旧覆盖防护
+      if (useWorkspaceStore.getState().files[path] !== before) {
+        return { applied: false, reason: 'bib 文件在审批期间发生了其他修改，为避免覆盖已取消——请重试' };
+      }
       if (before === '') useWorkspaceStore.getState().createFile(path, after);
       else useWorkspaceStore.getState().updateFile(path, after);
       scheduleAutoCommit(`添加引用 ${citekey}`); // v5.0.0：AI 改动自动进版本历史
@@ -583,6 +593,10 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
     let roundText = '';
     const toolCalls: ToolCallRequest[] = [];
 
+    // v7.0.0 修复：用户点停止后仍执行工具（含写级审批）——循环每轮先检查中止
+    if (signal?.aborted) {
+      return finalText || '（已停止）';
+    }
     for await (const ev of provider.complete({ messages, model, tools, signal })) {
       if (ev.type === 'text-delta') {
         roundText += ev.delta;
@@ -619,6 +633,17 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
       createdAt: Date.now(),
     });
     for (const call of toolCalls) {
+      if (signal?.aborted) {
+        // v7.0.0：中止后不再执行剩余工具，回填说明后退出
+        messages.push({
+          id: `tool-${call.id}`,
+          role: 'tool',
+          toolCallId: call.id,
+          content: JSON.stringify({ error: '用户已停止生成' }),
+          createdAt: Date.now(),
+        });
+        continue;
+      }
       opts.onToolCall?.(call);
       let output: unknown;
       const gate = checkCall(call.tool, POLICY);

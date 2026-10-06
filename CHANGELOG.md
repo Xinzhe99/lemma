@@ -7,6 +7,40 @@
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-10-06
+
+### Fixed（5 子 agent 并行深度评审：60+ 项发现，修复 22 个确认 bug）
+
+**数据丢失/损坏级（5）**：
+- **启动迁移搬走 store 数据**：sf-projects/sf-notes/sf-agent-memory 等 16 个 localStorage-only 键（≥32KB 即触发）被搬入 IndexedDB 后属主仍读 localStorage——下次启动项目/标注/笔记/记忆全部"消失"。全量键入保护名单（有 IDB 读路径的 sf-library/sessions 除外）
+- **审批期间用户编辑被静默覆盖**：tex.edit/citation.add 审批卡挂起期间用户改同一文件，采纳后用陈旧 before 生成的 after 整体覆盖——落盘前校验内容一致，不一致拒绝并说明
+- **renameFile 目标已存在时静默覆盖**（无快照无提示）——直接拒绝
+- **workspace 持久化失败后永不重试**：lastPersisted 在写盘前标记，一次失败后 30s 安全网因相等比较跳过——改为写盘成功才标记
+- **隔轮失忆**：history 的 slice(0,-2) 在乐观插入之前快照——删掉的是上一轮真实对话（模型对紧邻的上一轮零记忆）
+
+**功能错误级（9）**：
+- **悬空 tool_calls → 后续消息 400**：历史过滤丢弃 tool 消息却保留 assistant.toolCalls，严格 API 直接拒绝——历史中剥离 toolCalls
+- **停止误报网络错误（判定写反）**：chatAbort 在 abort 同时被置空 + provider 包装 AbortError——改为 signal.aborted 单一判据；provider fetch 阶段的中止与流阶段一致收尾为 done
+- **重入双流**：streaming 守卫置位前隔着多个 await——函数入口同步占位
+- **流式会话被淘汰**：30 条上限的淘汰只保护新会话——正在流式的旧会话被删后整条回复蒸发；淘汰同时保护 streaming 会话
+- **引用护栏对 \cite 全盲**：validateCitations 只匹配 [key]，模型实际输出 \cite{a,b}——先展开为 [key] 再校验（护栏此前零检出）
+- **simulateToolEdit 采纳不落盘**：演示审批卡点「采纳」只 toast——现在真正写入
+- **工具参数截断静默执行空参数**：max_tokens 截断的 JSON 解析失败降级 {}——显式报错让模型知道根因
+- **语音双击泄漏麦克风**：getUserMedia 权限弹窗期间可再次点击——同步占位；附件上限检查读陈旧闭包——移入函数式更新
+- **Zotero 大库误判未连接**：1.5s/3s 超时对全库导出太紧——10s/25s + curl -f
+
+**边界/平台级（8）**：
+- TTS 长文停摆保活被旧 onend 误杀——utterance 身份比对；\chapter 朗读在第一个 section 截断——显式层级；\section*{ 星号版全部漏配；朗读起点不校验光标所属文件
+- gitPull 无 GIT_IDENTITY（无全局配置的机器 merge 型 pull 必败）；冲突后滞留 MERGE_HEAD 被自动提交"完结合并"——pull 前注入身份、失败即 merge --abort；git add 失败不检查退出码
+- zip 导入子目录 main.tex（Overleaf 常见 src/main.tex）误判非 LaTeX 包——入口候选修复
+- changesDoc 把内容以 --/++ 开头的增删行误判为文件头吞掉——精确匹配 --- a/+++ b/
+- arXiv 检索词未 URL 编码（C++/R&D 破坏查询）
+- selectMention 的 $&/$1 替换模式展开破坏插入内容——函数形式替换
+- 会话删光后永不落盘（重启复活）——hydrate 后空态也落盘；空数组水合不动现状
+- speechLanguage 语言偏好双重断裂（初始化忽略 + 快照遗漏）——双向修复
+
+**其他**：file.new 路径校验（.. / 绝对路径导致编译静默降级模拟引擎）；loadProject 清残留诊断；工具卡 max-width 修复；引用护栏同样应用于计划模式
+
 ## [6.9.0] - 2026-10-06
 
 ### Fixed（深度 review 修复轮：数据丢失 + 平台 bug）

@@ -9,7 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAgentHubStore, type AgentSession } from '@lemma/agent-hub';
-import { AGENT_SESSIONS_KEY, hydrateAgentSessions, attachAgentSessionPersist } from './agentSessionPersist';
+import { AGENT_SESSIONS_KEY, hydrateAgentSessions, attachAgentSessionPersist, __resetSessionPersistForTests } from './agentSessionPersist';
 import { getBigData, setBigData, __resetKvStoreForTests } from '../storage/kvStore';
 import { __resetStorageForTests } from '../storage/db';
 
@@ -31,6 +31,7 @@ function mkSession(id: string, over: Partial<AgentSession> = {}): AgentSession {
 }
 
 beforeEach(() => {
+  __resetSessionPersistForTests();
   vi.useFakeTimers();
   __resetKvStoreForTests();
   __resetStorageForTests(); // 内存后端 Map 同样清空（跨用例隔离）
@@ -105,12 +106,32 @@ describe('attachAgentSessionPersist（防抖落盘）', () => {
     }
   });
 
-  it('空会话态不落盘（启动早期不覆盖既有历史）', async () => {
-    const detach = attachAgentSessionPersist();
+  it('空会话态：水合前不落盘（防覆盖）；水合后落空（删除可持久化）', async () => {
+    // 水合前（hydrated=false）：空态不落盘
+    let detach = attachAgentSessionPersist();
     try {
       useAgentHubStore.setState({ sessions: [], activeSessionId: null });
       await vi.advanceTimersByTimeAsync(700);
       expect(await getBigData(AGENT_SESSIONS_KEY)).toBeUndefined();
+    } finally {
+      detach();
+    }
+    // 水合后（hydrated=true，前一测试的 'kv 有有效数据' 已置位）：
+    // 删光会话 → 空态也要落盘（v7.0.0：删除才能跨重启持久化）
+    detach = attachAgentSessionPersist();
+    try {
+      // 先走一次真实水合（置 hydrated=true）
+      await setBigData(AGENT_SESSIONS_KEY, {
+        v: 1,
+        activeSessionId: 'x',
+        sessions: [mkSession('x')],
+      });
+      await hydrateAgentSessions();
+      useAgentHubStore.getState().deleteSession('x');
+      await vi.advanceTimersByTimeAsync(700);
+      const saved = await getBigData(AGENT_SESSIONS_KEY);
+      expect(saved).toBeDefined();
+      expect((saved as { sessions: unknown[] }).sessions).toEqual([]);
     } finally {
       detach();
     }

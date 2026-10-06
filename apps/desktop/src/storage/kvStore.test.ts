@@ -42,12 +42,13 @@ describe('migrateLocalStorageToIdb 分界与搬运', () => {
 
     const r = await migrateLocalStorageToIdb();
 
-    expect(r.migrated.sort()).toEqual(['sf-library', 'sf-notes']);
-    expect(r.skipped).toEqual([]);
-    expect(localStorage.getItem('sf-notes')).toBeNull();
+    // v7.0.0：sf-notes 属 localStorage-only store（保护名单内），不搬运
+    expect(r.migrated.sort()).toEqual(['sf-library']);
+    expect(r.skipped).toEqual(['sf-notes']); // v7.0.0：保护键入 skipped
+    expect(localStorage.getItem('sf-notes')).not.toBeNull(); // 保护键保留
     expect(localStorage.getItem('sf-library')).toBeNull();
     // 搬运的是解析后的 JSON 值，不是字符串
-    expect(await kvGet('sf-notes')).toEqual(['a'.repeat(BIG_DATA_THRESHOLD_BYTES - 4)]);
+    expect(await kvGet('sf-library')).toBeTypeOf('object'); // 大 JSON 解析后原值
   });
 
   it('< 32KB 的键留在 localStorage（skipped）', async () => {
@@ -113,17 +114,17 @@ describe('migrateLocalStorageToIdb 分界与搬运', () => {
   });
 
   it('幂等不回退：IndexedDB 已有新值时仅清 localStorage 旧副本，不覆盖', async () => {
-    await kvSet('sf-projects', [{ id: 'new' }]);
+    await kvSet('sf-library', [{ id: 'new' }]);
     localStorage.setItem(
-      'sf-projects',
+      'sf-library',
       JSON.stringify([{ id: 'old', pad: 'a'.repeat(BIG_DATA_THRESHOLD_BYTES) }]),
     );
 
     const r = await migrateLocalStorageToIdb();
 
-    expect(r.migrated).toEqual(['sf-projects']);
-    expect(localStorage.getItem('sf-projects')).toBeNull();
-    expect(await kvGet('sf-projects')).toEqual([{ id: 'new' }]);
+    expect(r.migrated).toEqual(['sf-library']);
+    expect(localStorage.getItem('sf-library')).toBeNull();
+    expect(await kvGet('sf-library')).toEqual([{ id: 'new' }]);
   });
 
   it('已被 setBigData 接管的键跳过搬运（写方持有最新值主权）', async () => {

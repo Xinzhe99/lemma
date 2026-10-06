@@ -35,7 +35,29 @@ const SF_KEY_PREFIX = 'sf-';
  *    （readPersistedSettings 等），搬运会使其读到空。
  */
 const LAZY_READER_PREFIXES = ['sf-file.', 'sf-secret.'];
-const LAZY_READER_KEYS = ['sf-settings', 'sf-submit', 'sf-writing-stats'];
+/**
+ * v7.0.0 修复（数据丢失）：全部「模块加载时同步读 localStorage」的 store 键都不可搬——
+ * 此前名单只有 3 个，sf-projects（最多 20 个项目完整快照，轻易超 32KB）等被搬入
+ * IndexedDB 后属主仍读 localStorage → 下次启动项目列表全空。现按实际 grep 的全量键保护。
+ */
+const LAZY_READER_KEYS = [
+  'sf-settings',
+  'sf-submit',
+  'sf-writing-stats',
+  'sf-projects',
+  'sf-pdf-annotations',
+  'sf-comments',
+  'sf-notes',
+  'sf-agent-memory',
+  'sf-agent-usage',
+  'sf-agent-plans',
+  'sf-user-prompts',
+  'sf-user-templates',
+  'sf-digest-cache',
+  'sf-digest-subs',
+  'sf-onboarding',
+  'sf-onboarding-dismissed',
+];
 
 function isLazyReaderKey(key: string): boolean {
   return LAZY_READER_PREFIXES.some((p) => key.startsWith(p)) || LAZY_READER_KEYS.includes(key);

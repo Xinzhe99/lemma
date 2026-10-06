@@ -1,3 +1,5 @@
+let hydrated = false;
+
 /**
  * Agent 会话持久化桥（v1.2.0）：
  *  - hydrateAgentSessions()：启动时从 IndexedDB 恢复会话（宽容校验 + 上限截断）；
@@ -28,8 +30,10 @@ export async function hydrateAgentSessions(): Promise<void> {
   const raw = await getBigData<PersistedShape>(AGENT_SESSIONS_KEY);
   if (!raw || typeof raw !== 'object') return;
   const sessions = parsePersistedSessions(raw.sessions);
+  // 空数组不动现状（无论是否已水合——防旧覆盖新）；删除的持久化由 save 侧落盘
   if (sessions.length === 0) return;
   useAgentHubStore.getState().hydrateSessions(sessions, raw.activeSessionId ?? null);
+  hydrated = true;
 }
 
 /**
@@ -40,7 +44,9 @@ export function attachAgentSessionPersist(): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const save = (): void => {
     const { sessions, activeSessionId } = useAgentHubStore.getState();
-    if (sessions.length === 0) return; // 空态不落盘：避免启动早期覆盖既有历史
+    // v7.0.0 修复：空态在 hydrate 完成后也要落盘——此前永不落空，
+    // 用户删光会话后重启全部复活；启动早期（未水合）仍防覆盖
+    if (sessions.length === 0 && !hydrated) return;
     if (sessions.some((s) => s.status === 'streaming')) return;
     void setBigData(AGENT_SESSIONS_KEY, {
       v: 1,
@@ -56,4 +62,9 @@ export function attachAgentSessionPersist(): () => void {
     unsub();
     clearTimeout(timer);
   };
+}
+
+/** 测试辅助：重置水合标志（跨用例隔离） */
+export function __resetSessionPersistForTests(): void {
+  hydrated = false;
 }

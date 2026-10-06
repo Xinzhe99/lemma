@@ -269,6 +269,8 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
     set((s) => {
       const dst = to.trim();
       if (!(from in s.files) || !dst || from === dst) return s;
+      // v7.0.0 修复：目标已存在时静默覆盖既无快照也无提示——直接拒绝
+      if (dst in s.files) return s;
       const files = { ...s.files };
       files[dst] = files[from]!;
       delete files[from];
@@ -346,13 +348,13 @@ setInterval(() => {
   if (!st.dirty) return;
   const json = JSON.stringify(snapshot(st));
   if (json === lastPersisted) return;
-  lastPersisted = json;
   getPlatform()
     .fs.writeFile(WORKSPACE_FILE, json)
     .then(() => {
-      if (lastPersisted === json) {
-        useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
-      }
+      // v7.0.0 修复：写盘成功才标记 lastPersisted——此前先标记后写盘，
+      // 一次瞬时写失败后该版本内容永久无法落盘（30s 安全网因相等比较跳过）
+      lastPersisted = json;
+      useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
     })
     .catch(() => undefined);
 }, 30_000);
@@ -362,14 +364,14 @@ useWorkspaceStore.subscribe((s) => {
   if (json === lastPersisted) return;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
-    lastPersisted = json;
     getPlatform()
       .fs.writeFile(WORKSPACE_FILE, json)
       .then(() => {
+        // v7.0.0：写盘成功才标记 lastPersisted（与 30s 安全网同修复——
+        // 先标记后写盘会让一次失败后该版本永不重试）
+        lastPersisted = json;
         // 写盘成功：仅当期间没有新改动（当前快照与写盘内容一致）时标记已保存，
         // 避免写盘进行中的编辑被误标为 "✓ 已保存"。
-        // 注：必须 stringify 比较当前状态（lastPersisted 在防抖窗口内不会反映
-        // 写盘在途的新编辑，引用比较会误判为「无改动」）
         if (JSON.stringify(snapshot(useWorkspaceStore.getState())) === json) {
           useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
         }

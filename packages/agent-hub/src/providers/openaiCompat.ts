@@ -64,6 +64,9 @@ function mergeToolCallDelta(acc: ToolCallAcc, fragment: Record<string, unknown>)
   if (fragArgs) acc.arguments += fragArgs;
 }
 
+/** 工具调用兜底 id 的全局序号（兼容不回传 id 的网关，跨轮唯一） */
+let callSeq = 0;
+
 function toRequestMessages(messages: AgentMessage[]): Record<string, unknown>[] {
   return messages.map((m) => {
     if (m.role === 'tool') {
@@ -133,6 +136,11 @@ export class OpenAICompatibleProvider implements ChatProvider {
         signal: req.signal,
       });
     } catch (e) {
+      // v7.0.0 修复：用户中止与网络错误不可区分地包装成 error——中止应与流阶段一致
+      // 地正常收尾，否则宿主误报「网络问题」
+      if (req.signal?.aborted) {
+        return; // 正常结束（done）；已拼装的 toolCalls 由 finally 的 flushToolCalls 冲刷
+      }
       yield { type: 'error', message: `请求失败：${errMsg(e)}` };
       return;
     }
@@ -155,16 +163,24 @@ export class OpenAICompatibleProvider implements ChatProvider {
       toolsFlushed = true;
       return [...toolAcc.values()]
         .sort((a, b) => a.index - b.index)
-        .map((acc, i) => {
+        .map((acc) => {
           let args: Record<string, unknown> = {};
           try {
             args = acc.arguments ? JSON.parse(acc.arguments) : {};
           } catch {
+            // v7.0.0 修复：非空却解析失败 = max_tokens 截断——此前静默降级 {} 执行，
+            // 工具带空参数跑偏且模型收到误导性「参数缺失」。显式报错让模型知道根因
+            if (acc.arguments.trim().length > 0) {
+              throw new Error(
+                `工具 ${acc.name} 的参数 JSON 不完整（疑似被 max_tokens 截断）——请减小参数体积或分步执行后重试`,
+              );
+            }
             args = {};
           }
           return {
             type: 'tool-call',
-            call: { id: acc.id || `call_${i}`, tool: acc.name, args },
+            // v7.0.0 修复：兜底 id 加全局序号——跨轮重复 id 会让工具卡结果张冠李戴
+            call: { id: acc.id || `call_${++callSeq}`, tool: acc.name, args },
           } satisfies ChatEvent;
         });
     };

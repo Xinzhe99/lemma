@@ -38,7 +38,8 @@ export function buildArxivQuery(query: string): string {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .map((word) => `all:${word}`)
+    // v7.0.0 修复：URL 编码——C++/R&D/% 等字符此前直接拼进 URL 破坏查询
+    .map((word) => `all:${encodeURIComponent(word)}`)
     .join('+AND+');
 }
 

@@ -427,9 +427,26 @@ export function friendlyProviderError(e: unknown): string {
 export function abortChat(): void {
   chatAbort?.abort();
   chatAbort = null;
+  // v7.0.0 修复：立即结算未决审批——此前要等 runAgentTurn 返回（可能正阻塞在审批上），
+  // 用户点停止后审批卡仍挂着（停止按钮死区）
+  rejectPendingApproval('用户停止生成，本次修改未生效');
 }
 
+/** v7.0.0 修复（重入）：同步占位——store 的 streaming 要到 sendMessage 才置位，
+ * 中间隔着多个 await（上下文构建/附件提取），双发会双流交错且 chatAbort 被覆盖 */
+let sendInFlight = false;
+
 export async function sendChatMessage(text: string, images?: string[], files?: File[]): Promise<void> {
+  if (sendInFlight) return;
+  sendInFlight = true;
+  try {
+    await sendChatMessageInner(text, images, files);
+  } finally {
+    sendInFlight = false;
+  }
+}
+
+async function sendChatMessageInner(text: string, images?: string[], files?: File[]): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
   if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
@@ -439,14 +456,19 @@ export async function sendChatMessage(text: string, images?: string[], files?: F
   // v3.9.0 A：AI 角色注入——不同角色有不同的行为方式
   const persona = getPersona(useSettingsStore.getState().aiPersona);
   const system = (await buildContextPackMd(text)) + CITATION_RULE + persona.systemAddendum;
-  // v6.8.0 修复：历史消息剥离 images——图片只随当轮 user 消息发送一次
+  // v7.0.0 修复（隔轮失忆 + 协议 400 + 费用放大）：
+  //  a) 此前 .slice(0, -2) 在乐观插入【之前】快照——删掉的是上一轮真实对话（模型隔轮失忆）；
+  //     快照先于插入，本就不含本轮消息，无需裁剪
+  //  b) 历史过滤丢弃 role:'tool' 却保留 assistant.toolCalls → 悬空 tool_calls，
+  //     严格 API（OpenAI/DeepSeek）直接 400——历史中剥离 toolCalls
+  //  c) images 剥离（v6.8.0）保持——图片只随当轮发送
   const history = smartTruncateHistory(
     (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(0, -2)
       .map((m) => {
-        if (!m.images || m.images.length === 0) return m;
-        const { images: _stripped, ...rest } = m;
+        const noImages = !m.images || m.images.length === 0 ? m : (({ images: _i, ...rest }) => rest)(m);
+        if (!noImages.toolCalls || noImages.toolCalls.length === 0) return noImages;
+        const { toolCalls: _t, ...rest } = noImages;
         return rest;
       }),
   );
@@ -505,8 +527,9 @@ export async function sendChatMessage(text: string, images?: string[], files?: F
       onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
     });
   } catch (e) {
-    const aborted =
-      chatAbort === null ? false : abort.signal.aborted || (e instanceof Error && e.name === 'AbortError');
+    // v7.0.0 修复：abortChat() 在 abort 同时置空 chatAbort——此前判定在用户主动停止时恒为
+    // false；且 provider 把 AbortError 包装成普通 Error（name 失效）。signal.aborted 是唯一可靠判据
+    const aborted = abort.signal.aborted;
     if (aborted) {
       store().appendDelta(sessionId, '\n\n[已停止]');
     } else {
@@ -529,7 +552,13 @@ export async function sendChatMessage(text: string, images?: string[], files?: F
       ...bibCitekeys(useWorkspaceStore.getState().files),
     ]),
   ];
-  const check = validateCitations(acc, validKeys);
+  // v7.0.0 修复：validateCitations 只匹配 [key] 方括号——模型实际输出 \cite{a,b}，
+  // 护栏此前零检出（形同虚设）。先把 \cite 键展开为 [key] 再校验
+  const citeKeys = [...acc.matchAll(/\\cite[pt]?\*?\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/g)]
+    .flatMap((m) => m[1]!.split(',').map((k) => k.trim()).filter(Boolean))
+    .map((k) => `[${k}]`)
+    .join(' ');
+  const check = validateCitations(`${acc}\n${citeKeys}`, validKeys);
   if (!check.ok) {
     store().appendDelta(
       sessionId,
@@ -1050,8 +1079,9 @@ export async function runPlannedTask(userRequest: string): Promise<void> {
       onDelta: (delta) => store().appendDelta(sessionId, delta),
     });
   } catch (e) {
-    const aborted =
-      chatAbort === null ? false : abort.signal.aborted || (e instanceof Error && e.name === 'AbortError');
+    // v7.0.0 修复：abortChat() 在 abort 同时置空 chatAbort——此前判定在用户主动停止时恒为
+    // false；且 provider 把 AbortError 包装成普通 Error（name 失效）。signal.aborted 是唯一可靠判据
+    const aborted = abort.signal.aborted;
     if (aborted) {
       store().appendDelta(sessionId, '\n\n[已停止]');
     } else {
