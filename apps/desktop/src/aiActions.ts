@@ -256,6 +256,133 @@ function enrichWithFileContext(text: string): string {
   return enrichWithPaperMentions(withFiles, useLibraryStore.getState().papers);
 }
 
+// ---------------------------------------------------------------------------
+// v6.5.0：多类型附件内容提取——把用户拖入/上传的文件变成模型可读的文本块。
+//  - 文本类（tex/bib/md/txt/csv/json/log/sty/cls）：直读（每文件截 8k 字符）
+//  - PDF：loadPdfText 逐页抽文（截 12k）
+//  - docx（桌面）：临时落盘 → pandoc 转 plain → 清理（浏览器形态提示）
+//  - 其余二进制：只附文件名/大小说明，不伪装可读
+// 总注入上限 40k 字符，保护上下文窗口。
+// ---------------------------------------------------------------------------
+
+const TEXTUAL_EXT = ['tex', 'bib', 'md', 'txt', 'csv', 'tsv', 'json', 'log', 'sty', 'cls', 'yaml', 'yml'];
+const PER_FILE_LIMIT = 8000;
+const PDF_LIMIT = 12000;
+const TOTAL_LIMIT = 40000;
+
+function extOf(name: string): string {
+  return name.split('.').pop()?.toLowerCase() ?? '';
+}
+
+/** 兼容读取：优先 File.text()/arrayBuffer()，缺失时回落 FileReader（jsdom/旧内核） */
+function readFileText(file: File): Promise<string> {
+  if (typeof file.text === 'function') return file.text();
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('读取失败'));
+    r.readAsText(file);
+  });
+}
+
+function readFileBuffer(file: File): Promise<ArrayBuffer> {
+  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as ArrayBuffer);
+    r.onerror = () => reject(new Error('读取失败'));
+    r.readAsArrayBuffer(file);
+  });
+}
+
+export interface AttachmentBlocks {
+  blocks: string[];
+  /** 提取阶段的问题（如浏览器形态不支持 docx）——作为提示附给用户消息标记 */
+  notes: string[];
+}
+
+export async function extractAttachmentBlocks(
+  files: File[],
+  deps: {
+    loadPdfText?: (buf: ArrayBuffer) => Promise<{ numPages: number; pages: Array<{ page: number; text: string }> }>;
+  } = {},
+): Promise<AttachmentBlocks> {
+  const blocks: string[] = [];
+  const notes: string[] = [];
+  let budget = TOTAL_LIMIT;
+  for (const file of files) {
+    if (budget <= 200) break;
+    const ext = extOf(file.name);
+    try {
+      if (TEXTUAL_EXT.includes(ext) || file.type.startsWith('text/')) {
+        const content = await readFileText(file);
+        const clipped = content.slice(0, Math.min(PER_FILE_LIMIT, budget));
+        blocks.push(
+          `--- 附件 ${file.name} ---\n${clipped}${content.length > clipped.length ? '\n…（已截断）' : ''}\n--- 附件结束 ---`,
+        );
+        budget -= clipped.length;
+      } else if (ext === 'pdf' || file.type === 'application/pdf') {
+        const loadPdfText =
+          deps.loadPdfText ?? (await import('@lemma/library/reader')).loadPdfText;
+        const buf = await readFileBuffer(file);
+        const result = await loadPdfText(buf);
+        const text = result.pages
+          .map((p) => `【第 ${p.page} 页】${p.text}`)
+          .join('\n')
+          .slice(0, Math.min(PDF_LIMIT, budget));
+        blocks.push(
+          `--- 附件 ${file.name}（PDF 共 ${result.numPages} 页，已抽全文）---\n${text}\n--- 附件结束 ---`,
+        );
+        budget -= text.length;
+      } else if (ext === 'docx') {
+        const isDesktop =
+          typeof window !== 'undefined' && (window as unknown as { __TAURI__?: unknown }).__TAURI__ != null;
+        if (!isDesktop) {
+          notes.push(`${file.name}：.docx 解析需桌面版（浏览器形态不支持）`);
+          continue;
+        }
+        const { getPlatform } = await import('./platform/types');
+        const buf = await readFileBuffer(file);
+        const base64 = arrayBufferToBase64(buf);
+        const tmp = `sf-tmp-attach-${Date.now()}.docx`;
+        const fs = getPlatform();
+        // fs_write_base64 桥
+        const { tauriProcRun, tauriWriteFileBase64 } = await import('./platform/tauri');
+        await tauriWriteFileBase64(tmp, base64);
+        try {
+          const r = await tauriProcRun('pandoc', [tmp, '-t', 'plain']);
+          if (r.code === 0 && r.stdout.trim()) {
+            const clipped = r.stdout.slice(0, Math.min(PER_FILE_LIMIT, budget));
+            blocks.push(`--- 附件 ${file.name}（Word，pandoc 转文本）---
+${clipped}
+--- 附件结束 ---`);
+            budget -= clipped.length;
+          } else {
+            notes.push(`${file.name}：pandoc 解析失败（${(r.stderr || '无输出').slice(0, 80)}）`);
+          }
+        } finally {
+          getPlatform().fs.deleteFile(tmp).catch(() => undefined);
+        }
+      } else {
+        notes.push(`${file.name}：二进制格式（${ext || file.type || '未知'}）无法直接读取——如需分析请转成 PDF/文本/CSV`);
+      }
+    } catch (e) {
+      notes.push(`${file.name}：读取失败（${e instanceof Error ? e.message : String(e)}）`);
+    }
+  }
+  return { blocks, notes };
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 /** v6.3.0：chat 用量记录（与 research 同口径：字符折半估 token；估算非账单） */
 function recordChatUsage(model: string, promptChars: number, reply: string, latencyMs: number): void {
   try {
@@ -304,7 +431,7 @@ export function abortChat(): void {
   chatAbort = null;
 }
 
-export async function sendChatMessage(text: string, images?: string[]): Promise<void> {
+export async function sendChatMessage(text: string, images?: string[], files?: File[]): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
   if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
@@ -319,9 +446,24 @@ export async function sendChatMessage(text: string, images?: string[]): Promise<
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .slice(0, -2),
   );
-  // UI 显示原始消息（用户看到自己输入的内容；v6.4.0 附图随存，消息气泡内展示缩略图）
-  store().sendMessage(sessionId, images && images.length > 0 ? `${text}
-[图片 ×${images.length}]` : text, images);
+  // v6.5.0：附件内容提取（文件 → 模型可读文本块，注入发送给 AI 的 user prompt）
+  let attachmentBlocks: string[] = [];
+  let attachmentNotes: string[] = [];
+  if (files && files.length > 0) {
+    const extracted = await extractAttachmentBlocks(files);
+    attachmentBlocks = extracted.blocks;
+    attachmentNotes = extracted.notes;
+  }
+  const fileMark = files && files.length > 0 ? `
+[附件：${files.map((f) => f.name).join('、')}]` : '';
+
+  // UI 显示原始消息（附图/附件以标记+缩略图呈现）
+  store().sendMessage(
+    sessionId,
+    `${text}${images && images.length > 0 ? `
+[图片 ×${images.length}]` : ''}${fileMark}`,
+    images,
+  );
   if (images && images.length > 0 && !resolveProvider().real) {
     store().appendDelta(sessionId, '⚠️ 演示模式不支持图片——请在「设置 → 模型服务」配置多模态模型（如 GLM-4V / gpt-4o / Qwen-VL）后重试。');
     store().finishSession(sessionId, 'idle');
@@ -330,7 +472,14 @@ export async function sendChatMessage(text: string, images?: string[]): Promise<
 
   // v3.6.0 A：@mention 文件自动附上内容（Cursor 式上下文注入）——
   // 检测消息中引用的项目文件，把内容附在发送给 AI 的 user prompt 中
-  const enrichedUser = enrichWithFileContext(text);
+  let enrichedUser = enrichWithFileContext(text);
+  if (attachmentBlocks.length > 0 || attachmentNotes.length > 0) {
+    const parts = [...attachmentBlocks];
+    if (attachmentNotes.length > 0) {
+      parts.push(`--- 附件提示 ---\n${attachmentNotes.join('\n')}\n---`);
+    }
+    enrichedUser = `${enrichedUser}\n\n${parts.join('\n\n')}`;
+  }
 
   const { provider, model, real } = resolveProvider();
   const abort = new AbortController();

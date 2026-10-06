@@ -146,7 +146,7 @@ describe('slash 命令菜单', () => {
     fireEvent.keyDown(textarea, { key: 'Escape' });
     expect(container.querySelector('.sf-ah-menu--slash')).toBeNull();
     fireEvent.keyDown(textarea, { key: 'Enter' });
-    expect(onSend).toHaveBeenCalledWith('/', undefined);
+    expect(onSend).toHaveBeenCalledWith('/', undefined, undefined);
   });
 });
 
@@ -253,7 +253,7 @@ describe('历史回填与收发回归', () => {
     const { textarea, onSend } = setup();
     fireEvent.change(textarea, { target: { value: '你好' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
-    expect(onSend).toHaveBeenCalledWith('你好', undefined);
+    expect(onSend).toHaveBeenCalledWith('你好', undefined, undefined);
     expect(textarea.value).toBe('');
     fireEvent.change(textarea, { target: { value: '第二句' } });
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true });
@@ -290,7 +290,7 @@ describe('自定义提示词（insert 项）与 latex 插入透传', () => {
     // 修改后发送
     fireEvent.change(container.querySelector('textarea')!, { target: { value: '请检查全文时态一致性，逐段给 diff' } });
     fireEvent.keyDown(container.querySelector('textarea')!, { key: 'Enter' });
-    expect(onSend).toHaveBeenCalledWith('请检查全文时态一致性，逐段给 diff', undefined);
+    expect(onSend).toHaveBeenCalledWith('请检查全文时态一致性，逐段给 diff', undefined, undefined);
   });
 
   it('onInsertLatex 透传：assistant 消息中 latex 围栏渲染插入按钮并回调', () => {

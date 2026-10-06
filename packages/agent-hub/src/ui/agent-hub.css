@@ -135,6 +135,45 @@
   color: var(--fg-1, #70707a);
 }
 
+/* v6.5.0 文件附件 chip */
+.sf-ah-file-chip {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  height: 52px;
+  padding: 0 22px 0 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-0, #fff);
+  font-size: 11px;
+  color: var(--fg-1, #374151);
+}
+.sf-ah-file-icon {
+  flex: none;
+  font-size: 18px;
+}
+.sf-ah-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-ah-file-chip button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 0 8px 0 6px;
+}
+
 /* v6.4.0 对话贴图附件 */
 .sf-ah-images {
   display: flex;

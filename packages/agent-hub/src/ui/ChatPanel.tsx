@@ -80,7 +80,7 @@ const CLEAR_ITEM_ID = '__sf_ah_clear__';
 
 export interface ChatPanelProps {
   session: AgentSession;
-  onSend?: (text: string, images?: string[]) => void;
+  onSend?: (text: string, images?: string[], files?: File[]) => void;
   onStop?: () => void;
   placeholder?: string;
   /** markdown 引用 chip 点击（宿主接 jumpTo / 打开文献） */
@@ -221,6 +221,16 @@ export function ToolCallCard({ call, result }: { call: ToolCallRequest; result?:
       ) : null}
     </div>
   );
+}
+
+/** v6.5.0：附件类型图标（按扩展名） */
+function fileIcon(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'pdf') return '📄';
+  if (ext === 'docx' || ext === 'doc') return '📝';
+  if (ext === 'csv' || ext === 'xlsx' || ext === 'tsv') return '📊';
+  if (ext === 'tex' || ext === 'bib') return '🧮';
+  return '📎';
 }
 
 /** 最后一条指定角色消息的 id */
@@ -442,8 +452,11 @@ export function ChatPanel(props: ChatPanelProps) {
 
   // v6.4.0 对话贴图：textarea 粘贴图片 → dataUrl 暂存（多模态模型随消息发送）
   const [imageAttachments, setImageAttachments] = useState<string[]>([]);
+  /** v6.5.0 非图片附件（PDF/Word/数据/文本）：原 File 对象，宿主负责按类型读取 */
+  const [fileAttachments, setFileAttachments] = useState<File[]>([]);
   const imageFileRef = useRef<HTMLInputElement | null>(null);
   const MAX_IMAGES = 4;
+  const MAX_FILES = 4;
 
   const addImageAttachment = (file: File | null | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -451,6 +464,16 @@ export function ChatPanel(props: ChatPanelProps) {
     const reader = new FileReader();
     reader.onload = () => setImageAttachments((prev) => [...prev, String(reader.result)]);
     reader.readAsDataURL(file);
+  };
+
+  const addFileAttachment = (file: File | null | undefined) => {
+    if (!file) return;
+    if (file.type.startsWith('image/')) {
+      addImageAttachment(file);
+      return;
+    }
+    if (fileAttachments.length >= MAX_FILES) return;
+    setFileAttachments((prev) => (prev.some((f) => f.name === file.name && f.size === file.size) ? prev : [...prev, file]));
   };
 
   const onInputPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -509,10 +532,16 @@ export function ChatPanel(props: ChatPanelProps) {
 
   const send = () => {
     const trimmed = text.trim();
-    if ((!trimmed && imageAttachments.length === 0) || streaming) return;
-    onSend?.(trimmed || '（请看图）', imageAttachments.length > 0 ? imageAttachments : undefined);
+    const hasAttach = imageAttachments.length > 0 || fileAttachments.length > 0;
+    if ((!trimmed && !hasAttach) || streaming) return;
+    onSend?.(
+      trimmed || (imageAttachments.length > 0 ? '（请看图）' : '（请读附件）'),
+      imageAttachments.length > 0 ? imageAttachments : undefined,
+      fileAttachments.length > 0 ? fileAttachments : undefined,
+    );
     setText('');
     setImageAttachments([]);
+    setFileAttachments([]);
   };
 
   const selectSlash = (item: SlashMenuItem) => {
@@ -619,7 +648,17 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   return (
-    <div className="sf-ah-chat">
+    <div
+      className="sf-ah-chat"
+      onDragOver={(e) => {
+        if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        for (const f of e.dataTransfer.files) addFileAttachment(f);
+      }}
+    >
       <MessageList
         session={session}
         onCitekeyClick={onCitekeyClick}
@@ -738,7 +777,7 @@ export function ChatPanel(props: ChatPanelProps) {
             {artifacts.length > 6 ? <span className="dim">+{artifacts.length - 6} 更早</span> : null}
           </div>
         ) : null}
-        {imageAttachments.length > 0 ? (
+        {(imageAttachments.length > 0 || fileAttachments.length > 0) ? (
           <div className="sf-ah-images">
             {imageAttachments.map((url, i) => (
               <div key={i} className="sf-ah-image-chip">
@@ -747,6 +786,19 @@ export function ChatPanel(props: ChatPanelProps) {
                   type="button"
                   title="移除"
                   onClick={() => setImageAttachments((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {fileAttachments.map((f, i) => (
+              <div key={`f-${i}`} className="sf-ah-file-chip" title={`${f.name} · ${(f.size / 1024).toFixed(1)} KB`}>
+                <span className="sf-ah-file-icon">{fileIcon(f.name)}</span>
+                <span className="sf-ah-file-name">{f.name}</span>
+                <button
+                  type="button"
+                  title="移除"
+                  onClick={() => setFileAttachments((prev) => prev.filter((_, j) => j !== i))}
                 >
                   ×
                 </button>
@@ -775,7 +827,7 @@ export function ChatPanel(props: ChatPanelProps) {
           />
           <button
             className="sf-ah-btn"
-            title={imageAttachments.length >= MAX_IMAGES ? `最多 ${MAX_IMAGES} 张` : '添加图片（或直接 Ctrl+V 粘贴，需多模态模型）'}
+            title={`添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴；最多 图 ${MAX_IMAGES} + 文件 ${MAX_FILES}）`}
             onClick={() => imageFileRef.current?.click()}
           >
             📎
@@ -783,11 +835,10 @@ export function ChatPanel(props: ChatPanelProps) {
           <input
             ref={imageFileRef}
             type="file"
-            accept="image/*"
             multiple
             style={{ display: 'none' }}
             onChange={(e) => {
-              for (const f of e.target.files ?? []) addImageAttachment(f);
+              for (const f of e.target.files ?? []) addFileAttachment(f);
               e.target.value = '';
             }}
           />
