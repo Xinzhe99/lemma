@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [5.9.0] - 2026-10-06
+
+### Added
+
+- **Zotero 本地同步**：文献库工具栏「Zotero 同步」一键对接本地 Zotero（Better BibTeX 端点 23119，导出全库 BibTeX）→ 解析合并入库，按 citekey 去重即增量语义；取回链 fetch → 系统 curl 双保险（CORS 兜底）；未装 Zotero/BBT 给出安装指引，不伪装成功
+- **会话产物清单（Codex 式）**：AI 在本会话修改/新建的文件以药丸 chip 列在聊天输入框上方（✎ 修改 / ＋ 新建，最多 6 个可横滑），点击在编辑器打开——tex.edit / tex.create_file / citation.add / 手动润色采纳全部记录；同一文件只留最新，随会话持久化
+
 ## [5.8.0] - 2026-10-06
 
 ### Added（语音输入：Whisper 本地识别）

@@ -135,6 +135,45 @@
   color: var(--fg-1, #70707a);
 }
 
+/* v5.9.0 会话产物清单 */
+.sf-ah-artifacts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 2px 0;
+  scrollbar-width: none;
+}
+.sf-ah-artifacts::-webkit-scrollbar {
+  display: none;
+}
+.sf-ah-artifacts-label {
+  flex: none;
+  font-size: 10px;
+  color: var(--fg-2, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.sf-ah-artifact-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e5e7eb);
+  background: transparent;
+  color: var(--fg-1, #374151);
+  font-size: 10.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sf-ah-artifact-chip:hover {
+  border-color: var(--accent, #10a37f);
+  color: var(--accent, #10a37f);
+}
+
 /* v5.8.0 语音输入 */
 .sf-ah-speech-status {
   font-size: 11px;

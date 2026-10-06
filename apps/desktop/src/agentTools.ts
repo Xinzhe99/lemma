@@ -22,6 +22,7 @@ import { mergeSearchHits, searchArxiv, searchCrossref, type PaperSearchHit } fro
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { buildMemoryInjection, useAgentMemoryStore } from './state/agentMemory';
+import { useAgentHubStore } from '@lemma/agent-hub';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from './projectDoc';
 import { requestToolApproval, type ApprovalFn } from './approval';
 import { resolveCompileEntry, runCompile } from './compileAction';
@@ -147,6 +148,14 @@ function bibtexEntryOf(entry: Record<string, unknown>): string {
   if (doi) lines.push(`  doi = {${doi}},`);
   lines.push('}');
   return lines.join('\n');
+}
+
+/** v5.9.0：把产物记入当前激活会话（无激活会话静默跳过；同一文件只留最新） */
+function recordSessionArtifact(file: string, kind: 'edit' | 'create'): void {
+  const st = useAgentHubStore.getState();
+  const sid = st.activeSessionId;
+  if (!sid) return;
+  st.recordArtifact(sid, file, kind);
 }
 
 /** 两文本的首个差异行（1 起）；完全相同返回 null——供 AI 改动后的 PDF 定位 */
@@ -333,6 +342,7 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       const firstChangedLine = firstDiffLine(before, after);
       if (firstChangedLine !== null) queueSourceGoto(file, firstChangedLine);
       scheduleAutoCommit('修改稿件'); // v5.0.0：AI 改动自动进版本历史
+      recordSessionArtifact(file, 'edit'); // v5.9.0：会话产物清单
       return { applied: true, file, note: decision.note };
     },
     'citation.add': async (args) => {
@@ -358,6 +368,7 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       if (before === '') useWorkspaceStore.getState().createFile(path, after);
       else useWorkspaceStore.getState().updateFile(path, after);
       scheduleAutoCommit(`添加引用 ${citekey}`); // v5.0.0：AI 改动自动进版本历史
+      recordSessionArtifact(path, 'edit'); // v5.9.0：会话产物清单
       return { applied: true, file: path, note: decision.note };
     },
     // v5.2.0：AI 感知修订历史（Prism 式「在完整上下文含历史修订中工作」）——

@@ -104,6 +104,10 @@ export interface ChatPanelProps {
   /** 文案注入（zh 默认，宿主可给 en） */
   /** v5.8.0 语音输入：'auto' | 'zh' | 'en'；undefined = 不显示麦克风 */
   speechLanguage?: 'auto' | 'zh' | 'en';
+  /** v5.9.0 会话产物（Codex 式）：本会话 AI 改动过的文件（新→旧） */
+  artifacts?: Array<{ file: string; kind: 'edit' | 'create'; at: number }>;
+  /** 点击产物文件跳转（打开编辑器并定位该文件） */
+  onOpenArtifact?: (file: string) => void;
   labels?: ChatLabels;
   /** 当前 Provider 徽标（v3.8.0 E：显示在输入框上方） */
   providerLabel?: string;
@@ -370,6 +374,8 @@ export function ChatPanel(props: ChatPanelProps) {
     onSend,
     onStop,
     speechLanguage,
+    artifacts,
+    onOpenArtifact,
     placeholder,
     onCitekeyClick,
     onSlashWorkflow,
@@ -678,6 +684,24 @@ export function ChatPanel(props: ChatPanelProps) {
                 <span className="sf-ah-menu-label">{it.label}</span>
               </button>
             ))}
+          </div>
+        ) : null}
+        {/* v5.9.0：会话产物清单（Codex 式）——AI 在本会话改/建过的文件，点击打开 */}
+        {artifacts && artifacts.length > 0 ? (
+          <div className="sf-ah-artifacts">
+            <span className="sf-ah-artifacts-label">产物</span>
+            {artifacts.slice(0, 6).map((a) => (
+              <button
+                key={a.file}
+                type="button"
+                className="sf-ah-artifact-chip"
+                title={a.kind === 'create' ? `AI 新建：${a.file}` : `AI 修改：${a.file}`}
+                onClick={() => onOpenArtifact?.(a.file)}
+              >
+                {a.kind === 'create' ? '＋' : '✎'} {a.file.split('/').pop()}
+              </button>
+            ))}
+            {artifacts.length > 6 ? <span className="dim">+{artifacts.length - 6}</span> : null}
           </div>
         ) : null}
         {(speechPhase !== 'idle' || speechError) && speechSupported ? (

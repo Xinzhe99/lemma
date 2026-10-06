@@ -907,6 +907,11 @@ ${proposal.after.slice(0, 800)}`,
             onRegenerate={handleRegenerate}
             onEditResend={send}
             speechLanguage={speechLanguage}
+            artifacts={session?.artifacts}
+            onOpenArtifact={(file) => {
+              const ws = useWorkspaceStore.getState();
+              if (ws.files[file] !== undefined) ws.openFile(file);
+            }}
             providerLabel={providerLabel}
             onInsertLatex={insertLatexBlock}
             insertLatexLabel={t.insertLatexBtn}

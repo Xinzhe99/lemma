@@ -22,6 +22,8 @@
 
 import { useRef, useState, type ChangeEvent, type InputHTMLAttributes , useMemo} from 'react';
 import { BookOpen, Download, Paperclip, Trash2 } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import { probeZotero, syncZotero } from '../zoteroSync';
 import {
   applyFilter,
   CITATION_STYLES,
@@ -435,9 +437,34 @@ export function LibraryPanel() {
   const [risResult, setRisResult] = useState<string | null>(null);
 
   // Zotero JSON 导入对话框（同 RIS：组件内部 state，集合结构经 zotero:<名> tag 保留）
+
+  const runZoteroSync = async () => {
+    if (zoteroSyncState === 'busy' || zoteroSyncState === 'probing') return;
+    setZoteroSyncState('probing');
+    setZoteroSyncNote('');
+    if (!(await probeZotero())) {
+      setZoteroSyncState('off');
+      setZoteroSyncNote('未检测到本地 Zotero（需 Zotero + Better BibTeX，端口 23119）');
+      return;
+    }
+    setZoteroSyncState('busy');
+    const r = await syncZotero();
+    if (r.ok) {
+      setZoteroSyncState('ok');
+      setZoteroSyncNote(`同步完成：新增 ${r.added} 条${r.errors.length > 0 ? ` / 解析错误 ${r.errors.length} 条` : ''}`);
+    } else {
+      setZoteroSyncState('off');
+      setZoteroSyncNote(r.reason);
+    }
+  };
+
   const [zoteroOpen, setZoteroOpen] = useState(false);
   const [zoteroText, setZoteroText] = useState('');
   const [zoteroResult, setZoteroResult] = useState<string | null>(null);
+
+  /** v5.9.0 Zotero 本地同步状态 */
+  const [zoteroSyncState, setZoteroSyncState] = useState<'idle' | 'probing' | 'busy' | 'ok' | 'off'>('idle');
+  const [zoteroSyncNote, setZoteroSyncNote] = useState('');
 
   // PDF 目录批量关联：预览候选（文件 → 匹配文献 + 置信度 / 无匹配）
   const [pdfDirOpen, setPdfDirOpen] = useState(false);
@@ -784,6 +811,23 @@ export function LibraryPanel() {
             >
               {c.zoteroButton}
             </button>
+            <button
+              className="sf-btn"
+              title="连接本地 Zotero（Better BibTeX）一键同步文献——增量去重"
+              disabled={zoteroSyncState === 'busy' || zoteroSyncState === 'probing'}
+              onClick={() => void runZoteroSync()}
+            >
+              <RefreshCw size={12} style={{ verticalAlign: -1 }} /> Zotero 同步
+            </button>
+            {zoteroSyncNote ? (
+              <span
+                className="sf-chip dim"
+                title={zoteroSyncNote}
+                style={{ fontSize: 10.5, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {zoteroSyncState === 'ok' ? '✓' : '⚠'} {zoteroSyncNote}
+              </span>
+            ) : null}
             <button className="sf-btn" onClick={() => setDialog('fetch')}>
               DOI/arXiv
             </button>

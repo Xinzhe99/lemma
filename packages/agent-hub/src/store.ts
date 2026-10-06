@@ -18,6 +18,16 @@ export interface AgentSession {
   status: AgentSessionStatus;
   /** 归属项目名（v1.6.0 ③：多项目会话隔离；旧会话无此字段 = 「全部」可见） */
   projectName?: string;
+  /** 会话产物（v5.9.0，Codex 式）：AI 在本会话创建/修改过的文件清单（含时间与方式） */
+  artifacts?: SessionArtifact[];
+}
+
+/** 一条会话产物记录：file 为项目内相对路径 */
+export interface SessionArtifact {
+  file: string;
+  /** edit = 修改既有文件；create = 新建 */
+  kind: 'edit' | 'create';
+  at: number;
 }
 
 /** 已完成工作流的留存记录（WF-3 A3）：刷新页面后可从历史恢复查看产物 */
@@ -89,6 +99,8 @@ interface AgentHubState {
   hydrateSessions(sessions: AgentSession[], activeSessionId?: string | null): void;
   /** 重命名会话标题 */
   renameSession(sessionId: string, title: string): void;
+  /** v5.9.0：记录会话产物（同一文件重复改动只保留最新一条） */
+  recordArtifact(sessionId: string, file: string, kind: 'edit' | 'create'): void;
   /** 删除会话；删的是活跃会话时激活剩余最新一条（无剩余则置空） */
   deleteSession(sessionId: string): void;
   /** 乐观插入 user 消息 + assistant 占位（状态置为 streaming），等待宿主回填 */
@@ -199,6 +211,15 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
         activeSessionId && list.some((s) => s.id === activeSessionId) ? activeSessionId : (list[0]?.id ?? null);
       return { sessions: list, activeSessionId: active };
     }),
+
+  recordArtifact: (sessionId, file, kind) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) => {
+        if (s.id !== sessionId) return s;
+        const rest = (s.artifacts ?? []).filter((a) => a.file !== file);
+        return { ...s, artifacts: [...rest, { file, kind, at: Date.now() }] };
+      }),
+    })),
 
   renameSession: (sessionId, title) =>
     set((state) => ({
