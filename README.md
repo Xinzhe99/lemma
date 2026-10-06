@@ -1,176 +1,157 @@
 <div align="center">
 
+<img src="brand/png/icon-256.png" width="120" alt="Lemma logo" />
+
 # Lemma
 
-**写 LaTeX 论文的 Codex · AI-native paper writing workspace**
+**The Codex for LaTeX — an AI-native paper writing workspace**
 
-*一个项目、多个 AI 会话、右侧实时 PDF——像用 Codex 写代码一样写论文。*
+**[English](README.md)** · [简体中文](README.zh-CN.md)
+
+*One project, many AI sessions, live PDF preview — write papers the way you write code with Codex.*
 
 [![CI](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml/badge.svg)](https://github.com/Xinzhe99/lemma/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1990%20passing-brightgreen)]()
+[![Release](https://github.com/Xinzhe99/lemma/actions/workflows/release.yml/badge.svg)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
+[![Tests](https://img.shields.io/badge/tests-2038%20passing-brightgreen)]()
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
-**[🎯 定位](#-定位为什么是写论文的-codex) · [✨ 核心体验](#-核心体验) · [🤖 AI 能力](#-ai-能力) · [🚀 快速开始](#-快速开始) · [🏗 架构](#%EF%B8%8F-架构)**
+[![Stargazers over time](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
+
+**[Features](#-features) · [Download](#-download) · [Quick Start](#-quick-start) · [Architecture](#%EF%B8%8F-architecture) · [Contributing](#-contributing)**
 
 </div>
 
 ---
 
-![Lemma 主界面：左项目会话 · 中央编辑器+PDF 预览 · 右 AI 会话](docs/layout-v6.png)
+## 📸 Screenshots
 
+| Writing & Live Preview | AI Session |
+|:---:|:---:|
+| ![Main layout](docs/layout-v6.png) | ![AI chat](docs/screenshots/tour-ai.png) |
 
+## 🎯 Why Lemma
 
----
+AI coding tools (Codex, Claude Code, Cursor) proved one thing: **an agent that acts beats a chatbot that talks**. Yet AI in paper-writing tools is still trapped in a chat box — it can't see your library, can't run your compiler, can't fix your citations, and never owns its changes.
 
-## 🎯 定位：为什么是「写论文的 Codex」
+Lemma is **Codex, rebuilt for LaTeX papers**:
 
-AI 编码工具（Codex / Claude Code / Cursor）已经证明了一件事：**agent 能动手，比只能聊天有用得多**。但论文工具里的 AI 还被关在"对话框"里——看不到你的文献库，跑不了你的编译，改不了你的引用，更不会为改动负责。
-
-Lemma 把 Codex 的产品形态完整搬到 LaTeX 论文场景：
-
-| Codex（写代码） | Lemma（写论文） |
+| Codex (code) | Lemma (papers) |
 |---|---|
-| 一个 repo 多个会话 | 一个论文项目多个 AI 会话（左侧列表管理，按项目隔离） |
-| 中间是对话，右侧看代码/diff | 中间是对话，右侧**默认实时渲染的 PDF**（一键切 LaTeX 源码） |
-| AI 改代码 → diff 审批 | AI 改稿件 → diff 审批卡，逐 hunk 勾选采纳 |
-| git 版本管理，随时回滚 | **内置 git**：AI 每次采纳的改动自动提交，历史面板一键恢复 |
-| agent 调工具（读文件/跑命令） | agent 调 16 个论文域工具（读 PDF 论文/联网找文献/编译/改稿/加引用…） |
-| 闲时下载更新，确认后重启 | 同款更新体验，重启后会话与项目原地恢复 |
+| One repo, many sessions | One paper project, many AI sessions |
+| Chat in the middle, code on the right | Editor + **live PDF** side by side, chat on the right |
+| AI edits code → diff approval | AI edits the manuscript → diff approval, hunk-by-hunk |
+| Built-in git, roll back anytime | Built-in git: every AI change auto-commits, one-click restore |
+| Agent calls tools | Agent calls **18 paper-domain tools** (read PDFs, search the web, compile, cite…) |
+| Idle-update, restart-safe | Same update UX; sessions & projects restored on restart |
 
-**不做冗余功能**：没有番茄钟、没有写作打卡、没有花哨面板——保留写作、编译、文献、AI 四件事，做到极致。
+No pomodoro timers, no dashboards — just writing, compiling, literature, and AI.
 
-**设计语言与 Codex 完全同步**：明亮极简主题、药丸按钮、会话为中心的信息层级——AI 会话区是唯一主角，工作流/历史等次要功能默认折叠收纳入库。
+## ✨ Features
 
-## ✨ 核心体验
+### 🖋 Writing environment
 
-### 会话中心的写作流
+- **Editor + live PDF, side by side** — auto-recompile in 0.5 s; **the page you're reading never jumps** after recompile; after AI edits, the PDF scrolls to the changed spot (SyncTeX forward search)
+- **Full-text search in PDF** — type to search, Enter/Shift+Enter cycles hits with page numbers
+- **PDF annotations** — four semantic highlight colors; mark items pending/resolved; one-click "draft response letter" from unresolved comments
+- **Engine matrix** — Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk auto-detected; missing Tectonic auto-downloads (~30 MB, zero config) **and is pre-warmed on idle** — first compile is instant
+- Compile errors → one-click **✦ AI fix**
 
-- **一个项目，多个会话（Codex 式两级管理）**：左侧直接新建/打开/重命名/删除项目，项目下管理各自的多会话（起草/审稿修改/rebuttal 各一个），重启不丢（本地 IndexedDB 持久化）
-- **编辑器 + PDF 同步并排**：中央左侧写、右侧实时预览（编辑 0.5s 自动重编译）；**重新编译不跳页**——你看的位置就是 AI 改的位置，所见即所得；AI 会话固定在最右一列
-- **AI 改动自动定位**：AI 修改稿件并编译成功后，PDF 自动滚动到被修改的对应位置（SyncTeX 正向定位）
+### 🤖 AI (the point of Lemma)
 
-### 内置 git 版本管理（含 GitHub 同步）
+The agent can call **18 tools** across up to 50 autonomous rounds:
 
-- **提交差异查看**：历史面板每条提交可展开行级 diff（+/- 着色）——回放 AI 每次改了什么
-- **GitHub 同步**：关联自己的仓库（https / ssh）→ 一键 Push / Pull（凭据走系统 git）——Overleaf GitHub Sync 的本地等价
-- **AI 改动自动提交**：每次 diff 审批采纳后 2s 自动 commit——AI 干的每一步都有版本可回滚，像 Codex 一样可靠
-- **历史面板**：左侧「版本」页签查看提交历史，任何版本一键恢复（恢复本身也是新变更，可再回滚）
-- **手动提交**：阶段性进度随时「提交当前进度」
-- 桌面形态使用系统 git（研究人员机器几乎必装）；未检测到时面板明示并停用，不伪装
-
-### 编译：开箱即用
-
-- **无需预装 LaTeX**：全引擎矩阵（Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk）自动检测，缺引擎时 Tectonic 自动下载（~30MB 零配置）；**启动闲时自动预备引擎并预热宏包缓存**——你第一次点编译时，引擎已经就绪
-- **编译失败一键 AI 修复**：控制台「✦ AI 修复编译错误」→ 错误日志自动注入 → AI 逐个定位修复（走 diff 审批）→ 重新编译验证
-- **SyncTeX 双向跳转**：PDF 点正文跳源码行，源码行跳 PDF 位置
-- **PDF 全文搜索**：预览工具栏输入即搜（防抖），Enter/Shift+Enter 命中页间跳转，显示 `n/N · 页码` 与命中摘录
-- **修改对照 PDF**（latexdiff 本地等价）：版本面板任一提交一键生成红删蓝增的 `changes.pdf` 并在预览区打开——导师审阅「这版改了哪」与 AI 改动汇报利器
-
-## 🤖 AI 能力
-
-Agent 可调用 **16 个论文域工具**，多轮自主执行（50 轮）：
-
-| 类别 | 工具 | 说明 |
-|---|---|---|
-| 读文献 | `paper.read` | 读附件 PDF **全文**（分页标注 / 截断保护），无附件时题录+摘要兜底 |
-| 找文献 | `web.search_scholar` | 联网聚合 arXiv + Crossref，检索库外新文献 |
-| | `library.search_fulltext` | 全文级检索个人文献库（附件 PDF 已入索引） |
-| 改稿件 | `tex.edit` / `tex.create_file` | diff / 整文件 / find-replace 三种方式，**强制经 diff 审批** |
-| 加引用 | `citation.add` / `citation.validate` | 生成 BibTeX 入库（走审批）/ 悬空引用核查 |
-| 编译 | `tex.compile` / `tex.last_errors` | 真实编译 + 错误日志回读 |
-| 项目 | `project.context` / `read_file` / `find_in_files` / `list_files` | 大纲 / 术语表 / 文件读取与搜索 |
-| 记忆 | `memory.write` | AI 自主写入项目约定与偏好，注入后续所有会话 |
-| 修订历史 | `git.log` / `git.show` | AI 可读内置 git 的提交历史与变更明细——像 Prism 一样「在含历史修订的完整上下文中工作」 |
-| 其他 | `snapshot.create` / `submission.checklist` | 快照 / 15 个期刊投稿要求查询 |
-
-**Prism 式效率入口**：
-- **文档级快捷操作**：AI 面板工具栏一键「总结全文 / 校对 / 查找文献」
-- **图像转 LaTeX**：公式/表格截图（Ctrl+V 粘贴）→ 视觉模型转 LaTeX → 走 diff 审批插入稿件（支持 GLM-4V / gpt-4o / Qwen-VL 等视觉模型）
-- **AI 画图**：描述想要的图 → 生成 TikZ → 桌面端真实编译预览（右侧预览区）→ 插入走审批
-- **审阅往返**：导师 PDF 批注逐条「待处理/已处理」勾销；一键把未处理批注发给 AI 起草逐条回复信（可顺带改稿）
-- **20 个内置模板**：会议（IEEE/ACM 观感）、期刊（Elsevier/数学/双栏）、预印本、博士论文、中文期刊/学位、Beamer 明暗、海报 A0、综述、报告、讲义、Cover Letter
-
-**为「AI 自主」配套的体验**：
-
-- **智能上下文注入**：说"润色"自动附当前文件，说"引用"自动附 bib 键列表，说"编译错误"自动附日志；`@文件路径` / `@citekey` 提及即注入全文/论文内容
-- **回复后建议 chips**：改完稿 → 「编译验证」；读过论文 → 「总结方法」；检索过 → 「导入文献」——零 API 成本，点击即发
-- **AI 记忆**：审批历史学习写作偏好 + `memory.write` 主动记忆，跨会话生效，越用越懂你的项目
-- **对话贴图（多模态）**：聊天框 Ctrl+V 粘贴或 📎 添加截图（最多 4 张），随消息发给多模态模型（GLM-4V / gpt-4o / Qwen-VL）——问报错截图、论文图表直接开口
-**AI 视觉检查排版**：PDF 工具栏「✦ AI 查此页」——当前页截图直接发给多模态模型，AI 逐项指出溢出/图表位置/公式问题并给修改建议（AI 第一次"看得见"自己的排版）
-**朗读校对（TTS）**：命令面板「朗读这一节」——Web Speech 本地语音读出当前节（自动剥 LaTeX 命令），读出声听出默读发现不了的问题
-**任意文件附件**：拖入 / 上传 **PDF（自动抽全文）、Word（桌面经 pandoc 转文本）、CSV/数据、.tex/.bib/日志** 等（最多 4 个）——内容自动提取注入上下文，AI 直接读文件回答；二进制格式诚实提示转格式；总量 40k 字符预算保护上下文
-**语音输入（Whisper 本地识别）**：聊天输入框 🎤 一键说写——开源 Whisper（transformers.js WASM）纯本地转写，首次下载模型后离线可用；设置中可切换 关闭/自动/中文/English
-**行内补全（ghost text）**：Tab 采纳，注入文档类 / 术语表 / 当前节上下文
-- **四种角色**：默认助手 / 严格审稿人 / 写作教练 / 翻译专家
-- **学术诚信护栏**：AI 回复中的每条引用与本地文献库核验，幻觉引用标红拦截；所有 AI 修改 latexdiff 留痕
-
-**内置工作流**（斜杠命令呼出）：分节起草 / 学术润色 / 三审稿人仿真 / Rebuttal 起草 / 相关工作综述 / Cover Letter / 预提交自检 / Beamer 演示稿 / 页数压缩等 10 个。
-
-**文献管理**：arXiv + Crossref 聚合检索入库、BibTeX/RIS 导入、**Zotero 本地一键同步**（Better BibTeX 端点，增量去重）、PDF 四色语义标注、全库混合检索（BM25 + 向量，附件 PDF 全文入索引）、选中即问 AI。
-- **会话产物清单（Codex 式）**：每次会话 AI 改过/新建的文件以 chip 列在输入框上方（✎ 修改 / ＋ 新建），点击直达——AI 干了什么一目了然
-
-## 🚀 快速开始
-
-### 直接下载（推荐）
-
-| 下载 | 说明 |
+| Category | Tools |
 |---|---|
-| [Windows 安装包](https://github.com/Xinzhe99/lemma/releases/latest) | NSIS 向导式 setup.exe |
-| [macOS (Apple Silicon)](https://github.com/Xinzhe99/lemma/releases/latest) | .dmg |
-| [macOS (Intel)](https://github.com/Xinzhe99/lemma/releases/latest) | .dmg |
+| Read papers | `paper.read` — full text of attached PDFs (paginated, truncation-guarded) |
+| Find papers | `web.search_scholar` (arXiv + Crossref), `library.search_fulltext` (full-text of your library) |
+| Edit | `tex.edit` / `tex.create_file` — always through diff approval |
+| Cite | `citation.add` / `citation.validate` — hallucinated `\cite` keys are flagged automatically |
+| Compile | `tex.compile` / `tex.last_errors` |
+| Project | `project.context` / `read_file` / `find_in_files` / `list_files` |
+| Memory | `memory.write` — the agent remembers your conventions across sessions |
+| History | `git.log` / `git.show` — the agent can read its own change history |
 
-全部版本见 [Releases](https://github.com/Xinzhe99/lemma/releases)。**应用内自动更新**：闲时静默检查下载，你确认后重启完成升级，会话与项目原地恢复。
+**Input channels**: text, 🎤 voice (Whisper, fully local), 📎 images (multimodal), **any file** (drag in PDFs, Word, CSV — content is extracted and injected). **Output**: manuscript edits (approved), TikZ figures with compiled preview, layout review via page screenshots (✦ AI check this page), read-aloud proofreading (TTS).
 
-### 从源码运行
+### 📚 Library & review
+
+- Zotero one-click sync (Better BibTeX endpoint), BibTeX/RIS/DOI/arXiv import
+- Hybrid full-text retrieval (BM25 + vectors; attached PDFs indexed)
+- Advisor round-trip: import Word/PDF review comments → resolve one by one → AI drafts point-by-point response letter
+
+### 🔖 Version control (built-in git)
+
+- Every approved AI change **auto-commits** (2 s debounce)
+- History panel: line diff per commit, **red/blue changes.pdf** (local latexdiff equivalent) for advisor review, one-click restore
+- GitHub sync: link your repo → Push / Pull with system-git credentials
+
+### 🛠 And more
+
+- 20 built-in templates (IEEE/ACM-style, Elsevier/math journals, arXiv, thesis, Chinese journal, Beamer ×2, A0 poster, cover letter…)
+- Speech-to-text (Whisper, local, offline after first download)
+- Codex-style auto-update: idle check → background download → confirm → restart restores everything
+- 中文 / English UI switch
+
+## 📥 Download
+
+| Platform | Link |
+|---|---|
+| Windows | [Lemma_x64-setup.exe](https://github.com/Xinzhe99/lemma/releases/latest) |
+| macOS (Apple Silicon) | [Lemma_aarch64.dmg](https://github.com/Xinzhe99/lemma/releases/latest) |
+| macOS (Intel) | [Lemma_x64.dmg](https://github.com/Xinzhe99/lemma/releases/latest) |
+
+All releases: [Releases](https://github.com/Xinzhe99/lemma/releases)
+
+## 🚀 Quick Start
+
+### From source
 
 ```bash
 git clone https://github.com/Xinzhe99/lemma.git
 cd lemma
 npm install
-
-# Web 版（模拟编译，AI 需配置）
-npm run dev
-
-# 桌面版（完整体验：真实编译 / SyncTeX / 内置 git）
-cd apps/desktop
-npm run desktop:dev      # 开发运行（Tauri 窗口）
-npm run desktop:build    # 打安装包
+npm run dev            # web preview (mock compile)
+# or desktop:
+cd apps/desktop && npm run desktop:dev
 ```
 
-前置：[Rust](https://rustup.rs) + Node 20+。**无需预装 LaTeX 和 git 之外的东西**（LaTeX 引擎自动下载；git 缺失时版本面板自动降级）。
+Prerequisites: Rust + Node 20+. **No LaTeX installation required** (Tectonic auto-downloads). Git optional (version panel degrades gracefully).
 
-### 配置 AI（30 秒）
+### Configure AI (30 seconds)
 
-设置 → 模型服务 → 选预设（DeepSeek / 智谱 GLM / Kimi / 硅基流动 / 通义 / OpenAI / 自建）→ 粘贴 API Key → 测试连接。未配置时以演示模式运行（内置示例数据，明确标注）。
+Settings → Model Service → pick a preset (DeepSeek / GLM / Kimi / Qwen / OpenAI / custom) → paste API key → Test connection. Without a key, everything runs in demo mode.
 
-## 🏗️ 架构
+## 🏗️ Architecture
 
 ```
-apps/desktop            应用壳（Tauri 2 + React；Rust 桥：虚拟文件系统 / 密钥 / 进程调用 / 更新）
-packages/shared         跨包领域类型
-packages/editor         LaTeX 编辑器（CodeMirror 6 · 补全/大纲/linter/数学预览）
-packages/compile        编译服务（引擎矩阵 · log 解析 · 真实 SyncTeX · 模板）
-packages/library        文献库 + PDF 阅读器（BibTeX/RIS/Zotero 解析 · 引用格式）
-packages/agent-hub      Agent 中枢（OpenAI 兼容流式 · 工具调用 · 阻塞审批 · 工作流引擎）
-packages/knowledge      知识底座（RAG · Context Pack · 术语/风格 · 引用护栏）
+apps/desktop            App shell (Tauri 2 + React; Rust bridge: virtual FS / secrets / process / updater)
+packages/shared         Domain types
+packages/editor         LaTeX editor (CodeMirror 6)
+packages/compile        Compilation (engine matrix · log parsing · real SyncTeX · templates)
+packages/library        Library + PDF reader
+packages/agent-hub      Agent core (streaming · tools · blocking approvals · workflows)
+packages/knowledge      RAG · Context Pack · citation guardrails
 ```
 
-**工程数据**：1990 个单元测试（168 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API key 永不入备份/外发）。
+**Engineering**: 2,038 tests (178 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
 
-## 🗺 路线图
+## 🗺 Roadmap
 
-- [x] v1.x–v2.x 编辑器/编译/文献/工作流打底（详见 [CHANGELOG.md](CHANGELOG.md)）
-- [x] v3.x–v4.x AI 自主化：16 工具 agent、全文检索、AI 记忆、性能分包（启动 -31%）
-- [x] **v5.0 大改版：Codex 式重构**——会话中心布局 / PDF 默认实时渲染不跳页 / AI 改动自动定位 / 内置 git / 删除非核心功能
-- [ ] 协同写作（CRDT 二阶段：实时云房间）
-- [ ] AI 生图（论文插图向）
+- [x] v1–v4: editor/compile/library/workflows foundation
+- [x] v5: **Codex-style redesign** — sessions, live PDF, built-in git, feature purge
+- [x] v6: images/voice/files in, visual review & TTS out, performance (-31% startup)
+- [x] v7: multi-agent deep review — 22 confirmed bugs fixed
+- [ ] Real-time collaboration (needs a signaling server)
+- [ ] AI figure generation (photosci-style)
 
-## 🤝 贡献
+## 🤝 Contributing
 
-欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm test`（与 CI 同款门禁）。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+Issues and PRs welcome. Before submitting: `npm run typecheck && npm test` (same gates as CI). See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
-## 📄 许可
+## 📄 License
 
 [MIT](LICENSE) © 2026 Lemma Contributors

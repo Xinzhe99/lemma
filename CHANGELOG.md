@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [7.1.0] - 2026-10-06
+
+### Added（品牌与国际化）
+
+- **软件图标**：λ 字驱动的深色圆角方形（SVG 源码 + Pillow 光栅化器 + 1024/512/256/128/64/32 全尺寸），安装到 Tauri 全套图标（Windows Store logos / macOS icns / favicon）
+- **README 专业化重写**：双语言 [English](README.md) / [简体中文](README.zh-CN.md)；徽章墙（CI / Release / License / Version / Platform / Tauri / Tests / PRs Welcome）；Star 趋势折线图（starchart.cc）；Codex 对照表；截图表格；路线图打勾清单
+- **应用内 i18n 补全**：57 个新键覆盖会话面板 / Git 面板 / TikZ 画图 / 图像转 LaTeX / Zotero 同步等此前硬编码的文案；英文界面实测全部生效（含「未分组」等边角标签）
+
 ## [7.0.0] - 2026-10-06
 
 ### Fixed（5 子 agent 并行深度评审：60+ 项发现，修复 22 个确认 bug）

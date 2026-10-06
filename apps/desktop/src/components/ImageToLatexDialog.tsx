@@ -71,7 +71,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
     const ws = useWorkspaceStore.getState();
     const file = ws.activeTab;
     if (!file || !file.endsWith('.tex')) {
-      setError('没有打开的 .tex 文件——请先在右侧「编辑器」模式打开目标文件');
+      setError(t('img2tex.noTexFile'));
       return;
     }
     if (!latex.trim()) return;
@@ -91,9 +91,9 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="sf-dialog-overlay" role="dialog" aria-label="图像转 LaTeX" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sf-dialog" style={{ width: 620, maxWidth: '92vw' }}>
-        <h3>🖼 图像转 LaTeX</h3>
+        <h3>{t('img2tex.title')}</h3>
         <p className="dim" style={{ fontSize: 12 }}>
-          粘贴（Ctrl+V）/ 拖拽 / 选择公式或表格截图，AI 转换为可插入的 LaTeX（需视觉模型，如 GLM-4V / gpt-4o / Qwen-VL）。
+          {t('img2tex.desc')}
         </p>
 
         <div
@@ -119,7 +119,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
             <img src={image} alt="待转换截图" style={{ maxWidth: '100%', maxHeight: 220 }} />
           ) : (
             <span className="dim" style={{ fontSize: 12 }}>
-              点击选择图片，或直接 Ctrl+V 粘贴截图
+              {t('img2tex.drop')}
             </span>
           )}
         </div>
@@ -141,9 +141,9 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
             onChange={(e) => setKind(e.target.value as Kind)}
             style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px' }}
           >
-            <option value="auto">自动识别</option>
-            <option value="formula">数学公式</option>
-            <option value="table">表格</option>
+            <option value="auto">{t('img2tex.kind.auto')}</option>
+            <option value="formula">{t('img2tex.kind.formula')}</option>
+            <option value="table">{t('img2tex.kind.table')}</option>
           </select>
           <button
             type="button"
@@ -151,11 +151,11 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
             disabled={!image || busy}
             onClick={() => void onConvert()}
           >
-            {busy ? '转换中…' : '转换为 LaTeX'}
+            {busy ? t('img2tex.convert') : t('img2tex.convertBtn')}
           </button>
           {image ? (
             <button type="button" className="sf-link-btn" onClick={() => { setImage(null); setLatex(''); }}>
-              清除图片
+              {t('img2tex.clear')}
             </button>
           ) : null}
         </div>
@@ -193,7 +193,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
                 {t('dlg.cancel')}
               </button>
               <button type="button" className="sf-btn primary" onClick={onInsert}>
-                插入到稿件（走审批）
+                t('img2tex.insert')
               </button>
             </div>
           </>

@@ -111,7 +111,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
     const ws = useWorkspaceStore.getState();
     const file = ws.activeTab;
     if (!file || !file.endsWith('.tex')) {
-      setError('没有打开的 .tex 文件——请先在编辑器中打开目标文件');
+      setError(t('tikz.noTexFile'));
       return;
     }
     if (!code.trim()) return;
@@ -151,15 +151,15 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className="sf-dialog" style={{ width: 640, maxWidth: '92vw' }}>
-        <h3>✏️ AI 画图（TikZ）</h3>
+        <h3>{t('tikz.title')}</h3>
         <p className="dim" style={{ fontSize: 12 }}>
-          描述想要的图（流程图/架构图/示意/几何图），AI 生成 TikZ；桌面端可编译预览，插入走 diff 审批。
+          {t('tikz.desc')}
         </p>
 
         <textarea
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
-          placeholder="例：三阶段 pipeline：输入 → 特征提取（CNN） → 融合与输出，横向排布，箭头标注数据流"
+          placeholder={t('tikz.placeholder')}
           style={{
             width: '100%',
             minHeight: 56,
@@ -175,17 +175,17 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
 
         <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
           <button type="button" className="sf-btn primary" disabled={!desc.trim() || busy} onClick={() => void onGenerate()}>
-            {busy ? '生成中…' : '生成 TikZ'}
+            {busy ? t('tikz.generate') : t('tikz.generateBtn')}
           </button>
           {code ? (
             <>
               {desktop ? (
                 <button type="button" className="sf-pill-btn" disabled={previewing} onClick={() => void onPreview()}>
-                  {previewing ? '编译中…' : '编译预览'}
+                  {previewing ? t('tikz.preview') : t('tikz.previewBtn')}
                 </button>
               ) : null}
               <button type="button" className="sf-pill-btn" onClick={onInsert}>
-                插入到稿件（走审批）
+                t('tikz.insert')
               </button>
             </>
           ) : null}
@@ -201,7 +201,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
         {code ? (
           <>
             <div className="dim" style={{ fontSize: 11, margin: '10px 0 4px' }}>
-              TikZ 代码（可编辑后预览/插入）：
+              {t('tikz.codeLabel')}
             </div>
             <textarea
               value={code}

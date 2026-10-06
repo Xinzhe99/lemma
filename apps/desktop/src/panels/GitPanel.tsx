@@ -23,6 +23,7 @@ import {
 } from '../git/gitService';
 import { confirmDialog, promptDialog } from '../dialogs';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { useT } from '../i18n';
 
 /** 统一 diff 着色渲染（行级 +/=/-） */
 function DiffView({ text }: { text: string }) {
@@ -49,6 +50,7 @@ function DiffView({ text }: { text: string }) {
 }
 
 export function GitPanel() {
+  const t = useT();
   const [avail, setAvail] = useState(getGitAvailability());
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [busy, setBusy] = useState(false);
@@ -193,10 +195,10 @@ export function GitPanel() {
   };
 
   if (avail === 'browser') {
-    return <p className="placeholder">版本管理在桌面应用中可用（浏览器形态无本地 git）。</p>;
+    return <p className="placeholder">{t('git.browserOnly')}</p>;
   }
   if (avail === 'missing') {
-    return <p className="placeholder">未检测到系统 git——安装 git 后重启应用即可启用内置版本管理。</p>;
+    return <p className="placeholder">{t('git.missingGit')}</p>;
   }
 
   return (
@@ -206,9 +208,9 @@ export function GitPanel() {
         <div className="sf-gitpanel-remote-row">
           <Link2 size={13} />
           <span className="sf-gitpanel-remote-url" title={remote ?? undefined}>
-            {remote ?? '未关联远端'}
+            {remote ?? t('git.remote')}
           </span>
-          <button type="button" className="sf-gitpanel-mini" title={remote ? '解除关联' : '关联 GitHub 仓库'} disabled={busy} onClick={() => void onLinkRemote()}>
+          <button type="button" className="sf-gitpanel-mini" title={remote ? t('git.unlink') : t('git.linkRemote')} disabled={busy} onClick={() => void onLinkRemote()}>
             {remote ? '解除' : '关联'}
           </button>
         </div>
@@ -225,13 +227,13 @@ export function GitPanel() {
       </div>
 
       <button type="button" className="sf-gitpanel-commit" disabled={busy} onClick={() => void onCommit()}>
-        <GitCommitHorizontal size={14} /> 提交当前进度
+        <GitCommitHorizontal size={14} /> {t('git.commit', undefined)}
       </button>
       {note ? <div className="sf-gitpanel-note">{note}</div> : null}
       <div className="sf-gitpanel-list">
         {commits.length === 0 ? (
           <p className="placeholder">
-            <History size={14} style={{ verticalAlign: -2 }} /> 还没有提交——AI 改动采纳后会自动提交，也可手动提交。
+            <History size={14} style={{ verticalAlign: -2 }} /> {t('git.noCommits')}
           </p>
         ) : (
           commits.map((c) => (
@@ -244,23 +246,23 @@ export function GitPanel() {
                 <span className="sf-gitpanel-meta-actions">
                   <button
                     type="button"
-                    title="查看差异"
+                    title={t('git.diff')}
                     disabled={busy}
                     onClick={() => void onShowDiff(c)}
                     className={diffFor === c.hash ? 'active' : ''}
                   >
-                    <Diff size={12} /> 差异
+                    <Diff size={12} /> {t('git.diff')}
                   </button>
                   <button
                     type="button"
-                    title="生成修改对照 PDF（红删蓝增，编译后右侧预览）"
+                    title={t('git.changesPdf')}
                     disabled={busy}
                     onClick={() => void onChangesPdf(c)}
                   >
-                    <FileDiff size={12} /> 对照 PDF
+                    <FileDiff size={12} /> {t('git.changesPdf')}
                   </button>
-                  <button type="button" title="恢复到此版本" disabled={busy} onClick={() => void onRestore(c)}>
-                    <RotateCcw size={12} /> 恢复
+                  <button type="button" title={t('git.restoreTitle')} disabled={busy} onClick={() => void onRestore(c)}>
+                    <RotateCcw size={12} /> {t('git.restore')}
                   </button>
                 </span>
               </div>

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Lemma 图标：λ（Lambda）字驱动的纸笔学术符号 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1a2e"/>
+      <stop offset="1" stop-color="#0f0f23"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8e8f0"/>
+      <stop offset="1" stop-color="#b8b8d0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10a37f"/>
+      <stop offset="1" stop-color="#0d8a6a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆角方形底 -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+
+  <!-- λ 主体（学术 = λ-演算 = Lemma 首字母联想） -->
+  <path d="M 168 108
+           L 232 108
+           L 316 330
+           Q 328 360 348 376
+           Q 364 388 388 392
+           L 388 444
+           L 340 444
+           Q 292 440 268 412
+           Q 244 384 228 344
+           L 168 108 Z"
+        fill="url(#ink)"/>
+
+  <!-- 右侧斜杠（λ 的尾巴，向右下延伸出纸面感） -->
+  <path d="M 300 128
+           L 372 128
+           L 300 340
+           Q 284 300 268 264
+           L 300 128 Z"
+        fill="url(#accent)"/>
+
+  <!-- 底部文本基线（论文隐喻：一条安静的书写线） -->
+  <rect x="140" y="452" width="232" height="10" rx="5" fill="url(#accent)" fill-opacity="0.55"/>
+</svg>

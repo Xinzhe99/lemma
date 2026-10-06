@@ -13,10 +13,12 @@ import { useAgentHubStore } from '@lemma/agent-hub';
 import { useProjectsStore } from '../state/projectsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { confirmDialog, promptDialog } from '../dialogs';
+import { useT } from '../i18n';
+import { useSettingsStore } from '../state/settingsStore';
 
 /** 未分组会话的组键（projectName 为空的旧会话） */
 const UNGROUPED = '__ungrouped__';
-const UNGROUPED_LABEL = '未分组';
+const UNGROUPED_LABEL_KEY = 'sessions.ungrouped';
 
 /** 新项目的最小可编译模板 */
 const NEW_PROJECT_FILES: Record<string, string> = {
@@ -40,6 +42,7 @@ const NEW_PROJECT_FILES: Record<string, string> = {
 };
 
 export function SessionsPanel() {
+  const t = useT();
   const sessions = useAgentHubStore((s) => s.sessions);
   const activeSessionId = useAgentHubStore((s) => s.activeSessionId);
   const projects = useProjectsStore((s) => s.projects);
@@ -70,7 +73,7 @@ export function SessionsPanel() {
     if (byKey.has(UNGROUPED) && !keys.includes(UNGROUPED)) keys.push(UNGROUPED);
     return keys.map((key) => ({
       key,
-      label: key === UNGROUPED ? UNGROUPED_LABEL : key,
+      label: key === UNGROUPED ? t(UNGROUPED_LABEL_KEY) : key,
       isCurrent: key === cur,
       record: projects.find((p) => p.name === key),
       sessions: (byKey.get(key) ?? [])
@@ -96,7 +99,7 @@ export function SessionsPanel() {
   };
 
   const onCreateProject = async () => {
-    const input = await promptDialog('新建项目', '新论文');
+    const input = await promptDialog(t('sessions.newProjectPrompt'), t('sessions.newProjectDefault'));
     const name = input?.trim();
     if (!name) return;
     setBusy(true);
@@ -114,7 +117,7 @@ export function SessionsPanel() {
   };
 
   const onRenameProject = async (key: string, recordId?: string) => {
-    const input = await promptDialog('重命名项目', key);
+    const input = await promptDialog(t('sessions.renameProject'), key);
     const name = input?.trim();
     if (!name || name === key) return;
     if (recordId) {
@@ -134,8 +137,8 @@ export function SessionsPanel() {
   const onDeleteProject = async (key: string, recordId?: string) => {
     if (
       !(await confirmDialog(
-        `删除项目「${key}」？`,
-        '只删除项目分组（项目文件记录一并移除），其下会话将移入「未分组」，不会丢失。',
+        t('sessions.deleteProjectTitle'),
+        t('sessions.deleteProjectDesc'),
       ))
     ) {
       return;
@@ -154,12 +157,12 @@ export function SessionsPanel() {
   };
 
   const onRenameSession = async (id: string, current: string) => {
-    const title = await promptDialog('重命名会话', current);
+    const title = await promptDialog(t('sessions.renameSessionTitle'), current);
     if (title && title.trim()) useAgentHubStore.getState().renameSession(id, title.trim());
   };
 
   const onDeleteSession = async (id: string) => {
-    if (!(await confirmDialog('删除该会话？', '会话消息将一并删除，不可恢复。'))) return;
+    if (!(await confirmDialog(t('sessions.deleteSessionTitle'), t('sessions.deleteSessionDesc')))) return;
     setBusy(true);
     try {
       useAgentHubStore.getState().deleteSession(id);
@@ -170,7 +173,7 @@ export function SessionsPanel() {
 
   const renderSession = (s: (typeof sessions)[number]) => {
     const last = s.messages[s.messages.length - 1];
-    const preview = last?.content.replace(/\s+/g, ' ').trim().slice(0, 48) || '（空会话）';
+    const preview = last?.content.replace(/\s+/g, ' ').trim().slice(0, 48) || t('sessions.emptySession');;
     return (
       <div
         key={s.id}
@@ -182,10 +185,10 @@ export function SessionsPanel() {
         </div>
         <div className="sf-sessions-item-preview">{preview}</div>
         <div className="sf-sessions-item-meta">
-          <span>{s.messages.length} 条</span>
+          <span>{s.messages.length}{t('sessions.msgCount')}</span>
           <button
             type="button"
-            title="重命名"
+            title={t('sessions.rename')}
             onClick={(e) => {
               e.stopPropagation();
               void onRenameSession(s.id, s.title);
@@ -195,7 +198,7 @@ export function SessionsPanel() {
           </button>
           <button
             type="button"
-            title="删除"
+            title={t('sessions.delete')}
             disabled={busy}
             onClick={(e) => {
               e.stopPropagation();
@@ -213,10 +216,10 @@ export function SessionsPanel() {
     <div className="sf-sessions">
       <div className="sf-sessions-actions">
         <button type="button" className="sf-pill-btn" onClick={onCreateSession} title="在当前项目下新建会话">
-          <FilePlus2 size={13} /> 新会话
+          <FilePlus2 size={13} /> {t('sessions.newSession')}
         </button>
-        <button type="button" className="sf-pill-btn" onClick={() => void onCreateProject()} disabled={busy} title="新建项目（空模板 + 首个会话）">
-          <FolderPlus size={13} /> 新建项目
+        <button type="button" className="sf-pill-btn" onClick={() => void onCreateProject()} disabled={busy} title={t('sessions.newProject')}>
+          <FolderPlus size={13} /> {t('sessions.newProject')}
         </button>
       </div>
       {groups.map((g) => {
@@ -234,20 +237,20 @@ export function SessionsPanel() {
               <span className="sf-sessions-group-count">{g.sessions.length}</span>
               <span className="sf-sessions-group-actions" onClick={(e) => e.stopPropagation()}>
                 {g.record && !g.isCurrent ? (
-                  <button type="button" title="打开此项目" onClick={() => onOpenProject(g.record!.id)}>
+                  <button type="button" title={t('sessions.openProject')} onClick={() => onOpenProject(g.record!.id)}>
                     ↗
                   </button>
                 ) : null}
                 <button
                   type="button"
-                  title="重命名项目"
+                  title={t('sessions.renameProject')}
                   onClick={() => void onRenameProject(g.key, g.record?.id)}
                 >
                   <Pencil size={11} />
                 </button>
                 <button
                   type="button"
-                  title="删除项目"
+                  title={t('sessions.deleteProject')}
                   disabled={busy}
                   onClick={() => {
                     const recordId = g.record?.id;
@@ -261,7 +264,7 @@ export function SessionsPanel() {
             {!isCollapsed && (
               <div className="sf-sessions-group-body">
                 {g.sessions.length === 0 ? (
-                  <div className="sf-sessions-item dim">（无会话——点「新会话」开始）</div>
+                  <div className="sf-sessions-item dim">{t('sessions.noSessionsInGroup')}</div>
                 ) : (
                   g.sessions.map(renderSession)
                 )}
