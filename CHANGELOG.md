@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [7.3.0] - 2026-10-07
+
+### Added（编辑器标准导航）
+
+- **Ctrl+点击跳转定义**：点击 `\cite{key}` 跳到 .bib 文件中该条目所在行；点击 `\ref{label}` / `\eqref{label}` 跳到任意 .tex 文件中 `\label{label}` 定义处。支持 `\citep`/`\citet`/`\autoref`/`\cref`，多 key cite（`\cite{a,b,c}`）能定位到点击的具体 key。纯函数解析层 + CodeMirror domEventHandlers 扩展，跨文件 jumpTo
+- 新增 13 项测试（extractKeyAtPosition 5 路径 / findBibEntryLine 3 / findLabelLine 2 / resolveJumpTarget 3）
+
 ## [7.2.1] - 2026-10-07
 
 ### Added（编辑器分屏，补 v7.2.0 F2）

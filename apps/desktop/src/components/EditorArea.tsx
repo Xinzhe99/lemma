@@ -42,6 +42,8 @@ import { bibEntries } from '../projectDoc';
 import { setJumpHandler, stashPendingJump, takePendingJump, notifyCursor } from '../editorJump';
 import { setInsertHandler } from '../editorInsert';
 import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection, resolveProvider, resolveProviderRouted } from '../aiActions';
+import { extractKeyAtPosition, resolveJumpTarget } from '../jumpDefinition';
+import { jumpTo } from '../editorJump';
 import { inlineCompletionExtension } from '@lemma/editor';
 import { runAgentTurn } from '../agentTools';
 import { StatusBar } from './StatusBar';
@@ -279,6 +281,31 @@ export function EditorArea({ lockedFile }: EditorAreaProps = {}) {
     if (p) useLibraryStore.getState().openPdf(p.id);
   }, []);
 
+  // v77.3.0: Ctrl+click cite/ref jump-to-definition
+  const gotoDefinitionExt = useMemo(
+    () =>
+      EditorView.domEventHandlers({
+        mousedown(event, view) {
+          if (!(event.ctrlKey || event.metaKey)) return false;
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+          if (pos === null) return false;
+          const line = view.state.doc.lineAt(pos);
+          const col = pos - line.from;
+          const parsed = extractKeyAtPosition(line.text, col);
+          if (!parsed) return false;
+          const files = useWorkspaceStore.getState().files;
+          const target = resolveJumpTarget(files, parsed.kind, parsed.key);
+          if (target) {
+            event.preventDefault();
+            jumpTo({ file: target.file, line: target.line });
+            return true;
+          }
+          return false;
+        },
+      }),
+    [],
+  );
+
   const extraExtensions = useMemo(
     () => [
       selectionTracker,
@@ -339,8 +366,8 @@ export function EditorArea({ lockedFile }: EditorAreaProps = {}) {
 
   // extraExtensions 含字号 compartment（LatexEditor 侧外层 Compartment 会随数组变化整体重配）
   const editorExtensions = useMemo(
-    () => [...extraExtensions, fontKeymap, fontCompartment.of(fontSizeThemeOf(fontSize))],
-    [extraExtensions, fontKeymap, fontCompartment, fontSize],
+    () => [...extraExtensions, gotoDefinitionExt, fontKeymap, fontCompartment.of(fontSizeThemeOf(fontSize))],
+    [extraExtensions, gotoDefinitionExt, fontKeymap, fontCompartment, fontSize],
   );
 
   // 字号变化：持久化 + 经 Compartment 重设 EditorView.theme({'&': {fontSize}})
