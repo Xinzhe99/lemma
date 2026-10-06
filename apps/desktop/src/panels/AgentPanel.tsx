@@ -328,7 +328,7 @@ export function AgentPanel() {
   // 发送消息（AI 层的 aiActions.sendChatMessage 处理 @mention 文件内容注入）
   // 稳定回调（v4.2.0）：ChatPanel 内消息行已 memo 化，回调身份恒定才能让
   // 流式 token 只重渲最后一条消息
-  const send = useCallback((text: string) => void sendChatMessage(text), []);
+  const send = useCallback((text: string, images?: string[]) => void sendChatMessage(text, images), []);
 
   // getState() 内取值 → 零依赖：papers/activeSession 变化不产生新回调身份
   const handleCitekeyClick = useCallback((key: string) => {
@@ -890,7 +890,7 @@ ${proposal.after.slice(0, 800)}`,
         {session ? (
           <ChatPanel
             session={session}
-            onSend={(text) => send(text)}
+            onSend={send}
             onStop={() => abortChat()}
             placeholder={t.chatPlaceholder}
             onCitekeyClick={handleCitekeyClick}

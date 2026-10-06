@@ -80,7 +80,7 @@ const CLEAR_ITEM_ID = '__sf_ah_clear__';
 
 export interface ChatPanelProps {
   session: AgentSession;
-  onSend?: (text: string) => void;
+  onSend?: (text: string, images?: string[]) => void;
   onStop?: () => void;
   placeholder?: string;
   /** markdown 引用 chip 点击（宿主接 jumpTo / 打开文献） */
@@ -252,6 +252,19 @@ function MessageBody({
           onInsertLatex ? { onInsertLatex, insertLatexLabel } : undefined,
         )}
       </div>
+    );
+  }
+  // v6.4.0：用户消息附图缩略图（图片未持久化，重启后仅剩 [图片 ×N] 文字标记）
+  if (message.role === 'user' && message.images && message.images.length > 0) {
+    return (
+      <span>
+        {message.content}
+        <span className="sf-ah-images" style={{ marginTop: 6 }}>
+          {message.images.map((url, i) => (
+            <img key={i} src={url} alt={`附件 ${i + 1}`} className="sf-ah-image-chip" style={{ position: 'static', width: 88, height: 88 }} />
+          ))}
+        </span>
+      </span>
     );
   }
   return <span>{message.content}</span>;
@@ -427,6 +440,26 @@ export function ChatPanel(props: ChatPanelProps) {
   const mentionActive = clampIdx(mentionIdx, mentionFiltered.length);
   const menuOpen = slashOpen || mentionOpen;
 
+  // v6.4.0 对话贴图：textarea 粘贴图片 → dataUrl 暂存（多模态模型随消息发送）
+  const [imageAttachments, setImageAttachments] = useState<string[]>([]);
+  const imageFileRef = useRef<HTMLInputElement | null>(null);
+  const MAX_IMAGES = 4;
+
+  const addImageAttachment = (file: File | null | undefined) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    if (imageAttachments.length >= MAX_IMAGES) return;
+    const reader = new FileReader();
+    reader.onload = () => setImageAttachments((prev) => [...prev, String(reader.result)]);
+    reader.readAsDataURL(file);
+  };
+
+  const onInputPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'));
+    if (!item) return;
+    e.preventDefault();
+    addImageAttachment(item.getAsFile());
+  };
+
   // v5.8.0 语音输入：录音 → Whisper 本地转写 → 追加到输入框
   const speechSupported = speechLanguage !== undefined && isSpeechSupported();
   const [speechPhase, setSpeechPhase] = useState<'idle' | 'recording' | 'transcribing' | 'loading-model'>('idle');
@@ -476,9 +509,10 @@ export function ChatPanel(props: ChatPanelProps) {
 
   const send = () => {
     const trimmed = text.trim();
-    if (!trimmed || streaming) return;
-    onSend?.(trimmed);
+    if ((!trimmed && imageAttachments.length === 0) || streaming) return;
+    onSend?.(trimmed || '（请看图）', imageAttachments.length > 0 ? imageAttachments : undefined);
     setText('');
+    setImageAttachments([]);
   };
 
   const selectSlash = (item: SlashMenuItem) => {
@@ -704,6 +738,22 @@ export function ChatPanel(props: ChatPanelProps) {
             {artifacts.length > 6 ? <span className="dim">+{artifacts.length - 6} 更早</span> : null}
           </div>
         ) : null}
+        {imageAttachments.length > 0 ? (
+          <div className="sf-ah-images">
+            {imageAttachments.map((url, i) => (
+              <div key={i} className="sf-ah-image-chip">
+                <img src={url} alt={`附件 ${i + 1}`} />
+                <button
+                  type="button"
+                  title="移除"
+                  onClick={() => setImageAttachments((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {(speechPhase !== 'idle' || speechError) && speechSupported ? (
           <div className="sf-ah-speech-status">
             {speechError
@@ -718,9 +768,28 @@ export function ChatPanel(props: ChatPanelProps) {
         <div className="sf-ah-input">
           <textarea
             value={text}
-            placeholder={placeholder ?? '向 agent 提问，或输入 / 启动工作流、@ 引用文献…'}
+            placeholder={placeholder ?? '向 agent 提问，或输入 / 启动工作流、@ 引用文献…（可粘贴图片，需多模态模型）'}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={onInputPaste}
+          />
+          <button
+            className="sf-ah-btn"
+            title={imageAttachments.length >= MAX_IMAGES ? `最多 ${MAX_IMAGES} 张` : '添加图片（或直接 Ctrl+V 粘贴，需多模态模型）'}
+            onClick={() => imageFileRef.current?.click()}
+          >
+            📎
+          </button>
+          <input
+            ref={imageFileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              for (const f of e.target.files ?? []) addImageAttachment(f);
+              e.target.value = '';
+            }}
           />
           {speechSupported ? (
             <button

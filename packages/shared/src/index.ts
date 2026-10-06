@@ -109,6 +109,13 @@ export interface Annotation {
   createdAt: number;
 }
 
+/** 多模态消息内容片段（v6.4.0：对话贴图） */
+export interface ContentPart {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: { url: string };
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -211,6 +218,8 @@ export interface AgentMessage {
   id: string;
   role: AgentMessageRole;
   content: string;
+  /** 附图 dataUrl（v6.4.0：多模态对话；仅内存会话保留，持久化时剥离） */
+  images?: string[];
   toolCalls?: ToolCallRequest[];
   toolCallId?: string; // role=tool 时对应的调用
   createdAt: number;

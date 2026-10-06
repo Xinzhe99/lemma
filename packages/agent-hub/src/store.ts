@@ -104,7 +104,7 @@ interface AgentHubState {
   /** 删除会话；删的是活跃会话时激活剩余最新一条（无剩余则置空） */
   deleteSession(sessionId: string): void;
   /** 乐观插入 user 消息 + assistant 占位（状态置为 streaming），等待宿主回填 */
-  sendMessage(sessionId: string, text: string): void;
+  sendMessage(sessionId: string, text: string, images?: string[]): void;
   appendDelta(sessionId: string, text: string): void;
   appendToolCall(sessionId: string, call: ToolCallRequest): void;
   /** 回填工具执行结果（role=tool，携带 toolCallId 供 UI 折叠展示与协议续传） */
@@ -141,7 +141,11 @@ export function serializeSessionsForPersist(sessions: AgentSession[]): AgentSess
   return sessions.map((s) => ({
     ...s,
     status: s.status === 'streaming' ? ('idle' as const) : s.status,
-    messages: s.messages.map((m) => ({ ...m })),
+    // images（dataUrl）只留内存：持久化剥离防兆级膨胀；content 里的「[图片 ×N]」标记保留语义
+    messages: s.messages.map((m) => {
+      const { images: _images, ...rest } = m;
+      return { ...rest };
+    }),
   }));
 }
 
@@ -239,7 +243,7 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
       return { sessions, activeSessionId };
     }),
 
-  sendMessage: (sessionId, text) =>
+  sendMessage: (sessionId, text, images) =>
     set((state) => ({
       sessions: patchSession(state.sessions, sessionId, (s) => {
         const now = Date.now();
@@ -250,7 +254,13 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
           status: 'streaming',
           messages: [
             ...s.messages,
-            { id: createId(), role: 'user', content: text, createdAt: now },
+            {
+              id: createId(),
+              role: 'user',
+              content: text,
+              ...(images && images.length > 0 ? { images } : {}),
+              createdAt: now,
+            },
             { id: createId(), role: 'assistant', content: '', createdAt: now + 1 },
           ],
         };

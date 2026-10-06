@@ -548,6 +548,8 @@ export interface AgentTurnOptions extends AgentTurnEventHandlers {
   signal?: AbortSignal;
   /** 最多几轮工具调用（防失控） */
   maxToolRounds?: number;
+  /** v6.4.0：随首条 user 消息附图（dataUrl；provider 组装多模态 content） */
+  userImages?: string[];
   /** 写级操作的审批函数（测试可注入） */
   approval?: ApprovalFn;
 }
@@ -566,7 +568,14 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
   const messages: AgentMessage[] = [
     { id: 'sys', role: 'system', content: system, createdAt: Date.now() },
     ...history,
-    { id: 'user-0', role: 'user', content: user, createdAt: Date.now() + 1 },
+    {
+      id: 'user-0',
+      role: 'user',
+      content: user,
+      // v6.4.0：随消息附图（provider 组装多模态 content；仅本轮请求携带）
+      ...(opts.userImages && opts.userImages.length > 0 ? { images: opts.userImages } : {}),
+      createdAt: Date.now() + 1,
+    },
   ];
 
   let finalText = '';

@@ -304,7 +304,7 @@ export function abortChat(): void {
   chatAbort = null;
 }
 
-export async function sendChatMessage(text: string): Promise<void> {
+export async function sendChatMessage(text: string, images?: string[]): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
   if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
@@ -319,8 +319,14 @@ export async function sendChatMessage(text: string): Promise<void> {
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .slice(0, -2),
   );
-  // UI 显示原始消息（用户看到自己输入的内容）
-  store().sendMessage(sessionId, text);
+  // UI 显示原始消息（用户看到自己输入的内容；v6.4.0 附图随存，消息气泡内展示缩略图）
+  store().sendMessage(sessionId, images && images.length > 0 ? `${text}
+[图片 ×${images.length}]` : text, images);
+  if (images && images.length > 0 && !resolveProvider().real) {
+    store().appendDelta(sessionId, '⚠️ 演示模式不支持图片——请在「设置 → 模型服务」配置多模态模型（如 GLM-4V / gpt-4o / Qwen-VL）后重试。');
+    store().finishSession(sessionId, 'idle');
+    return;
+  }
 
   // v3.6.0 A：@mention 文件自动附上内容（Cursor 式上下文注入）——
   // 检测消息中引用的项目文件，把内容附在发送给 AI 的 user prompt 中
@@ -338,6 +344,7 @@ export async function sendChatMessage(text: string): Promise<void> {
       system,
       history,
       user: enrichedUser,
+      userImages: images,
       tools: real ? ENABLED_TOOLS : [],
       signal: abort.signal,
       onDelta: (delta) => store().appendDelta(sessionId, delta),

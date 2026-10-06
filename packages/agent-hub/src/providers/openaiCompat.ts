@@ -69,7 +69,15 @@ function toRequestMessages(messages: AgentMessage[]): Record<string, unknown>[] 
     if (m.role === 'tool') {
       return { role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content };
     }
-    const out: Record<string, unknown> = { role: m.role, content: m.content };
+    // v6.4.0 对话贴图：带 images 的消息组装 OpenAI 多模态 content（text + image_url）
+    const content =
+      m.images && m.images.length > 0
+        ? [
+            { type: 'text', text: m.content },
+            ...m.images.map((url) => ({ type: 'image_url', image_url: { url } })),
+          ]
+        : m.content;
+    const out: Record<string, unknown> = { role: m.role, content };
     if (m.toolCalls?.length) {
       out.tool_calls = m.toolCalls.map((tc) => ({
         id: tc.id,
