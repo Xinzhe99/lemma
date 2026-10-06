@@ -18,11 +18,9 @@
 
 ---
 
-![Lemma 主界面：左会话列表 · 中 AI 会话 · 右实时 PDF](docs/layout-pdf-mode.png)
+![Lemma 主界面：左项目会话 · 中央编辑器+PDF 预览 · 右 AI 会话](docs/layout-v6.png)
 
-*右侧一键切换 LaTeX 源码模式：*
 
-![LaTeX 模式](docs/layout-latex-mode.png)
 
 ---
 

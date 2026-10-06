@@ -690,7 +690,7 @@ export function ChatPanel(props: ChatPanelProps) {
         {artifacts && artifacts.length > 0 ? (
           <div className="sf-ah-artifacts">
             <span className="sf-ah-artifacts-label">产物</span>
-            {artifacts.slice(0, 6).map((a) => (
+            {[...artifacts].reverse().slice(0, 6).map((a) => (
               <button
                 key={a.file}
                 type="button"
@@ -701,7 +701,7 @@ export function ChatPanel(props: ChatPanelProps) {
                 {a.kind === 'create' ? '＋' : '✎'} {a.file.split('/').pop()}
               </button>
             ))}
-            {artifacts.length > 6 ? <span className="dim">+{artifacts.length - 6}</span> : null}
+            {artifacts.length > 6 ? <span className="dim">+{artifacts.length - 6} 更早</span> : null}
           </div>
         ) : null}
         {(speechPhase !== 'idle' || speechError) && speechSupported ? (

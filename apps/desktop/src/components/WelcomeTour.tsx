@@ -14,13 +14,12 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useT } from '../i18n';
 import { useOnboardingStore } from '../state/onboardingStore';
 
-const PAGE_COUNT = 4;
+const PAGE_COUNT = 3;
 
 /** 页 1-3 的截图（public/docs/screenshots，vite 构建时随 public 目录拷贝进产物） */
 const SHOTS: readonly { src: string; altKey: string }[] = [
-  { src: 'docs/screenshots/writing.png', altKey: 'tour.imgAlt.writing' },
-  { src: 'docs/screenshots/outline.png', altKey: 'tour.imgAlt.outline' },
-  { src: 'docs/screenshots/reviewer-sim.png', altKey: 'tour.imgAlt.reviewer' },
+  { src: 'docs/screenshots/tour-main.png', altKey: 'tour.imgAlt.writing' },
+  { src: 'docs/screenshots/tour-ai.png', altKey: 'tour.imgAlt.reviewer' },
 ];
 
 export function WelcomeTour({ onClose }: { onClose: () => void }) {

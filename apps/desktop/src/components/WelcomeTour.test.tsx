@@ -103,19 +103,19 @@ afterEach(() => {
   container = null;
 });
 
-describe('WelcomeTour · 4 页 carousel', () => {
-  it('页 1：欢迎标题 + 一句话定位 + writing.png 截图 + 4 个指示点（首个 active）', () => {
+describe('WelcomeTour · 3 页 carousel', () => {
+  it('页 1：欢迎标题 + 一句话定位 + tour-main 截图 + 3 个指示点（首个 active）', () => {
     mount();
     expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 Lemma');
     expect(query('.sf-tour-desc')?.textContent).toContain('AI 原生的一站式论文工作站');
     const img = query('img.sf-tour-shot');
-    expect(img?.getAttribute('src')).toBe('docs/screenshots/writing.png');
+    expect(img?.getAttribute('src')).toBe('docs/screenshots/tour-main.png');
     expect(img?.getAttribute('alt')).toBe('写作视图截图');
 
     const dots = [...container!.querySelectorAll('.sf-tour-dot')];
-    expect(dots).toHaveLength(4);
+    expect(dots).toHaveLength(3);
     expect(dots[0]!.classList.contains('active')).toBe(true);
-    expect(dots[3]!.classList.contains('active')).toBe(false);
+    expect(dots[2]!.classList.contains('active')).toBe(false);
     expect(query('.sf-tour-skip')?.textContent).toBe('跳过引导');
   });
 
@@ -124,23 +124,21 @@ describe('WelcomeTour · 4 页 carousel', () => {
     click(query('.sf-tour-next')!);
     expect(query('.sf-tour-title')?.textContent).toBe('写作与编译');
     expect(query('.sf-tour-desc')?.textContent).toContain('无需预装 LaTeX');
-    expect(query('img.sf-tour-shot')?.getAttribute('src')).toBe('docs/screenshots/outline.png');
+    expect(query('img.sf-tour-shot')?.getAttribute('src')).toBe('docs/screenshots/tour-ai.png');
 
     click(query('.sf-tour-next')!);
-    expect(query('.sf-tour-title')?.textContent).toBe('AI 深度参与');
-    expect(query('.sf-tour-desc')?.textContent).toContain('7 条内置工作流');
-    expect(query('img.sf-tour-shot')?.getAttribute('src')).toBe('docs/screenshots/reviewer-sim.png');
+    expect(query('.sf-tour-title')?.textContent).toBe('三步上手');
+    expect(query('img.sf-tour-shot')).toBeNull();
   });
 
-  it('页 4（三步上手）：三条步骤 + 主按钮「开始使用」+ 次按钮「先看看」，无截图', () => {
+  it('页 3（三步上手）：三条步骤 + 主按钮「开始使用」+ 次按钮「先看看」，无截图', () => {
     mount();
-    click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
     expect(query('.sf-tour-title')?.textContent).toBe('三步上手');
     expect(query('img.sf-tour-shot')).toBeNull();
     const steps = [...container!.querySelectorAll('.sf-tour-step')].map((s) => s.textContent);
-    expect(steps).toEqual(['1创建项目从模板新建，或导入 Overleaf zip', '2写作并编译编辑 LaTeX，一键出 PDF', '3问 AI润色、起草、跑工作流']);
+    expect(steps).toEqual(['1创建项目从模板新建，或导入 Overleaf zip', '2写作并编译中央左写右预览，实时编译不跳页', '3问 AI右侧直接说需求——润色、找文献、改稿、修错（支持语音）']);
     expect(query('.sf-tour-start')?.textContent).toContain('开始使用');
     expect(query('.sf-tour-later')?.textContent).toContain('先看看');
   });
@@ -167,12 +165,12 @@ describe('WelcomeTour · 翻页交互', () => {
     click(prev);
     expect(query('.sf-tour-title')?.textContent).toBe('欢迎来到 Lemma');
 
-    click([...container!.querySelectorAll('.sf-tour-dot')][3]!);
+    click([...container!.querySelectorAll('.sf-tour-dot')][2]!);
     expect(query('.sf-tour-title')?.textContent).toBe('三步上手');
     const prev2 = query('.sf-tour-prev') as HTMLButtonElement;
     expect(prev2.disabled).toBe(false);
     click(prev2);
-    expect(query('.sf-tour-title')?.textContent).toBe('AI 深度参与');
+    expect(query('.sf-tour-title')?.textContent).toBe('写作与编译');
   });
 });
 
@@ -211,7 +209,6 @@ describe('WelcomeTour · 稍后 / 跳过 / 完成', () => {
     mount();
     click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
-    click(query('.sf-tour-next')!);
     click(query('.sf-tour-start')!);
     expect(useOnboardingStore.getState().tourDone).toBe(true);
     expect(useOnboardingStore.getState().tourDismissedAt).toBeNull();
@@ -223,7 +220,6 @@ describe('WelcomeTour · 稍后 / 跳过 / 完成', () => {
       root!.render(<div />);
     });
     mount();
-    click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
     click(query('.sf-tour-later')!);
@@ -242,7 +238,6 @@ describe('WelcomeTour · i18n', () => {
     expect(query('.sf-tour-skip')?.textContent).toBe('Skip the tour');
     expect(query('.sf-tour-next')?.textContent).toContain('Next');
 
-    click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
     click(query('.sf-tour-next')!);
     expect(query('.sf-tour-start')?.textContent).toContain('Get started');
