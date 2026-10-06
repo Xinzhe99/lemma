@@ -89,6 +89,7 @@ export async function ensureGitRepo(): Promise<boolean> {
       'changes.pdf',
       'sf-tikz-preview.*',
       'sf-engine-warm.*',
+      'sf-tmp-attach-*',
       '',
     ].join(
       '\n',

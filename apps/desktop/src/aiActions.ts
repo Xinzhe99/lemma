@@ -151,7 +151,6 @@ let chatAbort: AbortController | null = null;
 // ---------------------------------------------------------------------------
 
 const MAX_FULL_HISTORY = 10;
-const MAX_CHAR_PER_MSG = 3000;
 
 export function smartTruncateHistory(messages: AgentMessage[]): AgentMessage[] {
   if (messages.length <= MAX_FULL_HISTORY) return messages;
@@ -441,10 +440,16 @@ export async function sendChatMessage(text: string, images?: string[], files?: F
   // v3.9.0 A：AI 角色注入——不同角色有不同的行为方式
   const persona = getPersona(useSettingsStore.getState().aiPersona);
   const system = (await buildContextPackMd(text)) + CITATION_RULE + persona.systemAddendum;
+  // v6.8.0 修复：历史消息剥离 images——图片只随当轮 user 消息发送一次
   const history = smartTruncateHistory(
     (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(0, -2),
+      .slice(0, -2)
+      .map((m) => {
+        if (!m.images || m.images.length === 0) return m;
+        const { images: _stripped, ...rest } = m;
+        return rest;
+      }),
   );
   // v6.5.0：附件内容提取（文件 → 模型可读文本块，注入发送给 AI 的 user prompt）
   let attachmentBlocks: string[] = [];
@@ -501,7 +506,13 @@ export async function sendChatMessage(text: string, images?: string[], files?: F
       onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
     });
   } catch (e) {
-    store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}`);
+    const aborted =
+      chatAbort === null ? false : abort.signal.aborted || (e instanceof Error && e.name === 'AbortError');
+    if (aborted) {
+      store().appendDelta(sessionId, '\n\n[已停止]');
+    } else {
+      store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}`);
+    }
   } finally {
     chatAbort = null;
     // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
@@ -1040,7 +1051,13 @@ export async function runPlannedTask(userRequest: string): Promise<void> {
       onDelta: (delta) => store().appendDelta(sessionId, delta),
     });
   } catch (e) {
-    store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}`);
+    const aborted =
+      chatAbort === null ? false : abort.signal.aborted || (e instanceof Error && e.name === 'AbortError');
+    if (aborted) {
+      store().appendDelta(sessionId, '\n\n[已停止]');
+    } else {
+      store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}`);
+    }
   } finally {
     if (planAbort === abort) planAbort = null;
     if (chatAbort === abort) chatAbort = null;

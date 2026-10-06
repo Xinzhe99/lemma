@@ -378,7 +378,9 @@ export function buildCommands(ctx: CommandContext): Command[] {
               break;
             }
           }
-          const level = (l: string) => (l.match(/\\sub*section/)?.[0]?.length ?? 9);
+          // v6.8.0 修复：\end{document} 视为 level 0（此前 fallback 9 会让 section 朗读越过文末继续读参考文献）
+          const level = (l: string) =>
+            /\\end\{document\}/.test(l) ? 0 : (l.match(/\\sub*section/)?.[0]?.length ?? 9);
           const startLevel = level(lines[start] ?? '');
           let end = lines.length;
           for (let i = start + 1; i < lines.length; i++) {
