@@ -67,6 +67,8 @@ Lemma 把 Codex 的产品形态完整搬到 LaTeX 论文场景：
 - **无需预装 LaTeX**：全引擎矩阵（Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk）自动检测，缺引擎时 Tectonic 自动下载（~30MB 零配置）；**启动闲时自动预备引擎并预热宏包缓存**——你第一次点编译时，引擎已经就绪
 - **编译失败一键 AI 修复**：控制台「✦ AI 修复编译错误」→ 错误日志自动注入 → AI 逐个定位修复（走 diff 审批）→ 重新编译验证
 - **SyncTeX 双向跳转**：PDF 点正文跳源码行，源码行跳 PDF 位置
+- **PDF 全文搜索**：预览工具栏输入即搜（防抖），Enter/Shift+Enter 命中页间跳转，显示 `n/N · 页码` 与命中摘录
+- **修改对照 PDF**（latexdiff 本地等价）：版本面板任一提交一键生成红删蓝增的 `changes.pdf` 并在预览区打开——导师审阅「这版改了哪」与 AI 改动汇报利器
 
 ## 🤖 AI 能力
 

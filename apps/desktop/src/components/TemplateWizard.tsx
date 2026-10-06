@@ -8,7 +8,7 @@
  * 新增文案为组件内 zh/en 字典；既有文案仍走全局 i18n。
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { listTemplates, scaffoldProject } from '@lemma/compile';
 import { useT } from '../i18n';
 import { useSettingsStore, type Language } from '../state/settingsStore';
@@ -82,6 +82,21 @@ export function TemplateWizard({ onDone }: { onDone: (message: string) => void }
   const saveFromWorkspace = useTemplatesStore((s) => s.saveFromWorkspace);
 
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? '');
+  /** v6.0.0：模板检索（名称/描述/关键词大小写不敏感子串）+ 分类筛选 */
+  const [tplQuery, setTplQuery] = useState('');
+  const [tplCategory, setTplCategory] = useState<string>('all');
+  const categories = useMemo(
+    () => ['all', ...Array.from(new Set(templates.map((t) => t.category)))],
+    [templates],
+  );
+  const visibleTemplates = useMemo(() => {
+    const q = tplQuery.trim().toLowerCase();
+    return templates.filter((t) => {
+      if (tplCategory !== 'all' && t.category !== tplCategory) return false;
+      if (!q) return true;
+      return `${t.name} ${t.description} ${t.venue}`.toLowerCase().includes(q);
+    });
+  }, [templates, tplQuery, tplCategory]);
   /** 选中的自定义模板 id（与内置模板选中互斥） */
   const [userTplId, setUserTplId] = useState('');
   const [title, setTitle] = useState(tr('wiz.defaultTitle'));
@@ -186,8 +201,33 @@ export function TemplateWizard({ onDone }: { onDone: (message: string) => void }
               </ul>
             </div>
           )}
+          {/* v6.0.0：模板检索与分类筛选（20+ 模板） */}
+          <div style={{ display: 'flex', gap: 6, margin: '6px 0' }}>
+            <input
+              className="sf-input"
+              style={{ flex: 1, fontSize: 12 }}
+              placeholder={lang === 'zh' ? '搜索模板（名称/用途/描述）…' : 'Search templates…'}
+              value={tplQuery}
+              onChange={(e) => setTplQuery(e.target.value)}
+            />
+            <select
+              className="sf-input"
+              style={{ width: 110, fontSize: 12 }}
+              value={tplCategory}
+              onChange={(e) => setTplCategory(e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c === 'all' ? (lang === 'zh' ? '全部分类' : 'All') : c}
+                </option>
+              ))}
+            </select>
+          </div>
+          {visibleTemplates.length === 0 ? (
+            <p className="placeholder">{lang === 'zh' ? '没有匹配的模板——换个关键词或分类' : 'No matching templates'}</p>
+          ) : null}
           <ul className="sf-wiz-list">
-            {templates.map((tpl) => (
+            {visibleTemplates.map((tpl) => (
               <li
                 key={tpl.id}
                 className={`sf-wiz-item ${tpl.id === templateId && !selectedUser ? 'active' : ''}`}

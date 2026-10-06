@@ -4,7 +4,7 @@
  * 桌面形态 + 系统 git 可用时工作；否则明示原因（不伪装）。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Diff, GitCommitHorizontal, Link2, History, RotateCcw } from 'lucide-react';
+import { Diff, FileDiff, GitCommitHorizontal, Link2, History, RotateCcw } from 'lucide-react';
 import {
   detectGitAvailability,
   getGitAvailability,
@@ -15,6 +15,7 @@ import {
   gitPush,
   gitRestore,
   gitSetRemote,
+  buildChangesPdf,
   gitShowCommit,
   onAutoCommit,
   subscribeGitAvailability,
@@ -104,6 +105,20 @@ export function GitPanel() {
       setDiff(await gitShowCommit(c.hash));
     } catch (e) {
       setDiff({ stat: '', diff: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  /** v6.0.0：生成修改对照 PDF（该提交 vs 父），成功后右侧预览切换到 changes.pdf */
+  const onChangesPdf = async (c: GitCommitInfo) => {
+    setBusy(true);
+    setNote(`生成对照 PDF（${c.subject.slice(0, 20)}…）…`);
+    try {
+      const r = await buildChangesPdf(c.hash, c.subject);
+      setNote(`对照 PDF 已生成：${r.fileCount} 个文件 / ${r.lineCount} 行变更（右侧预览）`);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -235,6 +250,14 @@ export function GitPanel() {
                     className={diffFor === c.hash ? 'active' : ''}
                   >
                     <Diff size={12} /> 差异
+                  </button>
+                  <button
+                    type="button"
+                    title="生成修改对照 PDF（红删蓝增，编译后右侧预览）"
+                    disabled={busy}
+                    onClick={() => void onChangesPdf(c)}
+                  >
+                    <FileDiff size={12} /> 对照 PDF
                   </button>
                   <button type="button" title="恢复到此版本" disabled={busy} onClick={() => void onRestore(c)}>
                     <RotateCcw size={12} /> 恢复

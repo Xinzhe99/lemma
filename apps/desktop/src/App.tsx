@@ -528,6 +528,13 @@ export function App() {
     </section>
   );
 
+  // v6.0.0：编译台自动跟随——新日志到达滚到底（最新错误/进度始终可见）
+  const consoleBodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = consoleBodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [compileLog]);
+
   const consolePane = (
     <section className="console">
       <div className="console-title">
@@ -550,7 +557,7 @@ export function App() {
           {t('console.clear')}
         </button>
       </div>
-      <div className="console-body">
+      <div className="console-body" ref={consoleBodyRef}>
         {compileLog.length === 0 ? (
           <p className="placeholder">{t('console.pending')}</p>
         ) : (

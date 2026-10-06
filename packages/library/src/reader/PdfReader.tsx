@@ -8,6 +8,7 @@ import {
   type PdfOutlineNode,
   type ResolvedOutlineItem,
 } from './pdfOutline';
+import { searchPdfPages, type PdfSearchHit } from './pdfSearch';
 
 /**
  * PDF 阅读器组件：
@@ -321,6 +322,11 @@ export function PdfReader({
   const [viewMode, setViewMode] = useState<ViewMode>('single');
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('annotations');
   const [outline, setOutline] = useState<ResolvedOutlineItem[]>([]);
+  /** v6.0.0 全文搜索：查询、命中列表、当前命中序号、逐页文本缓存 */
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchHits, setSearchHits] = useState<PdfSearchHit[]>([]);
+  const [searchActiveIdx, setSearchActiveIdx] = useState(0);
+  const pageTextsRef = useRef<Map<number, string>>(new Map());
   /** 连续模式：已渲染页的实际视口尺寸（px，随 scale 更新），滚动换算与覆盖层使用。 */
   const [pageSizes, setPageSizes] = useState<Record<number, { width: number; height: number }>>({});
   /** 连续模式：最近一次已知页面尺寸（占位高度取其高度，否则按 A4 比例估计）。 */
@@ -520,6 +526,53 @@ export function PdfReader({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  // v6.0.0 搜索：查询防抖 → 缓存逐页文本 → 命中列表
+  useEffect(() => {
+    pageTextsRef.current.clear();
+    setSearchHits([]);
+    setSearchActiveIdx(0);
+  }, [doc]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || !doc) {
+      setSearchHits([]);
+      setSearchActiveIdx(0);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const texts: Array<{ page: number; text: string }> = [];
+      for (let p = 1; p <= doc.numPages; p++) {
+        const cached = pageTextsRef.current.get(p);
+        if (cached !== undefined) {
+          texts.push({ page: p, text: cached });
+          continue;
+        }
+        try {
+          const page = await doc.getPage(p);
+          const content = await page.getTextContent();
+          const text = (content.items as Array<{ str?: string }>)
+            .map(item => item.str ?? '')
+            .join(' ');
+          pageTextsRef.current.set(p, text);
+          texts.push({ page: p, text });
+        } catch {
+          /* 单页抽取失败跳过 */
+        }
+      }
+      setSearchHits(searchPdfPages(texts, q));
+      setSearchActiveIdx(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, doc]);
+
+  const gotoHit = (delta: number): void => {
+    if (searchHits.length === 0) return;
+    const next = (searchActiveIdx + delta + searchHits.length) % searchHits.length;
+    setSearchActiveIdx(next);
+    goToPage(searchHits[next]!.page);
+  };
 
   // 大纲（书签）：文档加载后 getOutline() → 先序展开 → dest 解析为 1-based 页码
   // （单项解析失败自动跳过，见 resolveOutlinePages）。无大纲/解析失败 → 空列表（显示占位）。
@@ -1137,6 +1190,38 @@ export function PdfReader({
             <button type="button" onClick={() => stepPage(1)} disabled={!doc || pageNum >= doc.numPages}>
               {t('nextPage')}
             </button>
+            {/* v6.0.0 全文搜索：输入即搜（防抖），Enter/Shift+Enter 在命中页间跳转 */}
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  gotoHit(e.shiftKey ? -1 : 1);
+                }
+                if (e.key === 'Escape') setSearchQuery('');
+              }}
+              placeholder={language === 'zh' ? '搜索全文…' : 'Search PDF…'}
+              aria-label={language === 'zh' ? '搜索全文' : 'Search PDF'}
+              style={{ fontSize: 12, padding: '2px 8px', width: 130, border: '1px solid #d1d5db', borderRadius: 6 }}
+            />
+            {searchQuery.trim() ? (
+              searchHits.length > 0 ? (
+                <>
+                  <span style={{ fontSize: 11, color: '#6b7280' }} title={searchHits[searchActiveIdx]?.snippet}>
+                    {searchActiveIdx + 1}/{searchHits.length} · p.{searchHits[searchActiveIdx]?.page}
+                  </span>
+                  <button type="button" onClick={() => gotoHit(-1)} title="上一处（Shift+Enter）">
+                    ‹
+                  </button>
+                  <button type="button" onClick={() => gotoHit(1)} title="下一处（Enter）">
+                    ›
+                  </button>
+                </>
+              ) : (
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>无命中</span>
+              )
+            ) : null}
             <button type="button" onClick={() => setScaleIndex(i => Math.max(0, i - 1))} disabled={scaleIndex <= 0}>
               {t('zoomOut')}
             </button>

@@ -142,6 +142,41 @@ export async function gitRestore(hash: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// v6.0.0 F2：修改对照 PDF（latexdiff 本地等价）——git diff → 红蓝标注 tex → 编译
+// ---------------------------------------------------------------------------
+
+/** 某提交与其父的 unified diff（--unified=2，只看变化） */
+export async function gitDiffCommit(hash: string): Promise<string> {
+  if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
+  const r = await tauriProcRun('git', ['diff', '-U2', `${hash}^`, hash]);
+  if (r.code !== 0) {
+    // 首提交没有父：与空树 diff
+    const empty = await tauriProcRun('git', ['hash-object', '-t', 'tree', '/dev/null']);
+    const emptyTree = empty.stdout.trim();
+    const r2 = await tauriProcRun('git', ['diff', '-U2', emptyTree, hash]);
+    if (r2.code !== 0) throw new Error(`git diff 失败：${(r.stderr || r2.stderr).trim().slice(0, 160)}`);
+    return r2.stdout;
+  }
+  return r.stdout;
+}
+
+/** 生成 changes.pdf：diff → changesDoc → 写盘 → 真实编译（成功后右侧预览自动切换） */
+export async function buildChangesPdf(
+  hash: string,
+  subject: string,
+): Promise<{ fileCount: number; lineCount: number }> {
+  const diff = await gitDiffCommit(hash);
+  const { buildChangesTex } = await import('./changesDoc');
+  const doc = buildChangesTex(diff, `修改对照：${subject.slice(0, 40)}`);
+  const { getPlatform } = await import('../platform/types');
+  await getPlatform().fs.writeFile('changes.tex', doc.tex);
+  const { compileTexPreview } = await import('../compileAction');
+  const r = await compileTexPreview('changes.tex');
+  if (!r.ok) throw new Error('changes.tex 编译失败（检查右下编译日志）');
+  return { fileCount: doc.fileCount, lineCount: doc.lineCount };
+}
+
+// ---------------------------------------------------------------------------
 // v5.7.0 F1/F3：提交差异查看 + GitHub 远端同步（走系统 git 与用户自己的凭据）
 // ---------------------------------------------------------------------------
 
