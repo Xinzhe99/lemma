@@ -344,7 +344,6 @@ export async function extractAttachmentBlocks(
         const buf = await readFileBuffer(file);
         const base64 = arrayBufferToBase64(buf);
         const tmp = `sf-tmp-attach-${Date.now()}.docx`;
-        const fs = getPlatform();
         // fs_write_base64 桥
         const { tauriProcRun, tauriWriteFileBase64 } = await import('./platform/tauri');
         await tauriWriteFileBase64(tmp, base64);

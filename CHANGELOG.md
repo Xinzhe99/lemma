@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [6.9.0] - 2026-10-06
+
+### Fixed（深度 review 修复轮：数据丢失 + 平台 bug）
+
+- **gitPull 数据丢失 bug（严重）**：此前 pull 从 HEAD（提交内容）回写编辑器——用户未提交的本地改动在 pull 后被静默覆盖。修复：pull 前先物化工作区到磁盘（冲突时 git 拒绝、本地保留），pull 后回读「工作树」（含本地未提交改动 + 远端合并结果）而非 HEAD
+- **TTS 长文停摆（Chromium/WebView2 平台 bug）**：Chromium 系内核播放约 15 秒后 utterance 静默暂停——加入 resume 保活定时器（每 10s，播放结束自动清理）
+- 清理死代码（aiActions 未用变量）
+- 新增 3 项 gitPull 回归测试（工作树回读 / 冲突保护 / 新文件创建）
+
 ## [6.8.0] - 2026-10-06
 
 ### Fixed（Review 修复轮：4 个真实 bug）

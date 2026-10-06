@@ -25,7 +25,28 @@ export function latexToSpeakable(latex: string): string {
     .trim();
 }
 
-let currentUtterance: SpeechSynthesisUtterance | null = null;
+// v6.9.0：Chromium（含 WebView2）已知 bug——长 utterance 播放约 15s 后静默停摆；
+// 保活定时器周期性 resume() 让引擎继续（对未暂停状态是无害 no-op）
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+
+function startKeepAlive(): void {
+  stopKeepAlive();
+  keepAliveTimer = setInterval(() => {
+    const synth = window.speechSynthesis;
+    if (!synth.speaking) {
+      stopKeepAlive();
+      return;
+    }
+    if (!synth.paused) synth.resume();
+  }, 10000);
+}
+
+function stopKeepAlive(): void {
+  if (keepAliveTimer !== null) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+  }
+}
 
 export function speak(text: string, lang: 'zh' | 'en' = 'zh'): boolean {
   if (!ttsSupported()) return false;
@@ -33,8 +54,10 @@ export function speak(text: string, lang: 'zh' | 'en' = 'zh'): boolean {
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
   utter.rate = 1.0;
-  currentUtterance = utter;
+  utter.onend = () => stopKeepAlive();
+  utter.onerror = () => stopKeepAlive();
   window.speechSynthesis.speak(utter);
+  startKeepAlive();
   return true;
 }
 
@@ -48,13 +71,11 @@ export function resumeTts(): void {
 
 export function stopTts(): void {
   if (ttsSupported()) {
+    stopKeepAlive();
     window.speechSynthesis.cancel();
-    currentUtterance = null;
   }
 }
 
 export function isSpeaking(): boolean {
   return ttsSupported() && window.speechSynthesis.speaking;
 }
-
-void currentUtterance;

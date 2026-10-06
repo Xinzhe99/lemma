@@ -250,23 +250,34 @@ export async function gitPush(): Promise<string> {
   return r.stdout.trim() || '已推送';
 }
 
-/** pull --no-rebase；冲突时同样抛错并提示 */
+/** pull --no-rebase；冲突时抛错（本地保留） */
 export async function gitPull(): Promise<string> {
   if (!(await ensureGitRepo())) throw new Error('git 仓库不可用');
+  // v6.9.0 修复（数据丢失）：先物化工作区到磁盘——
+  // 此前 pull 跑在旧磁盘状态上，成功后用 HEAD 内容回写 store，
+  // 用户未提交的编辑器改动被静默覆盖。物化后：
+  //  - 本地改动与远端冲突 → git 拒绝（错误可见，本地保留）
+  //  - 不冲突 → 工作树 = 远端合并 + 本地未提交改动
+  await materializeWorkspace();
   const r = await tauriProcRun('git', ['pull', '--no-rebase']);
   if (r.code !== 0) {
     throw new Error(`pull 失败：${(r.stderr || r.stdout).trim().slice(0, 300)}`);
   }
-  // 拉回的文件同步进工作区 store（与恢复同一机制：逐文件回读）
+  // 回读「工作树」而非 HEAD——工作树才包含本地未提交改动 + 拉取合并结果
   const tree = await tauriProcRun('git', ['ls-tree', '-r', '--name-only', 'HEAD']);
   if (tree.code === 0) {
+    const fs = getPlatform().fs;
     const ws = useWorkspaceStore.getState();
     for (const path of tree.stdout.split('\n').map((x) => x.trim()).filter(Boolean)) {
       if (!/\.(tex|bib|sty|cls|md|txt)$/i.test(path)) continue;
-      const show = await tauriProcRun('git', ['show', `HEAD:${path}`]);
-      if (show.code !== 0) continue;
-      if (ws.files[path] === undefined) ws.createFile(path, show.stdout);
-      else if (ws.files[path] !== show.stdout) ws.updateFile(path, show.stdout);
+      try {
+        const content = await fs.readFile(path);
+        const text = typeof content === 'string' ? content : new TextDecoder().decode(content);
+        if (ws.files[path] === undefined) ws.createFile(path, text);
+        else if (ws.files[path] !== text) ws.updateFile(path, text);
+      } catch {
+        /* 单文件读取失败跳过（如并发删除） */
+      }
     }
   }
   return r.stdout.trim() || '已拉取';
