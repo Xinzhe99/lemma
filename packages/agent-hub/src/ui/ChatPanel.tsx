@@ -7,6 +7,7 @@
  * 消息操作（复制反馈 / 编辑重发草稿）的状态由 ChatPanel 持有并经 props 下传。
  */
 import { memo, useEffect, useRef, useState } from 'react';
+import { isSpeechSupported, startSpeechSession, type SpeechSession } from '../asr/speechInput';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
 import type { AgentSession } from '../store';
@@ -34,6 +35,11 @@ export interface MentionItem {
 /** 宿主可注入的界面文案（缺省内置中文） */
 export interface ChatLabels {
   send?: string;
+  speechStart?: string;
+  speechRecording?: string;
+  speechTranscribing?: string;
+  speechLoadingModel?: string;
+  speechUnsupported?: string;
   stop?: string;
   copy?: string;
   copied?: string;
@@ -50,6 +56,11 @@ export interface ChatLabels {
 
 const DEFAULT_LABELS: Required<ChatLabels> = {
   send: '发送',
+  speechStart: '语音输入（点击开始，再次点击结束并转写）',
+  speechRecording: '录音中，点击结束',
+  speechTranscribing: '识别中…',
+  speechLoadingModel: '下载语音模型（首次约 40MB，之后离线可用）…',
+  speechUnsupported: '当前环境不支持录音',
   stop: '停止',
   copy: '复制',
   copied: '已复制',
@@ -91,6 +102,8 @@ export interface ChatPanelProps {
   /** 插入按钮文案（宿主本地化注入） */
   insertLatexLabel?: string;
   /** 文案注入（zh 默认，宿主可给 en） */
+  /** v5.8.0 语音输入：'auto' | 'zh' | 'en'；undefined = 不显示麦克风 */
+  speechLanguage?: 'auto' | 'zh' | 'en';
   labels?: ChatLabels;
   /** 当前 Provider 徽标（v3.8.0 E：显示在输入框上方） */
   providerLabel?: string;
@@ -356,6 +369,7 @@ export function ChatPanel(props: ChatPanelProps) {
     session,
     onSend,
     onStop,
+    speechLanguage,
     placeholder,
     onCitekeyClick,
     onSlashWorkflow,
@@ -406,6 +420,53 @@ export function ChatPanel(props: ChatPanelProps) {
   const slashActive = clampIdx(slashIdx, slashFiltered.length);
   const mentionActive = clampIdx(mentionIdx, mentionFiltered.length);
   const menuOpen = slashOpen || mentionOpen;
+
+  // v5.8.0 语音输入：录音 → Whisper 本地转写 → 追加到输入框
+  const speechSupported = speechLanguage !== undefined && isSpeechSupported();
+  const [speechPhase, setSpeechPhase] = useState<'idle' | 'recording' | 'transcribing' | 'loading-model'>('idle');
+  const speechSessionRef = useRef<SpeechSession | null>(null);
+  const [speechError, setSpeechError] = useState('');
+
+  const toggleSpeech = async () => {
+    setSpeechError('');
+    if (speechPhase === 'recording') {
+      const session = speechSessionRef.current;
+      speechSessionRef.current = null;
+      if (!session) return;
+      setSpeechPhase('transcribing');
+      try {
+        const transcript = await session.stop();
+        if (transcript) {
+          setText((t) => (t ? `${t} ${transcript}` : transcript));
+        }
+      } catch (err) {
+        setSpeechError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSpeechPhase('idle');
+      }
+      return;
+    }
+    if (speechPhase !== 'idle') return;
+    try {
+      speechSessionRef.current = await startSpeechSession(speechLanguage ?? 'auto', (e) => {
+        if (e.phase === 'loading-model') setSpeechPhase('loading-model');
+      });
+      setSpeechPhase('recording');
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : '';
+      const friendly =
+        name === 'NotFoundError' || name === 'DevicesNotFoundError'
+          ? '未检测到麦克风设备'
+          : name === 'NotAllowedError' || name === 'PermissionDeniedError'
+            ? '麦克风权限被拒绝（系统设置中允许本应用使用麦克风）'
+            : err instanceof Error && err.message
+              ? err.message
+              : '当前环境不支持录音';
+      setSpeechError(friendly);
+    }
+  };
+
+  useEffect(() => () => speechSessionRef.current?.cancel(), []);
 
   const send = () => {
     const trimmed = text.trim();
@@ -619,6 +680,17 @@ export function ChatPanel(props: ChatPanelProps) {
             ))}
           </div>
         ) : null}
+        {(speechPhase !== 'idle' || speechError) && speechSupported ? (
+          <div className="sf-ah-speech-status">
+            {speechError
+              ? speechError
+              : speechPhase === 'recording'
+                ? labels.speechRecording
+                : speechPhase === 'loading-model'
+                  ? labels.speechLoadingModel
+                  : labels.speechTranscribing}
+          </div>
+        ) : null}
         <div className="sf-ah-input">
           <textarea
             value={text}
@@ -626,6 +698,16 @@ export function ChatPanel(props: ChatPanelProps) {
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
           />
+          {speechSupported ? (
+            <button
+              className={`sf-ah-btn sf-ah-btn--speech${speechPhase === 'recording' ? ' recording' : ''}`}
+              title={labels.speechStart}
+              disabled={streaming || (speechPhase !== 'idle' && speechPhase !== 'recording')}
+              onClick={() => void toggleSpeech()}
+            >
+              {speechPhase === 'recording' ? '●' : '🎤'}
+            </button>
+          ) : null}
           <button
             className="sf-ah-btn sf-ah-btn--primary"
             onClick={send}

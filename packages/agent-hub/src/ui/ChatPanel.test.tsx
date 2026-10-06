@@ -150,6 +150,20 @@ describe('slash 命令菜单', () => {
   });
 });
 
+describe('语音输入按钮（v5.8.0）', () => {
+  it('环境不支持录音时不渲染麦克风（诚实降级）', () => {
+    const { container } = setup({ speechLanguage: 'auto' });
+    const mic = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('🎤'));
+    expect(mic).toBeUndefined();
+  });
+
+  it('未传 speechLanguage 时不渲染麦克风（默认关闭路径）', () => {
+    const { container } = setup();
+    const mic = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('🎤'));
+    expect(mic).toBeUndefined();
+  });
+});
+
 describe('@ 引用菜单', () => {
   const MENTIONS = [
     { id: 'p1', label: 'vaswani2017attention', type: 'paper' as const },

@@ -135,6 +135,24 @@
   color: var(--fg-1, #70707a);
 }
 
+/* v5.8.0 语音输入 */
+.sf-ah-speech-status {
+  font-size: 11px;
+  color: var(--fg-2, #6b7280);
+  padding: 2px 4px;
+}
+.sf-ah-btn--speech {
+  flex: none;
+}
+.sf-ah-btn--speech.recording {
+  color: #cf222e;
+  animation: sf-speech-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sf-speech-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
 .sf-ah-input {
   display: flex;
   gap: 8px;

@@ -67,6 +67,8 @@ export interface SettingsState {
   activeProviderId: string | null;
   /** 语义嵌入模型名（可选，走当前激活服务的 /embeddings 端点；空则用本地哈希嵌入） */
   embeddingModel: string;
+  /** v5.8.0 语音输入：undefined=关闭；'auto'/'zh'/'en' */
+  speechLanguage?: 'auto' | 'zh' | 'en';
   theme: Theme;
   language: Language;
   addProvider(input: ProviderInput): void;
@@ -102,6 +104,7 @@ interface PersistedSettings {
   providers: ProviderConfig[];
   activeProviderId: string | null;
   embeddingModel: string;
+  speechLanguage?: 'auto' | 'zh' | 'en';
   theme: Theme;
   language: Language;
   agentEngine: AgentEngine;
@@ -123,6 +126,7 @@ function readPersisted(): PersistedSettings | null {
       providers: v.providers,
       activeProviderId: typeof v.activeProviderId === 'string' ? v.activeProviderId : null,
       embeddingModel: typeof v.embeddingModel === 'string' ? v.embeddingModel : '',
+      speechLanguage: v.speechLanguage === 'auto' || v.speechLanguage === 'zh' || v.speechLanguage === 'en' ? v.speechLanguage : undefined,
       // 亮色为默认主题；仅显式持久化过 'dark' 才回落暗色
       theme: v.theme === 'dark' ? 'dark' : 'light',
       language: v.language === 'en' ? 'en' : 'zh',
@@ -151,6 +155,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   providers: initial?.providers ?? [],
   activeProviderId: initial?.activeProviderId ?? null,
   embeddingModel: initial?.embeddingModel ?? '',
+    speechLanguage: 'auto',
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',

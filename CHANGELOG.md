@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-10-06
+
+### Added（语音输入：Whisper 本地识别）
+
+- **聊天框 🎤 语音转文字**：点击开始录音（红色脉冲指示），再次点击结束 → Whisper 本地转写 → 文本追加进输入框（可继续编辑后发送）
+- **开源方案**：transformers.js（ONNX WASM）+ Whisper base（q8 量化，MIT）——纯本地推理，首次下载 ~40MB 模型（HF 不可达自动切 hf-mirror 镜像），之后经浏览器缓存离线可用；中英自动/强制可选
+- **零成本接入**：识别在独立 Web Worker（不冻结 UI），transformers/onnxruntime 全部落入懒加载分包（856KB，仅在用到时下载），主 bundle 仅 +4KB
+- 设置 → 外观新增「语音输入」开关（关闭/自动/中文/English）；无麦克风/权限被拒时给出中文原因的友好提示
+
 ## [5.7.0] - 2026-10-06
 
 ### Added（对标 Prism/Overleaf/PapersFlow 全家桶）

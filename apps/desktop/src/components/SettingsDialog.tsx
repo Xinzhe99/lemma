@@ -97,6 +97,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const providers = useSettingsStore((s) => s.providers);
   const activeProviderId = useSettingsStore((s) => s.activeProviderId);
   const theme = useSettingsStore((s) => s.theme);
+  const speechLanguage = useSettingsStore((st) => st.speechLanguage);
+  const setSpeechLanguage = (v: 'auto' | 'zh' | 'en' | undefined) =>
+    useSettingsStore.setState({ speechLanguage: v });
   const language = useSettingsStore((s) => s.language);
   const embeddingModel = useSettingsStore((s) => s.embeddingModel);
   const setEmbeddingModel = useSettingsStore((s) => s.setEmbeddingModel);
@@ -493,6 +496,23 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                   </button>
                   <button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>
                     {t('settings.theme.light')}
+                  </button>
+                </div>
+              </div>
+              <div className="sf-appearance-row">
+                <span>语音输入（Whisper 本地识别）</span>
+                <div className="sf-segment">
+                  <button className={speechLanguage === undefined ? 'active' : ''} onClick={() => setSpeechLanguage(undefined)}>
+                    关闭
+                  </button>
+                  <button className={speechLanguage === 'auto' ? 'active' : ''} onClick={() => setSpeechLanguage('auto')}>
+                    自动
+                  </button>
+                  <button className={speechLanguage === 'zh' ? 'active' : ''} onClick={() => setSpeechLanguage('zh')}>
+                    中文
+                  </button>
+                  <button className={speechLanguage === 'en' ? 'active' : ''} onClick={() => setSpeechLanguage('en')}>
+                    English
                   </button>
                 </div>
               </div>

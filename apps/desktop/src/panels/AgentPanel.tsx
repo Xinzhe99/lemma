@@ -262,6 +262,7 @@ export function AgentPanel() {
   const plans = useAgentPlansStore((s) => s.plans);
   const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
   const libraryPapers = useLibraryStore((s) => s.papers);
+  const speechLanguage = useSettingsStore((s) => s.speechLanguage);
   const userPrompts = usePromptStore((s) => s.prompts);
 
   // ------------------------------------------------------------------
@@ -905,6 +906,7 @@ ${proposal.after.slice(0, 800)}`,
             }}
             onRegenerate={handleRegenerate}
             onEditResend={send}
+            speechLanguage={speechLanguage}
             providerLabel={providerLabel}
             onInsertLatex={insertLatexBlock}
             insertLatexLabel={t.insertLatexBtn}
