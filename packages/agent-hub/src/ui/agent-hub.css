@@ -263,7 +263,7 @@
 .sf-ah-btn--speech {
   flex: none;
 }
-.sf-ah-btn--speech.recording {
+.sf-ah-icon-btn.sf-ah-btn--speech.recording {
   color: #cf222e;
   animation: sf-speech-pulse 1.2s ease-in-out infinite;
 }
@@ -272,31 +272,87 @@
   50% { opacity: 0.45; }
 }
 
+/* v6.6.0 Codex 式输入卡：主体是大输入框，图标按钮收纳框内底行 */
 .sf-ah-input {
   display: flex;
-  gap: 8px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--border, #e9e9ec);
+  flex-direction: column;
+  margin: 8px 12px 12px;
+  padding: 6px 8px 6px;
+  border: 1px solid var(--border, #e9e9ec);
+  border-radius: 14px;
+  background: var(--bg-2, #ffffff);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.sf-ah-input:focus-within {
+  border-color: var(--accent, #10a37f);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(16, 163, 127, 0.18));
 }
 
 .sf-ah-input textarea {
   flex: 1;
   resize: none;
-  min-height: 40px;
-  max-height: 140px;
-  padding: 8px 10px;
-  border: 1px solid var(--border, #e9e9ec);
-  border-radius: var(--radius, 8px);
-  background: var(--bg-2, #ffffff);
+  min-height: 72px;
+  max-height: 200px;
+  padding: 8px 6px 4px;
+  border: none;
+  background: transparent;
   color: var(--fg-0, #1a1a1a);
   font: inherit;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  line-height: 1.5;
 }
 
 .sf-ah-input textarea:focus {
   outline: none;
-  border-color: var(--accent, #10a37f);
-  box-shadow: 0 0 0 3px var(--focus-ring, rgba(16, 163, 127, 0.25));
+}
+
+.sf-ah-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+
+/* 圆形小图标按钮（附件/语音/发送/停止） */
+.sf-ah-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-3, #f0f0f2);
+  color: var(--fg-1, #374151);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sf-ah-icon-btn:hover:not(:disabled) {
+  background: var(--border, #e9e9ec);
+}
+
+.sf-ah-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sf-ah-icon-btn--send {
+  background: var(--fg-0, #1a1a1a);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sf-ah-icon-btn--send:hover:not(:disabled) {
+  background: #000000;
+}
+
+.sf-ah-icon-btn--stop {
+  background: var(--err, #cf222e);
+  color: #ffffff;
 }
 
 .sf-ah-btn {

@@ -817,53 +817,64 @@ export function ChatPanel(props: ChatPanelProps) {
                   : labels.speechTranscribing}
           </div>
         ) : null}
+        {/* v6.6.0 Codex 式输入卡：大输入框为主体，图标按钮收纳框内——对话才是核心 */}
         <div className="sf-ah-input">
           <textarea
             value={text}
-            placeholder={placeholder ?? '向 agent 提问，或输入 / 启动工作流、@ 引用文献…（可粘贴图片，需多模态模型）'}
+            placeholder={placeholder ?? '向 AI 提问，或 / 工作流、@ 引用、粘贴/拖入文件…'}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={onInputPaste}
           />
-          <button
-            className="sf-ah-btn"
-            title={`添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴；最多 图 ${MAX_IMAGES} + 文件 ${MAX_FILES}）`}
-            onClick={() => imageFileRef.current?.click()}
-          >
-            📎
-          </button>
-          <input
-            ref={imageFileRef}
-            type="file"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              for (const f of e.target.files ?? []) addFileAttachment(f);
-              e.target.value = '';
-            }}
-          />
-          {speechSupported ? (
+          <div className="sf-ah-input-actions">
             <button
-              className={`sf-ah-btn sf-ah-btn--speech${speechPhase === 'recording' ? ' recording' : ''}`}
-              title={labels.speechStart}
-              disabled={streaming || (speechPhase !== 'idle' && speechPhase !== 'recording')}
-              onClick={() => void toggleSpeech()}
+              className="sf-ah-icon-btn"
+              title={`添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴；最多 图 ${MAX_IMAGES} + 文件 ${MAX_FILES}）`}
+              onClick={() => imageFileRef.current?.click()}
             >
-              {speechPhase === 'recording' ? '●' : '🎤'}
+              📎
             </button>
-          ) : null}
-          <button
-            className="sf-ah-btn sf-ah-btn--primary"
-            onClick={send}
-            disabled={!text.trim() || streaming}
-          >
-            {labels.send}
-          </button>
-          {streaming ? (
-            <button className="sf-ah-btn sf-ah-btn--danger" onClick={() => onStop?.()}>
-              {labels.stop}
-            </button>
-          ) : null}
+            <input
+              ref={imageFileRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                for (const f of e.target.files ?? []) addFileAttachment(f);
+                e.target.value = '';
+              }}
+            />
+            {speechSupported ? (
+              <button
+                className={`sf-ah-icon-btn sf-ah-btn--speech${speechPhase === 'recording' ? ' recording' : ''}`}
+                title={labels.speechStart}
+                disabled={streaming || (speechPhase !== 'idle' && speechPhase !== 'recording')}
+                onClick={() => void toggleSpeech()}
+              >
+                {speechPhase === 'recording' ? '●' : '🎤'}
+              </button>
+            ) : null}
+            <span style={{ flex: 1 }} />
+            {streaming ? (
+              <button
+                className="sf-ah-icon-btn sf-ah-icon-btn--stop"
+                title={labels.stop}
+                onClick={() => onStop?.()}
+              >
+                ■
+              </button>
+            ) : (
+              <button
+                className="sf-ah-icon-btn sf-ah-icon-btn--send"
+                title={`${labels.send}（Enter）`}
+                aria-label={labels.send}
+                onClick={send}
+                disabled={(!text.trim() && imageAttachments.length === 0 && fileAttachments.length === 0) || streaming}
+              >
+                ↑
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
