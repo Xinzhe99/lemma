@@ -36,6 +36,7 @@ import { ResizableLayout } from './components/ResizableLayout';
 import { SettingsDialog } from './components/SettingsDialog';
 import { SnapshotDialog } from './components/SnapshotDialog';
 import { EditorArea } from './components/EditorArea';
+import { Columns2 } from 'lucide-react';
 import { QuickOpen, isQuickOpenTrigger } from './components/QuickOpen';
 import { ShortcutsDialog, isShortcutsTrigger } from './components/ShortcutsDialog';
 import { TemplateWizard } from './components/TemplateWizard';
@@ -443,11 +444,37 @@ export function App() {
   };
 
   // —— v5.5.0 经典论文 IDE 布局：中心 = 编辑器 + PDF 预览同步并排（不再切换） ——
+  const splitEditorTab = useUiStore((s) => s.splitEditorTab);
+  const setSplitEditorTab = useUiStore((s) => s.setSplitEditorTab);
+  const wsFiles = useWorkspaceStore((s) => s.files);
+  const wsActiveTab = useWorkspaceStore((s) => s.activeTab);
+  // 分屏可用文件：已打开的标签页中，非当前活跃的那个
+  const splitCandidates = useWorkspaceStore((s: { openTabs: string[] }) => s.openTabs).filter(
+    (f) => f !== wsActiveTab && wsFiles[f] !== undefined,
+  );
+
   const editorPane = (
     <section className="center sf-pane-editor">
       <EditorTabs
         actions={
           <>
+            {/* v7.2.1 F2：编辑器分屏开关 */}
+            {splitCandidates.length > 0 ? (
+              <button
+                className="tab-action"
+                title={
+                  splitEditorTab
+                    ? '关闭分屏'
+                    : '分屏编辑（同时查看两个文件）'
+                }
+                onClick={() => {
+                  if (splitEditorTab) setSplitEditorTab(null);
+                  else setSplitEditorTab(splitCandidates[0] ?? null);
+                }}
+              >
+                <Columns2 size={13} />
+              </button>
+            ) : null}
             <button
               className="tab-action"
               title={t('tab.polishTitle')}
@@ -465,7 +492,40 @@ export function App() {
           </>
         }
       />
-      <EditorArea />
+      {/* v7.2.1 F2：双窗格竖切——左主编辑 + 右分屏文件选择器 */}
+      {splitEditorTab && wsFiles[splitEditorTab] !== undefined ? (
+        <div className="sf-editor-split">
+          <div className="sf-editor-split-left">
+            <EditorArea />
+          </div>
+          <div className="sf-editor-split-right">
+            <div className="sf-editor-split-header">
+              <select
+                value={splitEditorTab}
+                onChange={(e) => setSplitEditorTab(e.target.value)}
+                aria-label="分屏文件"
+                style={{ fontSize: 11, padding: '2px 6px', flex: 1, border: '1px solid var(--border)', borderRadius: 4 }}
+              >
+                {splitCandidates.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="sf-link-btn"
+                title="关闭分屏"
+                onClick={() => setSplitEditorTab(null)}
+              >
+                ×
+              </button>
+            </div>
+            <EditorArea lockedFile={splitEditorTab} />
+          </div>
+        </div>
+      ) : (
+        <EditorArea />
+      )}
     </section>
   );
 

@@ -121,10 +121,15 @@ const selectionTracker = EditorView.updateListener.of((update) => {
   if (store.selectionText !== text) store.setSelectionText(text.length > 8000 ? '' : text);
 });
 
-export function EditorArea() {
+export interface EditorAreaProps {
+  /** v7.2.1 F2：分屏模式下右窗格绑定的文件（编辑不切 tab）；缺省 = 主编辑（跟随 activeTab） */
+  lockedFile?: string;
+}
+
+export function EditorArea({ lockedFile }: EditorAreaProps = {}) {
   const t = useT();
   const files = useWorkspaceStore((s) => s.files);
-  const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const activeTab = lockedFile ?? useWorkspaceStore((s) => s.activeTab);
   const openFile = useWorkspaceStore((s) => s.openFile);
   const updateFile = useWorkspaceStore((s) => s.updateFile);
   const papers = useLibraryStore((s) => s.papers);

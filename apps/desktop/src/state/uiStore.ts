@@ -92,6 +92,8 @@ interface UiState {
   helpPanelOpen: boolean;
   /** v5.2.0：图像转 LaTeX 对话框（Prism 图像转代码） */
   imageToLatexOpen: boolean;
+  /** v7.2.1 F2：编辑器分屏——右窗格文件路径；null = 不分屏 */
+  splitEditorTab: string | null;
   /** v5.7.0：AI 画图（TikZ） */
   tikzFigureOpen: boolean;
   /** 全量备份/恢复对话框 */
@@ -138,6 +140,7 @@ interface UiState {
   setQuickCiteOpen(open: boolean): void;
   setHelpPanelOpen(open: boolean): void;
   setImageToLatexOpen(open: boolean): void;
+  setSplitEditorTab(file: string | null): void;
   setTikzFigureOpen(open: boolean): void;
   setBackupDialogOpen(open: boolean): void;
   setFocusMode(on: boolean): void;
@@ -180,6 +183,7 @@ export const useUiStore = create<UiState>((set) => ({
   quickCiteOpen: false,
   helpPanelOpen: false,
   imageToLatexOpen: false,
+  splitEditorTab: null,
   tikzFigureOpen: false,
   backupDialogOpen: false,
   focusMode: false,
@@ -219,6 +223,7 @@ export const useUiStore = create<UiState>((set) => ({
   setQuickCiteOpen: (open) => set({ quickCiteOpen: open }),
   setHelpPanelOpen: (open) => set({ helpPanelOpen: open }),
   setImageToLatexOpen: (open) => set({ imageToLatexOpen: open }),
+  setSplitEditorTab: (file) => set({ splitEditorTab: file }),
   setTikzFigureOpen: (open) => set({ tikzFigureOpen: open }),
   setBackupDialogOpen: (open) => set({ backupDialogOpen: open }),
   setFocusMode: (on) => set({ focusMode: on }),
