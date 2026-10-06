@@ -587,7 +587,19 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
 
     finalText = roundText || finalText;
 
-    if (toolCalls.length === 0 || round === maxToolRounds) break;
+    if (toolCalls.length === 0) break;
+    if (round === maxToolRounds) {
+      // v6.2.0：轮次用尽的诚实收尾——不再静默丢弃待执行的工具调用；
+      // 给用户明确说明 + 让最后一段文本可见（此前工具轮的空回复会让用户一脸茫然）
+      if (!finalText.trim()) {
+        finalText = '（本轮工具调用次数已达上限，任务未完全收尾）';
+      }
+      finalText += `
+
+---
+⚠️ 已连续调用 ${maxToolRounds} 轮工具仍未收尾（安全上限）。可以发送「继续」让我接着做，或告诉我调整目标。`;
+      break;
+    }
 
     // 记录 assistant 的工具调用并逐个执行回填
     messages.push({

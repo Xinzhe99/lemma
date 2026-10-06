@@ -255,6 +255,33 @@ function enrichWithFileContext(text: string): string {
   return enrichWithPaperMentions(withFiles, useLibraryStore.getState().papers);
 }
 
+/** v6.2.0：Provider 错误友好化——常见 HTTP/网络错误映射为可行动的中文提示 */
+export function friendlyProviderError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  const lower = raw.toLowerCase();
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid api key') || lower.includes('incorrect api key')) {
+    return `${raw}
+→ API Key 无效或未授权：请在「设置 → 模型服务」检查 Key 是否正确、是否过期。`;
+  }
+  if (lower.includes('403') || lower.includes('forbidden')) {
+    return `${raw}
+→ 无权访问：Key 可能没有该模型权限，或账号被限制。`;
+  }
+  if (lower.includes('429') || lower.includes('rate limit') || lower.includes('quota')) {
+    return `${raw}
+→ 请求过于频繁或额度不足：稍等片刻重试；若持续出现请检查服务商余额/限流设置。`;
+  }
+  if (lower.includes('404') || lower.includes('model_not_found') || lower.includes('does not exist')) {
+    return `${raw}
+→ 模型不存在：请在「设置 → 模型服务」核对模型名拼写。`;
+  }
+  if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('aborted') || lower.includes('network') || lower.includes('fetch failed') || lower.includes('econnrefused')) {
+    return `${raw}
+→ 网络问题：检查网络/代理是否可达模型服务地址。`;
+  }
+  return raw;
+}
+
 /** 中止当前会话生成（停止按钮） */
 export function abortChat(): void {
   chatAbort?.abort();
@@ -301,7 +328,7 @@ export async function sendChatMessage(text: string): Promise<void> {
       onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
     });
   } catch (e) {
-    store().appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
+    store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}`);
   } finally {
     chatAbort = null;
     // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
@@ -836,7 +863,7 @@ export async function runPlannedTask(userRequest: string): Promise<void> {
       onDelta: (delta) => store().appendDelta(sessionId, delta),
     });
   } catch (e) {
-    store().appendDelta(sessionId, `\n\n[调用异常] ${e instanceof Error ? e.message : String(e)}`);
+    store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}`);
   } finally {
     if (planAbort === abort) planAbort = null;
     if (chatAbort === abort) chatAbort = null;
