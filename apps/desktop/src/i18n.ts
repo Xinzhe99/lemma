@@ -78,6 +78,8 @@ const dict: MessageDict = {
   'console.aiFix': { zh: '✦ AI 修复编译错误', en: '✦ AI fix compile errors' },
   'cmd.imageToLatex': { zh: '图像转 LaTeX（公式/表格截图）', en: 'Image to LaTeX (formula/table screenshot)' },
   'cmd.tikzFigure': { zh: 'AI 画图（描述 → TikZ 流程/架构/示意图）', en: 'AI figure (describe → TikZ)' },
+  'cmd.readAloud': { zh: '朗读这一节（校对：读出声听问题）', en: 'Read this section aloud (proofreading)' },
+  'cmd.stopReadAloud': { zh: '停止朗读', en: 'Stop reading aloud' },
   'console.pending': { zh: '尚未编译 —— Ctrl+Enter 或命令面板运行编译（浏览器形态为模拟引擎）', en: 'Not compiled yet — Ctrl+Enter or command palette (mock engine in browser)' },
 
   // Agent 面板

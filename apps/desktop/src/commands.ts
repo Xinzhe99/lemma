@@ -10,6 +10,7 @@ import { useAgentHubStore } from '@lemma/agent-hub';
 import { runCompile, resolveCompileEntry } from './compileAction';
 import { requestToolApproval } from './approval';
 import { rulePolish } from './polish';
+import { lastCursor } from './editorJump';
 import { useSettingsStore } from './state/settingsStore';
 import { useUiStore } from './state/uiStore';
 import { useWorkspaceStore } from './state/workspaceStore';
@@ -348,6 +349,65 @@ export function buildCommands(ctx: CommandContext): Command[] {
       title: ctx.t('cmd.imageToLatex'),
       hint: ctx.t('hint.edit'),
       run: () => useUiStore.getState().setImageToLatexOpen(true),
+    },
+    {
+      id: 'edit.readAloud',
+      title: ctx.t('cmd.readAloud'),
+      hint: ctx.t('hint.edit'),
+      kbd: undefined,
+      run: () => {
+        void import('./tts').then(({ ttsSupported, speak, stopTts, latexToSpeakable }) => {
+          if (!ttsSupported()) {
+            ctx.toast('当前环境不支持语音合成');
+            return;
+          }
+          const ws = useWorkspaceStore.getState();
+          const file = ws.activeTab;
+          if (!file || !file.endsWith('.tex')) {
+            ctx.toast('先打开一个 .tex 文件');
+            return;
+          }
+          const content = ws.files[file] ?? '';
+          const cursorLine = lastCursor().line ?? 1;
+          const lines = content.split('\n');
+          // 光标向前找最近的 section/subsection 头，朗读到下一个同级或更高级头
+          let start = 0;
+          for (let i = Math.min(cursorLine - 1, lines.length - 1); i >= 0; i--) {
+            if (/\\(sub)*section\{|\\chapter\{/.test(lines[i]!)) {
+              start = i;
+              break;
+            }
+          }
+          const level = (l: string) => (l.match(/\\sub*section/)?.[0]?.length ?? 9);
+          const startLevel = level(lines[start] ?? '');
+          let end = lines.length;
+          for (let i = start + 1; i < lines.length; i++) {
+            const m = /\\(sub)*section\{|\\chapter\{|\\end\{document\}/.exec(lines[i]!);
+            if (m && level(m[0]) <= startLevel) {
+              end = i;
+              break;
+            }
+          }
+          const section = latexToSpeakable(lines.slice(start, end).join('\n'));
+          if (!section) {
+            ctx.toast('这一节没有可朗读的文本');
+            return;
+          }
+          const ok = speak(section, /[一-鿿]/.test(section) ? 'zh' : 'en');
+          ctx.toast(ok ? `朗读中（第 ${start + 1}-${end} 行）——命令面板「停止朗读」可中断` : '朗读启动失败');
+        });
+      },
+    },
+    {
+      id: 'edit.stopReadAloud',
+      title: ctx.t('cmd.stopReadAloud'),
+      hint: ctx.t('hint.edit'),
+      run: () => {
+        void import('./tts').then(({ stopTts }) => {
+          stopTts();
+          ctx.toast('已停止朗读');
+        });
+      },
     },
     {
       id: 'edit.normalizeDoc',

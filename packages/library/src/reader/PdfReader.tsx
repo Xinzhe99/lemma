@@ -53,6 +53,8 @@ export interface PdfReaderProps {
   onToggleResolved?: (id: string, resolved: boolean) => void;
   /** v5.7.0：对未处理批注起草逐条回复（宿主收集并发给 AI） */
   onDraftResponse?: () => void;
+  /** v6.7.0：AI 视觉检查此页（宿主把页截图经贴图通道发给多模态模型） */
+  onLookPage?: (page: number, dataUrl: string) => void;
   /** L4：删除标注回调（与 onCreateAnnotation 同源宿主存储；未传则侧栏不显示删除按钮）。 */
   onDeleteAnnotation?: (id: string) => void;
   /** L3：选中浮条尾部渲染的自定义动作按钮。 */
@@ -293,6 +295,7 @@ export function PdfReader({
   onCreateAnnotation,
   onToggleResolved,
   onDraftResponse,
+  onLookPage,
   onDeleteAnnotation,
   askActions,
   onPagePoint,
@@ -566,6 +569,29 @@ export function PdfReader({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery, doc]);
+
+  // v6.7.0：截取指定页画布为 PNG dataUrl（找不到画布返回 null）
+  const capturePage = (page: number): string | null => {
+    let canvas: HTMLCanvasElement | null = null;
+    if (viewMode === 'single') {
+      canvas = containerRef.current?.querySelector('canvas') ?? null;
+    } else {
+      canvas =
+        containerRef.current?.querySelector(`[data-page="${page}"] canvas`) ?? null;
+    }
+    if (!canvas) return null;
+    try {
+      return canvas.toDataURL('image/png');
+    } catch {
+      return null;
+    }
+  };
+
+  const onLookThisPage = (): void => {
+    const dataUrl = capturePage(pageNum);
+    if (!dataUrl) return;
+    onLookPage?.(pageNum, dataUrl);
+  };
 
   const gotoHit = (delta: number): void => {
     if (searchHits.length === 0) return;
@@ -1190,6 +1216,15 @@ export function PdfReader({
             <button type="button" onClick={() => stepPage(1)} disabled={!doc || pageNum >= doc.numPages}>
               {t('nextPage')}
             </button>
+            {onLookPage ? (
+              <button
+                type="button"
+                onClick={onLookThisPage}
+                title="AI 视觉检查此页排版（截图发给多模态模型：溢出/图表位置/公式问题）"
+              >
+                ✦ AI 查此页
+              </button>
+            ) : null}
             {/* v6.0.0 全文搜索：输入即搜（防抖），Enter/Shift+Enter 在命中页间跳转 */}
             <input
               value={searchQuery}

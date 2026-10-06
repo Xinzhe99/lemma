@@ -483,6 +483,13 @@ export function App() {
               const key = useAnnotationStore.getState().resolveKey(pdfView.name);
               useAnnotationStore.getState().setResolved(key, id, resolved);
             }}
+            onLookPage={(page, dataUrl) => {
+              // v6.7.0：走贴图通道发给多模态模型做视觉排版检查
+              void sendChatMessage(
+                `请视觉检查这页论文排版（第 ${page} 页截图），逐项指出：文本/公式是否溢出边界、图表位置与引用是否合理、行距栏宽是否有异常、明显的排版错误；只报告问题并给具体修改建议（改稿走 diff 审批）。`,
+                [dataUrl],
+              );
+            }}
             onDraftResponse={() => {
               // v5.7.0：收集全部未处理批注 → 逐条起草回复（AI 可顺带改稿，走审批）
               const store = useAnnotationStore.getState();
