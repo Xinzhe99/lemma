@@ -7,6 +7,7 @@
  */
 
 import { useSettingsStore } from './state/settingsStore';
+import { useAgentUsageStore } from './state/agentUsage';
 
 export interface VisionLatexResult {
   ok: boolean;
@@ -32,6 +33,7 @@ export async function imageToLatex(
       : kind === 'table'
         ? '这是一个表格截图。'
         : '这是一段论文内容截图（公式、表格或混合）。';
+  const t0 = Date.now();
   const system =
     '你是 LaTeX 转换专家。把图片内容精确转换为 LaTeX 源码：公式用 $...$ 或 equation 环境，表格用 tabular（booktabs 三线表），保持原文结构。只输出可直接粘贴进正文的 LaTeX 代码，不要解释、不要 markdown 围栏。';
   const user = `${guidance}请转换为 LaTeX。`;
@@ -72,6 +74,17 @@ export async function imageToLatex(
     if (!text) return { ok: false, error: '模型返回为空' };
     // 剥掉模型偶发的 markdown 围栏
     const latex = text.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
+    try {
+      useAgentUsageStore.getState().record({
+        kind: 'tool',
+        model,
+        inputTokens: Math.ceil(dataUrl.length / 4), // base64 折算
+        outputTokens: Math.ceil(text.length / 2),
+        latencyMs: Date.now() - t0,
+      });
+    } catch {
+      /* 用量记录失败不影响转换 */
+    }
     return { ok: true, latex };
   } catch (e) {
     return { ok: false, error: `请求失败：${e instanceof Error ? e.message : String(e)}` };

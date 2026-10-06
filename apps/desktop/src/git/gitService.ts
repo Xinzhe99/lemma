@@ -72,7 +72,25 @@ export async function ensureGitRepo(): Promise<boolean> {
   const fs = getPlatform().fs;
   await fs.writeFile(
     '.gitignore',
-    ['*.aux', '*.log', '*.out', '*.fls', '*.fdb_latexmk', '*.synctex.gz', '*.toc', '*.lof', '*.lot', '*.bcf', '*.run.xml', ''].join(
+    [
+      '*.aux',
+      '*.log',
+      '*.out',
+      '*.fls',
+      '*.fdb_latexmk',
+      '*.synctex.gz',
+      '*.toc',
+      '*.lof',
+      '*.lot',
+      '*.bcf',
+      '*.run.xml',
+      // v6.3.0：应用自身生成的预览/对照产物不入库（否则自动提交会带垃圾、恢复会复活）
+      'changes.tex',
+      'changes.pdf',
+      'sf-tikz-preview.*',
+      'sf-engine-warm.*',
+      '',
+    ].join(
       '\n',
     ),
   );

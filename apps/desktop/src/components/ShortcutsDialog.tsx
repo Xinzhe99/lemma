@@ -65,6 +65,7 @@ const GROUPS: Record<'zh' | 'en', { title: string; items: ShortcutItem[] }[]> = 
       title: 'Global',
       items: [
         { desc: 'Command palette', kbd: '⌘K / Ctrl+K' },
+        { desc: '立即编译（保存并编译）', kbd: 'Ctrl+S / ⌘S' },
         { desc: 'Quick open file', kbd: 'Ctrl+P' },
         { desc: 'Keyboard shortcuts', kbd: 'Ctrl+/' },
         { desc: 'Settings', kbd: 'Ctrl+,' },

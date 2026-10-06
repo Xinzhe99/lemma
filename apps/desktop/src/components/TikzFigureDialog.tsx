@@ -10,6 +10,7 @@ import { useProposalStore } from '../state/proposalStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { runAgentTurn } from '../agentTools';
 import { resolveProvider } from '../aiActions';
+import { useAgentUsageStore } from '../state/agentUsage';
 
 const PREVIEW_PREAMBLE = [
   '\\documentclass[border=4pt]{standalone}',
@@ -40,6 +41,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
     if (!desc.trim() || busy) return;
     setBusy(true);
     setError('');
+    const t0 = Date.now();
     try {
       const { real, provider, model } = resolveProvider();
       if (!real) {
@@ -59,6 +61,17 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
         .replace(/^```[a-zA-Z]*\n?/, '')
         .replace(/\n?```$/, '')
         .trim();
+      try {
+        useAgentUsageStore.getState().record({
+          kind: 'tool',
+          model,
+          inputTokens: Math.ceil(desc.trim().length / 2),
+          outputTokens: Math.ceil(cleaned.length / 2),
+          latencyMs: Date.now() - t0,
+        });
+      } catch {
+        /* 用量记录失败不影响画图 */
+      }
       if (!cleaned.includes('tikzpicture')) {
         setError('生成结果不含 tikzpicture——换个更具体的描述试试');
         return;

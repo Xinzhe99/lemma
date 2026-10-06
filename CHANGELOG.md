@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-10-06
+
+### Fixed/Added（扎实轮 II）
+
+- **AI 用量记录补全**：此前仅并行研究记录用量（用量面板近乎空转）——聊天、AI 画图（TikZ）、图像转 LaTeX 现全部记入（与 research 同口径：字符折半估 token，标注估算非账单）；失败路径不产生脏记录
+- **git 工作区卫生**：应用自产的预览/对照产物（changes.tex/pdf、sf-tikz-preview.*、sf-engine-warm.*）加入 .gitignore——此前会被「AI 改动自动提交」一并入库、恢复时复活垃圾文件
+- **Ctrl+S = 立即编译**：全局拦截浏览器保存对话框，与 Ctrl+Enter 等价（浏览器实测：默认已拦截 + 编译台出日志）；快捷键表同步补条目
+
 ## [6.2.0] - 2026-10-06
 
 ### Fixed/Changed（AI 扎实轮）

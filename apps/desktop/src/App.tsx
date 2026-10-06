@@ -189,6 +189,12 @@ export function App() {
         setQuickOpenOpen(true);
         return;
       }
+      // v6.3.0：Ctrl+S = 立即编译（拦截浏览器保存对话框；与 Ctrl+Enter 等价）
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void import('./compileAction').then(({ runCompile }) => runCompile());
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
         // D4：编辑器内 Ctrl+Shift+Z 是 Redo，不切换专注模式
         const el = e.target instanceof HTMLElement ? e.target : null;

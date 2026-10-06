@@ -21,6 +21,7 @@ import { bibCitekeys } from './projectDoc';
 import { resolveCompileEntry } from './compileAction';
 import { CliAgentProvider, isCliAgentAvailable } from './cliAgent';
 import { getPersona } from '@lemma/agent-hub';
+import { useAgentUsageStore } from './state/agentUsage';
 import type { AgentMessage } from '@lemma/shared';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from './agentTools';
 import { rejectPendingApproval } from './approval';
@@ -255,6 +256,21 @@ function enrichWithFileContext(text: string): string {
   return enrichWithPaperMentions(withFiles, useLibraryStore.getState().papers);
 }
 
+/** v6.3.0：chat 用量记录（与 research 同口径：字符折半估 token；估算非账单） */
+function recordChatUsage(model: string, promptChars: number, reply: string, latencyMs: number): void {
+  try {
+    useAgentUsageStore.getState().record({
+      kind: 'chat',
+      model,
+      inputTokens: Math.ceil(promptChars / 2),
+      outputTokens: Math.ceil(reply.length / 2),
+      latencyMs,
+    });
+  } catch {
+    /* 用量记录失败不影响对话 */
+  }
+}
+
 /** v6.2.0：Provider 错误友好化——常见 HTTP/网络错误映射为可行动的中文提示 */
 export function friendlyProviderError(e: unknown): string {
   const raw = e instanceof Error ? e.message : String(e);
@@ -314,6 +330,7 @@ export async function sendChatMessage(text: string): Promise<void> {
   const abort = new AbortController();
   chatAbort = abort;
   let acc = '';
+  const startedAt = Date.now();
   try {
     acc = await runAgentTurn({
       provider,
@@ -333,6 +350,10 @@ export async function sendChatMessage(text: string): Promise<void> {
     chatAbort = null;
     // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
     rejectPendingApproval('会话已中止或结束，本次修改未生效');
+  }
+
+  if (real && acc) {
+    recordChatUsage(model, system.length + enrichedUser.length, acc, Date.now() - startedAt);
   }
 
   // 学术诚信护栏：引用核查
