@@ -32,6 +32,11 @@ export type UpdatePhase =
 export const UPDATE_STARTUP_DELAY_MS = 8_000;
 /** 之后的重复检查间隔（6 小时）。 */
 export const UPDATE_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/**
+ * v7.10 更新闭环：applyAndRestart 重启前登记「待更新完成」标记；重启后 App 首屏
+ * 检测到即提示「已更新到 x.y.z，会话与项目状态已恢复」（状态由既有持久化恢复）。
+ */
+export const UPDATE_MARKER_KEY = 'lemma.pendingUpdate';
 
 /** v7.5.0：失败原因稳定错误码（store 不存自然语言——渲染层按界面语言翻译） */
 export type UpdateErrorCode =
@@ -105,11 +110,22 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
       set({ phase: 'error', silent: false, dismissed: false, errorCode: 'notReady' });
       return;
     }
+    // v7.10：重启前登记标记——新版本首屏据此提示「已更新 + 状态已恢复」
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(
+          UPDATE_MARKER_KEY,
+          JSON.stringify({ from: st.currentVersion ?? '', to: st.newVersion ?? '', at: Date.now() }),
+        );
+      }
+    } catch {
+      /* 标记写失败不影响更新本身 */
+    }
     try {
       // macOS 且已 autoInstalled：bundle 已替换，只需 relaunch 进入新版本
       if (!st.autoInstalled) {
-        // Windows：install 启动安装器后本进程即退出（relaunch 不可达）；
-        // macOS/Linux：install 返回后需 relaunch 进入新版本。两平台同一代码路径。
+        // Windows：install 启动安装器（updater 模式静默安装并自动重启应用）后本进程
+        // 即退出（relaunch 不可达）；macOS/Linux：install 返回后 relaunch 进入新版本。
         await pending.install();
       }
       await relaunchApp();

@@ -333,6 +333,15 @@ const dict: MessageDict = {
   'update.restart': { zh: '立即重启', en: 'Restart now' },
   'update.installed': { zh: '✓ v{version} 已安装 — 重启应用即完成升级', en: '✓ v{version} installed — restart to finish' },
   'update.restartNow': { zh: '立即重启', en: 'Restart now' },
+  'update.confirmUpdate': { zh: '立即更新并重启', en: 'Update & restart now' },
+  'update.restoreHint': {
+    zh: '更新会自动重启应用；会话、项目与文献库状态将自动恢复',
+    en: 'The app restarts automatically; sessions, projects and library are restored',
+  },
+  'update.updatedRestored': {
+    zh: '已更新到 v{version}，会话与项目状态已恢复',
+    en: 'Updated to v{version} — sessions and projects restored',
+  },
   'update.later': { zh: '稍后', en: 'Later' },
   'update.restarting': { zh: '正在重启…', en: 'Restarting…' },
   'update.error.browser': { zh: '当前为浏览器形态，不支持应用内更新', en: 'In-app updates are unavailable in the browser form' },

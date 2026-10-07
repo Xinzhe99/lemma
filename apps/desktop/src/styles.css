@@ -3754,3 +3754,92 @@ kbd {
   opacity: 0.45;
   cursor: default;
 }
+
+/* ---- v7.10 自动更新：左下角浮动卡片（Codex 式确认 + 进度 + 恢复提示） ---- */
+.sf-update-card {
+  position: fixed;
+  left: 14px;
+  bottom: 40px;
+  z-index: 280;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  font-size: 12px;
+  color: var(--fg-1);
+}
+.sf-update-card.ready {
+  border-color: var(--accent);
+}
+.sf-update-card.error {
+  border-color: var(--err, #d64545);
+}
+.sf-update-card-title {
+  font-weight: 600;
+  color: var(--fg-0);
+  line-height: 1.5;
+}
+.sf-update-card.error .sf-update-card-title {
+  color: var(--err, #d64545);
+}
+.sf-update-card-meta {
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+.sf-update-card.error .sf-update-card-meta,
+.sf-update-card-meta.error-detail {
+  color: var(--fg-2);
+  word-break: break-all;
+}
+.sf-update-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  overflow: hidden;
+}
+.sf-update-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.sf-update-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.sf-update-btn-primary {
+  padding: 4px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sf-update-btn-primary:hover {
+  filter: brightness(1.08);
+}
+.sf-update-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.sf-update-btn-ghost {
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sf-update-btn-ghost:hover {
+  color: var(--fg-0);
+}

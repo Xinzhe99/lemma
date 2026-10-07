@@ -275,6 +275,34 @@ describe('updateStore · dismiss 与重启安装', () => {
     expect(useUpdateStore.getState().phase).toBe('downloaded');
   });
 
+  it('v7.10 更新闭环：applyAndRestart 重启前登记恢复标记（from/to），重启后首屏消费并提示', async () => {
+    const store = { data: new Map<string, string>() };
+    vi.stubGlobal('localStorage', {
+      setItem: (k: string, v: string) => store.data.set(k, v),
+      getItem: (k: string) => store.data.get(k) ?? null,
+      removeItem: (k: string) => store.data.delete(k),
+    });
+
+    const update = fakeUpdate('1.2.3');
+    mockedCheck.mockResolvedValue(update);
+    mockedGetVersion.mockResolvedValue('1.2.2');
+    await useUpdateStore.getState().checkNow();
+    useUpdateStore.setState({ currentVersion: '1.2.2' });
+
+    await useUpdateStore.getState().applyAndRestart();
+    // 标记已登记：from=当前版本，to=新版本（重启后首屏据此提示「已更新 + 状态已恢复」）
+    const raw = store.data.get('lemma.pendingUpdate');
+    expect(raw).toBeTruthy();
+    const marker = JSON.parse(raw!) as { from: string; to: string };
+    expect(marker).toEqual({ from: '1.2.2', to: '1.2.3', at: expect.any(Number) });
+
+    // 模拟重启后首屏消费：标记存在 → 提示一次 → 清除（App effect 同款逻辑）
+    const raw2 = localStorage.getItem('lemma.pendingUpdate');
+    localStorage.removeItem('lemma.pendingUpdate');
+    expect(JSON.parse(raw2!).to).toBe('1.2.3');
+    vi.unstubAllGlobals();
+  });
+
   it('applyAndRestart 失败：installFailed 且 silent=false', async () => {
     const update = fakeUpdate('1.2.3');
     (update.install as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('installer exited'));

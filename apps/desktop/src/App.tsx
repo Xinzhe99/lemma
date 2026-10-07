@@ -25,7 +25,7 @@ import { quickAsk, sendChatMessage } from './aiActions';
 import { initLibrary } from './state/libraryStore';
 import { useLibraryStore } from './state/libraryStore';
 import { useProposalStore } from './state/proposalStore';
-import { initUpdateCheck } from './state/updateStore';
+import { initUpdateCheck, UPDATE_MARKER_KEY } from './state/updateStore';
 import { useAnnotationStore } from './state/annotationStore';
 import { useUiStore } from './state/uiStore';
 import { shouldShowTour } from './state/onboardingStore';
@@ -175,6 +175,24 @@ export function App() {
   // 新手引导（P0）：首屏判定 shouldShowTour() —— 未完成导览且不在 24h「稍后」窗口内则弹出全屏导览。
   useEffect(() => {
     if (shouldShowTour()) setTourOpen(true);
+  }, []);
+
+  // v7.10 更新闭环：applyAndRestart 重启前登记标记——重启后首屏状态已由既有持久化
+  // 恢复（工作区/会话/文献库），这里补一条「已更新 + 状态已恢复」的可感知提示。
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(UPDATE_MARKER_KEY);
+      if (!raw) return;
+      localStorage.removeItem(UPDATE_MARKER_KEY);
+      const info = JSON.parse(raw) as { to?: string };
+      if (info?.to) {
+        useUiStore.getState().showToast(t('update.updatedRestored', { version: info.to }));
+      }
+    } catch {
+      /* 标记损坏：忽略 */
+    }
+    // 仅首屏判定一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => applyTheme(theme), [theme]);

@@ -181,17 +181,23 @@ describe('UpdateBar · 不渲染的形态', () => {
 });
 
 describe('UpdateBar · 信息条（available / downloading）', () => {
-  it('available：显示「发现新版本 vX.Y.Z」与后台下载文案，无任何按钮（不可关闭）', () => {
+  it('available：左下角卡片显示「发现新版本 vX.Y.Z」与下载文案，无按钮（不可关闭）；定位在视口左下', () => {
     setPhase({ phase: 'available', newVersion: '1.2.3', progress: undefined });
     const el = render();
     expect(el.textContent).toContain('发现新版本 v1.2.3');
     expect(el.textContent).toContain('正在后台下载…');
     expect(el.querySelector('button')).toBeNull();
+    // v7.10：入口从顶部横幅改为左下角浮动卡片（Codex 式，定位见 styles.css）
+    expect(el.querySelector('.sf-update-card')).not.toBeNull();
   });
 
-  it('downloading：显示进度百分比（42%）', () => {
+  it('downloading：显示进度百分比与进度条（42%）', () => {
     setPhase({ phase: 'downloading', newVersion: '1.2.3', progress: 42 });
-    expect(render().textContent).toContain('42%');
+    const el = render();
+    expect(el.textContent).toContain('42%');
+    const fill = el.querySelector('.sf-update-progress-fill') as HTMLElement;
+    expect(fill).not.toBeNull();
+    expect(fill.style.width).toBe('42%');
   });
 
   it('downloading 总长未知（progress undefined）：不定态文案，不出现百分比', () => {
@@ -202,21 +208,22 @@ describe('UpdateBar · 信息条（available / downloading）', () => {
   });
 });
 
-describe('UpdateBar · 主行动条（downloaded）', () => {
-  it('显示「✓ 已就绪 — 重启即可完成」+【立即重启】【稍后】', () => {
+describe('UpdateBar · 主行动卡片（downloaded）', () => {
+  it('显示「✓ 已就绪 — 重启即可完成」+ 恢复提示 +【立即更新并重启】【稍后】', () => {
     setPhase({ phase: 'downloaded', newVersion: '1.2.3', progress: 100 });
     const text = render().textContent ?? '';
     expect(text).toContain('✓ 新版本 v1.2.3 已就绪');
     expect(text).toContain('重启即可完成更新');
-    expect(text).toContain('立即重启');
+    expect(text).toContain('会话、项目与文献库状态将自动恢复');
+    expect(text).toContain('立即更新并重启');
     expect(text).toContain('稍后');
   });
 
-  it('点击【立即重启】→ 调 applyAndRestart（install+relaunch 由 store 负责）', async () => {
+  it('点击【立即更新并重启】→ 调 applyAndRestart（install+relaunch+恢复提示由 store 负责）', async () => {
     setPhase({ phase: 'downloaded', newVersion: '1.2.3' });
     const el = render();
     await act(async () => {
-      el.querySelector<HTMLButtonElement>('button')!.click();
+      el.querySelector<HTMLButtonElement>('.sf-update-btn-primary')!.click();
       await Promise.resolve();
     });
     expect(applyAndRestart).toHaveBeenCalledTimes(1);
@@ -256,14 +263,14 @@ describe('UpdateBar · 错误条（仅手动检查失败显示）', () => {
 });
 
 describe('UpdateBar · i18n', () => {
-  it('en 字典：downloaded 行动条与按钮文案随语言切换', () => {
+  it('en 字典：downloaded 行动卡片与按钮文案随语言切换', () => {
     act(() => {
       useSettingsStore.setState({ language: 'en' });
     });
     setPhase({ phase: 'downloaded', newVersion: '1.2.3' });
     const text = render().textContent ?? '';
     expect(text).toContain('v1.2.3 is ready');
-    expect(text).toContain('Restart now');
+    expect(text).toContain('Update & restart now');
     expect(text).toContain('Later');
   });
 
