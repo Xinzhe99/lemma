@@ -18,6 +18,8 @@
 import { useAgentHubStore } from '@lemma/agent-hub';
 import { resolveProvider, type ProviderChoice } from './aiActions';
 import { buildContextPackMd, runAgentTurn } from './agentTools';
+import { t } from './i18n';
+import { useSettingsStore } from './state/settingsStore';
 import { useAgentUsageStore } from './state/agentUsage';
 import { useWorkspaceStore } from './state/workspaceStore';
 
@@ -175,7 +177,7 @@ export async function runResearchAgents(
 
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
-  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
+  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined, t('sessions.newSession', useSettingsStore.getState().language));
   if (store().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return [];
 
   store().sendMessage(sessionId, `【并行研究】${task.trim()}`);

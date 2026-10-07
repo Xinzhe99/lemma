@@ -57,7 +57,8 @@ export function UpdateBar() {
   const phase = useUpdateStore((s) => s.phase);
   const newVersion = useUpdateStore((s) => s.newVersion);
   const progress = useUpdateStore((s) => s.progress);
-  const error = useUpdateStore((s) => s.error);
+  const errorCode = useUpdateStore((s) => s.errorCode);
+  const errorDetail = useUpdateStore((s) => s.errorDetail);
   const silent = useUpdateStore((s) => s.silent);
   const dismissed = useUpdateStore((s) => s.dismissed);
   const applyAndRestart = useUpdateStore((s) => s.applyAndRestart);
@@ -137,7 +138,12 @@ export function UpdateBar() {
   if (silent) return null;
   return (
     <div className="sf-updatebar sf-updatebar-error" role="alert" style={shell('#fdf3f2', 'var(--err)')}>
-      <span style={{ color: 'var(--err)' }}>{error}</span>
+      <span style={{ color: 'var(--err)' }}>
+        {errorCode ? t(`update.error.${errorCode}`) : ''}
+        {errorDetail ? (
+          <span style={{ opacity: 0.75, marginLeft: 6 }}>({errorDetail})</span>
+        ) : null}
+      </span>
       <button type="button" style={laterBtn} onClick={dismiss}>
         {t('update.later')}
       </button>

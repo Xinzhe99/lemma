@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import { listTemplates, scaffoldProject } from '@lemma/compile';
+import { templateName, templateDescription } from '../templateI18n';
 import { useT } from '../i18n';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
@@ -190,8 +191,8 @@ export function TemplateWizard({ onDone }: { onDone: (message: string) => void }
                       setTemplateId('');
                     }}
                   >
-                    <strong>{tpl.name}</strong>
-                    <span>{tpl.description || d.noDescription}</span>
+                    <strong>{templateName(tpl.id, tpl.name, lang)}</strong>
+                    <span>{templateDescription(tpl.id, tpl.description || '', lang) || d.noDescription}</span>
                     <span>
                       {d.userFiles(Object.keys(tpl.files).length)} ·{' '}
                       {new Date(tpl.savedAt).toLocaleDateString()}
@@ -236,8 +237,8 @@ export function TemplateWizard({ onDone }: { onDone: (message: string) => void }
                   setUserTplId('');
                 }}
               >
-                <strong>{tpl.name}</strong>
-                <span>{tpl.description}</span>
+                <strong>{templateName(tpl.id, tpl.name, lang)}</strong>
+                <span>{templateDescription(tpl.id, tpl.description, lang)}</span>
               </li>
             ))}
           </ul>

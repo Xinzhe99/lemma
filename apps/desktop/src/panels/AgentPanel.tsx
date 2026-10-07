@@ -59,6 +59,7 @@ import { useUserAskStore, resolveUserAnswer } from '../userAsk';
 import { useLibraryStore } from '../state/libraryStore';
 import { recordApproval } from '../state/agentMemory';
 import { ChecklistReport } from './ChecklistReport';
+import { workflowName, workflowDescription } from '../workflowI18n';
 import { WorkflowLauncher } from '../components/WorkflowLauncher';
 import './agent-extra.css';
 
@@ -342,7 +343,7 @@ export function AgentPanel() {
   // 确保存在会话
   useEffect(() => {
     if (!useAgentHubStore.getState().activeSessionId) {
-      newSession('host', useWorkspaceStore.getState().projectName || undefined);
+      newSession('host', useWorkspaceStore.getState().projectName || undefined, t.newSession);
     }
   }, [newSession]);
 
@@ -688,7 +689,7 @@ export function AgentPanel() {
           <button
             className="sf-pill-btn"
             onClick={() => {
-              newSession('host', useWorkspaceStore.getState().projectName || undefined);
+              newSession('host', useWorkspaceStore.getState().projectName || undefined, t.newSession);
               setWorkflow(null);
             }}
           >
@@ -948,7 +949,11 @@ ${proposal.after.slice(0, 800)}`,
             onInsertLatex={insertLatexBlock}
             insertLatexLabel={t.insertLatexBtn}
             slashItems={[
-              ...BUILTIN_WORKFLOWS.map((w) => ({ id: w.id, label: `/${w.name}`, hint: w.description })),
+              ...BUILTIN_WORKFLOWS.map((w) => ({
+                id: w.id,
+                label: `/${workflowName(w.id, w.name, language)}`,
+                hint: workflowDescription(w.id, w.description, language),
+              })),
               ...promptsToSlashItems(userPrompts),
             ]}
             mentionItems={[
@@ -1011,7 +1016,7 @@ ${proposal.after.slice(0, 800)}`,
             {BUILTIN_WORKFLOWS.map((w) => (
               <li key={w.id}>
                 <button className="sf-btn sf-agent-wf-btn" onClick={() => requestLaunch(w.id)}>
-                  {w.name}
+                  {workflowName(w.id, w.name, language)}
                 </button>
               </li>
             ))}

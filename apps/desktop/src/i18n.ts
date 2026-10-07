@@ -249,6 +249,16 @@ const dict: MessageDict = {
   'update.restartNow': { zh: '立即重启', en: 'Restart now' },
   'update.later': { zh: '稍后', en: 'Later' },
   'update.restarting': { zh: '正在重启…', en: 'Restarting…' },
+  'update.error.browser': { zh: '当前为浏览器形态，不支持应用内更新', en: 'In-app updates are unavailable in the browser form' },
+  'update.error.notReady': { zh: '更新尚未就绪，无法安装', en: 'The update is not ready to install yet' },
+  'update.error.installFailed': { zh: '安装更新失败，请稍后重试', en: 'Failed to install the update — please try again later' },
+  'update.error.signKeyMissing': {
+    zh: '更新签名密钥未配置：请等待发布流程生成密钥并填入 tauri.conf.json 后重试',
+    en: 'Update signing key is not configured — wait for the release pipeline to generate it, fill it into tauri.conf.json, then retry',
+  },
+  'update.error.signVerify': { zh: '更新包签名校验失败', en: 'Update package signature verification failed' },
+  'update.error.network': { zh: '网络请求失败，请检查网络后重试', en: 'Network request failed — check your connection and retry' },
+  'update.error.checkFailed': { zh: '检查更新失败', en: 'Update check failed' },
 
   // 命令面板动作
   'cmd.newProject': { zh: '新建项目（演示重置）', en: 'New project (demo reset)' },
@@ -340,6 +350,7 @@ const dict: MessageDict = {
   'toast.projectReset': { zh: '已重置为演示项目', en: 'Demo project loaded' },
   'toast.saved': { zh: '已自动保存（所有修改即时持久化）', en: 'Auto-saved (changes persist instantly)' },
   'hint.edit': { zh: '编辑', en: 'Edit' },
+  'hint.comments': { zh: '批注', en: 'Comments' },
   'cmd.wfRelatedWork': { zh: '运行工作流：相关工作综述（W12，从库内文献生成 Related Work）', en: 'Run workflow: related-work survey (W12)' },
   'cmd.reopenPdf': { zh: '重新打开上次编译的 PDF', en: 'Reopen last compiled PDF' },
   'toast.noLastPdf': { zh: '还没有编译产物，请先编译', en: 'No compiled PDF yet — compile first' },

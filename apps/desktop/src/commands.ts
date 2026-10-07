@@ -84,13 +84,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
     {
       id: 'project.switch',
       title: ctx.t('cmd.manageProjects'),
-      hint: '项目',
+      hint: ctx.t('hint.project'),
       run: () => useUiStore.getState().setProjectSwitcherOpen(true),
     },
     {
       id: 'table.insert',
       title: ctx.t('cmd.insertTable'),
-      hint: '编辑',
+      hint: ctx.t('hint.edit'),
       run: () => useUiStore.getState().setTableEditorOpen(true),
     },
     {
@@ -138,13 +138,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
     {
       id: 'insert.image',
       title: ctx.t('cmd.insertImage'),
-      hint: '编辑',
+      hint: ctx.t('hint.edit'),
       run: () => useUiStore.getState().setImageWizardOpen(true),
     },
     {
       id: 'comments.open',
       title: ctx.t('cmd.openComments'),
-      hint: '批注',
+      hint: ctx.t('hint.comments'),
       run: () => useUiStore.getState().setSidebarTab('comments'),
     },
     {
@@ -166,7 +166,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
     {
       id: 'edit.spellcheck',
       title: ctx.t('cmd.spellcheck'),
-      hint: '编辑',
+      hint: ctx.t('hint.edit'),
       run: () => {
         const ui = useUiStore.getState();
         ui.setSpellcheckEnabled(!ui.spellcheckEnabled);
@@ -187,7 +187,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
     {
       id: 'insert.citation',
       title: ctx.t('cmd.insertCitation'),
-      hint: '编辑',
+      hint: ctx.t('hint.edit'),
       run: () => useUiStore.getState().setCitationPickerOpen(true),
     },
     {
@@ -493,7 +493,8 @@ export function buildCommands(ctx: CommandContext): Command[] {
       id: 'agent.newSession',
       title: ctx.t('cmd.newSession'),
       hint: ctx.t('hint.agent'),
-      run: () => useAgentHubStore.getState().newSession('host', useWorkspaceStore.getState().projectName || undefined),
+      run: () =>
+        useAgentHubStore.getState().newSession('host', useWorkspaceStore.getState().projectName || undefined, ctx.t('sessions.newSession')),
     },
     {
       id: 'agent.simulateToolEdit',

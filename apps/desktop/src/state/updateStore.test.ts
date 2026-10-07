@@ -71,7 +71,8 @@ function resetStore(): void {
     currentVersion: undefined,
     newVersion: undefined,
     progress: undefined,
-    error: undefined,
+    errorCode: undefined,
+    errorDetail: undefined,
     silent: true,
     dismissed: false,
   });
@@ -203,7 +204,7 @@ describe('updateStore · 状态机与下载进度', () => {
 });
 
 describe('updateStore · 失败语义（静默 vs 手动）', () => {
-  it('静默检查失败：phase=error 且 silent=true（UI 不展示），错误信息中文化', async () => {
+  it('静默检查失败：phase=error 且 silent=true（UI 不展示），归因为稳定错误码', async () => {
     mockedCheck.mockRejectedValue(new Error('network request failed'));
     // 直接驱动静默路径：init 后走到 8s 定时器
     useUpdateStore.getState().initUpdateCheck();
@@ -213,7 +214,7 @@ describe('updateStore · 失败语义（静默 vs 手动）', () => {
     const s = useUpdateStore.getState();
     expect(s.phase).toBe('error');
     expect(s.silent).toBe(true);
-    expect(s.error).toContain('网络');
+    expect(s.errorCode).toBe('network');
   });
 
   it('手动 checkNow 失败：silent=false（UI 展示错误横幅）', async () => {
@@ -222,32 +223,32 @@ describe('updateStore · 失败语义（静默 vs 手动）', () => {
     const s = useUpdateStore.getState();
     expect(s.phase).toBe('error');
     expect(s.silent).toBe(false);
-    expect(s.error).toContain('检查更新失败');
+    expect(s.errorCode).toBe('checkFailed');
   });
 
-  it('浏览器形态手动检查：中文提示不支持，不触达 check', async () => {
+  it('浏览器形态手动检查：归因 browser，不触达 check', async () => {
     mockedGetPlatform.mockReturnValue(browserPlatform);
     await useUpdateStore.getState().checkNow();
     const s = useUpdateStore.getState();
     expect(s.phase).toBe('error');
-    expect(s.error).toBe('当前为浏览器形态，不支持应用内更新');
+    expect(s.errorCode).toBe('browser');
     expect(mockedCheck).not.toHaveBeenCalled();
   });
 
-  it('未配置签名公钥（updater_status 前置诊断）：精确中文提示且不发起 check', async () => {
+  it('未配置签名公钥（updater_status 前置诊断）：精确归因 signKeyMissing 且不发起 check', async () => {
     mockedStatus.mockResolvedValue({ configured: false });
     await useUpdateStore.getState().checkNow();
     const s = useUpdateStore.getState();
     expect(s.phase).toBe('error');
-    expect(s.error).toContain('签名密钥未配置');
+    expect(s.errorCode).toBe('signKeyMissing');
     expect(mockedCheck).not.toHaveBeenCalled();
   });
 
-  it('签名相关插件错误（诊断桥不可用）也归一化为中文签名提示', async () => {
+  it('签名相关插件错误（诊断桥不可用）也归因为 signVerify', async () => {
     mockedStatus.mockResolvedValue(null);
     mockedCheck.mockRejectedValue(new Error('signature verification failed'));
     await useUpdateStore.getState().checkNow();
-    expect(useUpdateStore.getState().error).toContain('签名');
+    expect(useUpdateStore.getState().errorCode).toBe('signVerify');
   });
 });
 
@@ -274,7 +275,7 @@ describe('updateStore · dismiss 与重启安装', () => {
     expect(useUpdateStore.getState().phase).toBe('downloaded');
   });
 
-  it('applyAndRestart 失败：中文错误且 silent=false', async () => {
+  it('applyAndRestart 失败：installFailed 且 silent=false', async () => {
     const update = fakeUpdate('1.2.3');
     (update.install as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('installer exited'));
     mockedCheck.mockResolvedValue(update);
@@ -284,14 +285,14 @@ describe('updateStore · dismiss 与重启安装', () => {
     const s = useUpdateStore.getState();
     expect(s.phase).toBe('error');
     expect(s.silent).toBe(false);
-    expect(s.error).toContain('安装更新失败');
+    expect(s.errorCode).toBe('installFailed');
     expect(mockedRelaunch).not.toHaveBeenCalled();
   });
 
-  it('未就绪（idle / 无待装更新）调用 applyAndRestart 被拒并给出中文提示', async () => {
+  it('未就绪（idle / 无待装更新）调用 applyAndRestart 被拒并归因 notReady', async () => {
     await useUpdateStore.getState().applyAndRestart();
     const s = useUpdateStore.getState();
     expect(s.phase).toBe('error');
-    expect(s.error).toBe('更新尚未就绪，无法安装');
+    expect(s.errorCode).toBe('notReady');
   });
 });

@@ -13,6 +13,7 @@ import {
   type ChatProvider,
 } from '@lemma/agent-hub';
 import { validateCitations } from '@lemma/knowledge';
+import { t } from './i18n';
 import { useSettingsStore, type Language } from './state/settingsStore';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useLibraryStore } from './state/libraryStore';
@@ -548,7 +549,7 @@ export async function sendChatMessage(text: string, images?: string[], files?: F
 async function sendChatMessageInner(text: string, images?: string[], files?: File[]): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
-  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
+  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined, t('sessions.newSession', useSettingsStore.getState().language));
   const session = store().sessions.find((s) => s.id === sessionId);
   if (session?.status === 'streaming') return;
 
@@ -1192,7 +1193,7 @@ function sessionOfMessage(msgId: string): string | null {
 export async function runPlannedTask(userRequest: string): Promise<void> {
   const store = () => useAgentHubStore.getState();
   let sessionId = store().activeSessionId;
-  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined);
+  if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined, t('sessions.newSession', useSettingsStore.getState().language));
   if (store().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return;
 
   const contextMd = await buildContextPackMd(userRequest);

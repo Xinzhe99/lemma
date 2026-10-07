@@ -93,7 +93,8 @@ interface AgentHubState {
   completedRuns: CompletedRun[];
 
   /** 新建会话并激活，返回会话 id */
-  newSession(providerId: string, projectName?: string): string;
+  /** title 缺省「新会话」；宿主按界面语言传入（v7.5.0） */
+  newSession(providerId: string, projectName?: string, title?: string): string;
   setActiveSession(sessionId: string): void;
   /** 水合（宿主启动时从持久层恢复）：整体替换并截断到上限；activeId 不在列表时回落首个 */
   hydrateSessions(sessions: AgentSession[], activeSessionId?: string | null): void;
@@ -188,12 +189,12 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
   runs: [],
   completedRuns: loadCompletedRuns(),
 
-  newSession: (providerId, projectName) => {
+  newSession: (providerId, projectName, title) => {
     const id = createId();
     set((state) => {
       let sessions = [
         ...state.sessions,
-        { id, title: '新会话', messages: [], providerId, status: 'idle' as const, projectName },
+        { id, title: title ?? '新会话', messages: [], providerId, status: 'idle' as const, projectName },
       ];
       // 上限淘汰：从最旧开始移除非本会话/非流式中的记录
       // v7.0.0 修复：此前只保护新会话 id——正在流式的旧会话被淘汰后，

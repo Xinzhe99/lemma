@@ -9,8 +9,8 @@
  * 版本号 / 签名诊断桥经 ../updater/relaunch 薄封装（测试对两层分别 mock 整模块）。
  *
  * 失败策略：静默检查失败只记 error（silent=true，横幅不显示，不打扰）；
- * 手动 checkNow() 失败 silent=false，横幅显示中文错误。未配置签名公钥
- * （集成者生成密钥前）经 updater_status 前置诊断给出精确中文提示。
+ * 手动 checkNow() 失败 silent=false，横幅按界面语言展示错误文案（update.error.*）。
+ * 未配置签名公钥（集成者生成密钥前）经 updater_status 前置诊断给出精确归因。
  */
 
 import { create } from 'zustand';
@@ -33,14 +33,26 @@ export const UPDATE_STARTUP_DELAY_MS = 8_000;
 /** 之后的重复检查间隔（6 小时）。 */
 export const UPDATE_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+/** v7.5.0：失败原因稳定错误码（store 不存自然语言——渲染层按界面语言翻译） */
+export type UpdateErrorCode =
+  | 'browser' // 浏览器形态不支持应用内更新
+  | 'notReady' // 更新尚未就绪就点了安装
+  | 'installFailed' // 安装失败
+  | 'signKeyMissing' // 签名公钥未配置（发布流程收尾前）
+  | 'signVerify' // 更新包签名校验失败
+  | 'network' // 网络请求失败
+  | 'checkFailed'; // 其余检查失败（细节在 errorDetail）
+
 export interface UpdateState {
   phase: UpdatePhase;
   currentVersion?: string;
   newVersion?: string;
   /** 下载进度 0-100；总长未知时 undefined（UI 显示不定态文案）。 */
   progress?: number;
-  /** 最近一次失败的中文提示（仅展示用）。 */
-  error?: string;
+  /** 最近一次失败的稳定错误码（展示文案见 i18n update.error.*）。 */
+  errorCode?: UpdateErrorCode;
+  /** 面向开发者的原始错误细节（展示在主文案之后，可选）。 */
+  errorDetail?: string;
   /** 最近一次检查是否静默（静默失败不显示错误横幅）。 */
   silent: boolean;
   /** 用户点了【稍后】：phase 不变（保持 downloaded/error）但横幅隐藏（本会话）。 */
@@ -81,7 +93,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
 
   checkNow: async () => {
     if (getPlatform().kind !== 'tauri') {
-      set({ phase: 'error', silent: false, dismissed: false, error: '当前为浏览器形态，不支持应用内更新' });
+      set({ phase: 'error', silent: false, dismissed: false, errorCode: 'browser' });
       return;
     }
     await runCheck(false);
@@ -90,7 +102,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
   applyAndRestart: async () => {
     const st = useUpdateStore.getState();
     if (st.phase !== 'downloaded' || !pending) {
-      set({ phase: 'error', silent: false, dismissed: false, error: '更新尚未就绪，无法安装' });
+      set({ phase: 'error', silent: false, dismissed: false, errorCode: 'notReady' });
       return;
     }
     try {
@@ -102,7 +114,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
       }
       await relaunchApp();
     } catch (err) {
-      set({ phase: 'error', silent: false, dismissed: false, error: `安装更新失败，请稍后重试（${errMsg(err)}）` });
+      set({ phase: 'error', silent: false, dismissed: false, errorCode: 'installFailed', errorDetail: errMsg(err) });
     }
   },
 
@@ -124,7 +136,7 @@ async function runCheck(silent: boolean): Promise<void> {
   const st = useUpdateStore.getState();
   if (st.phase === 'downloading') return; // 下载中不重入
   if (silent && st.phase === 'downloaded') return; // 已就绪待重启，无需再查
-  useUpdateStore.setState({ phase: 'checking', error: undefined, silent, dismissed: false });
+  useUpdateStore.setState({ phase: 'checking', errorCode: undefined, errorDetail: undefined, silent, dismissed: false });
   try {
     // 前置诊断：签名公钥未配置（发布流程收尾前）→ 精确中文提示，
     // 避免把晦涩的插件签名错误抛给用户。桥不可用（null）则继续走 check()。
@@ -172,19 +184,20 @@ async function runCheck(silent: boolean): Promise<void> {
     }
   } catch (err) {
     pending = null;
-    useUpdateStore.setState({ phase: 'error', error: humanizeError(err), silent });
+    const h = humanizeError(err);
+    useUpdateStore.setState({ phase: 'error', errorCode: h.code, errorDetail: h.detail, silent });
   }
 }
 
-/** 错误归一化为中文提示（签名缺失/网络失败给出可行动的说法，其余带原始信息）。 */
-function humanizeError(err: unknown): string {
+/** 错误归一化为稳定错误码（签名缺失/网络失败单独归因，原始信息进 detail）。 */
+function humanizeError(err: unknown): { code: UpdateErrorCode; detail?: string } {
   if (err instanceof Error && err.message === 'UPDATE_SIGNATURE_MISSING') {
-    return '更新签名密钥未配置：请等待发布流程生成密钥并填入 tauri.conf.json 后重试';
+    return { code: 'signKeyMissing' };
   }
   const raw = err instanceof Error ? err.message : String(err);
   const low = raw.toLowerCase();
   if (low.includes('pubkey') || low.includes('public key') || low.includes('signature')) {
-    return `更新包签名校验失败：${raw}`;
+    return { code: 'signVerify', detail: raw };
   }
   if (
     low.includes('network') ||
@@ -194,9 +207,9 @@ function humanizeError(err: unknown): string {
     low.includes('econnrefused') ||
     low.includes('reqwest')
   ) {
-    return `网络请求失败，请检查网络后重试（${raw}）`;
+    return { code: 'network', detail: raw };
   }
-  return `检查更新失败：${raw}`;
+  return { code: 'checkFailed', detail: raw };
 }
 
 function errMsg(err: unknown): string {

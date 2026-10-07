@@ -95,7 +95,8 @@ export function SessionsPanel() {
     });
 
   const onCreateSession = () => {
-    useAgentHubStore.getState().newSession('host', projectName || undefined);
+    // v7.5.0：默认标题随界面语言（此前硬编码「新会话」）
+    useAgentHubStore.getState().newSession('host', projectName || undefined, t('sessions.newSession'));
   };
 
   const onCreateProject = async () => {
@@ -106,7 +107,7 @@ export function SessionsPanel() {
     try {
       useWorkspaceStore.getState().loadProject(name, 'main.tex', { ...NEW_PROJECT_FILES });
       useProjectsStore.getState().saveCurrent(name);
-      useAgentHubStore.getState().newSession('host', name);
+      useAgentHubStore.getState().newSession('host', name, t('sessions.newSession'));
     } finally {
       setBusy(false);
     }

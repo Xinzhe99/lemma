@@ -55,7 +55,8 @@ vi.mock('../state/updateStore', async () => {
     currentVersion?: string;
     newVersion?: string;
     progress?: number;
-    error?: string;
+    errorCode?: string;
+    errorDetail?: string;
     silent: boolean;
     dismissed: boolean;
     applyAndRestart(): Promise<void>;
@@ -67,7 +68,8 @@ vi.mock('../state/updateStore', async () => {
     currentVersion: undefined,
     newVersion: undefined,
     progress: undefined,
-    error: undefined,
+    errorCode: undefined,
+    errorDetail: undefined,
     silent: true,
     dismissed: false,
     applyAndRestart: () => Promise.resolve(),
@@ -116,7 +118,8 @@ interface UpdatePatch {
   phase?: string;
   newVersion?: string;
   progress?: number;
-  error?: string;
+  errorCode?: string;
+  errorDetail?: string;
   silent?: boolean;
   dismissed?: boolean;
 }
@@ -138,7 +141,8 @@ beforeEach(() => {
     currentVersion: '0.9.0',
     newVersion: undefined,
     progress: undefined,
-    error: undefined,
+    errorCode: undefined,
+    errorDetail: undefined,
     silent: true,
     dismissed: false,
     applyAndRestart: async () => applyAndRestart(),
@@ -233,12 +237,12 @@ describe('UpdateBar · 主行动条（downloaded）', () => {
 
 describe('UpdateBar · 错误条（仅手动检查失败显示）', () => {
   it('静默检查失败（silent=true）不显示', () => {
-    setPhase({ phase: 'error', error: '检查更新失败：boom', silent: true });
+    setPhase({ phase: 'error', errorCode: 'checkFailed', errorDetail: 'boom', silent: true });
     expect(render().innerHTML).toBe('');
   });
 
   it('手动检查失败（silent=false）显示中文错误与【稍后】；点稍后调 dismiss', () => {
-    setPhase({ phase: 'error', error: '网络请求失败，请检查网络后重试', silent: false });
+    setPhase({ phase: 'error', errorCode: 'network', silent: false });
     const el = render();
     expect(el.textContent).toContain('网络请求失败');
     const later = Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
