@@ -188,6 +188,18 @@ const dict: MessageDict = {
   'settings.engine.auto': { zh: '自动（优先 API）', en: 'Auto (API first)' },
   'settings.engine.api': { zh: '仅 API 服务', en: 'API only' },
   'settings.engine.cli': { zh: '仅 CLI agent', en: 'CLI agent only' },
+  // v7.5.0：Agent 会话设置（预算 / 会话亲和缓存）+ 语音输入（此前硬编码中文）
+  'settings.sessionBudget': { zh: '会话 token 预算（0 = 不限）', en: 'Session token budget (0 = unlimited)' },
+  'settings.promptCacheKey': { zh: '会话亲和缓存（prompt_cache_key）', en: 'Session affinity cache (prompt_cache_key)' },
+  'settings.promptCacheKeyHint': {
+    zh: '同一会话使用稳定缓存键，支持前缀缓存的服务商可降低长会话费用',
+    en: 'Stable per-session cache key; providers with prefix caching charge less for long sessions',
+  },
+  'settings.speech': { zh: '语音输入（Whisper 本地识别）', en: 'Voice input (local Whisper)' },
+  'settings.speech.off': { zh: '关闭', en: 'Off' },
+  'settings.speech.auto': { zh: '自动', en: 'Auto' },
+  'settings.speech.zh': { zh: '中文', en: '中文' },
+  'settings.speech.en': { zh: 'English', en: 'English' },
   'settings.cliTitle': { zh: 'CLI agent 桥（codex / claude 等本地代理）', en: 'CLI agent bridge (codex / claude, local)' },
   'settings.cliEnable': { zh: '启用', en: 'Enable' },
   'settings.cliLabel': { zh: '显示名称', en: 'Label' },

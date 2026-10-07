@@ -491,9 +491,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               {/* —— Agent 会话（v7.5.0：token 预算 + 会话亲和缓存） —— */}
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10, display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12 }}>
-                    {language === 'en' ? 'Session token budget (0 = unlimited)' : '会话 token 预算（0 = 不限）'}
-                  </span>
+                  <span style={{ fontSize: 12 }}>{t('settings.sessionBudget')}</span>
                   <input
                     className="sf-cli-input"
                     style={CLI_INPUT_STYLE}
@@ -510,10 +508,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                     checked={promptCacheKey}
                     onChange={(e) => setPromptCacheKey(e.target.checked)}
                   />
-                  {language === 'en'
-                    ? 'Session affinity cache key (prompt_cache_key) — improves provider prefix-cache hits within a session'
-                    : '会话亲和缓存（prompt_cache_key）——同会话稳定缓存键，提升服务商前缀缓存命中、降低长会话费用'}
+                  {t('settings.promptCacheKey')}
                 </label>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-2)' }}>{t('settings.promptCacheKeyHint')}</p>
               </div>
               </div>
             </div>
@@ -533,19 +530,19 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div className="sf-appearance-row">
-                <span>语音输入（Whisper 本地识别）</span>
+                <span>{t('settings.speech')}</span>
                 <div className="sf-segment">
                   <button className={speechLanguage === undefined ? 'active' : ''} onClick={() => setSpeechLanguage(undefined)}>
-                    关闭
+                    {t('settings.speech.off')}
                   </button>
                   <button className={speechLanguage === 'auto' ? 'active' : ''} onClick={() => setSpeechLanguage('auto')}>
-                    自动
+                    {t('settings.speech.auto')}
                   </button>
                   <button className={speechLanguage === 'zh' ? 'active' : ''} onClick={() => setSpeechLanguage('zh')}>
-                    中文
+                    {t('settings.speech.zh')}
                   </button>
                   <button className={speechLanguage === 'en' ? 'active' : ''} onClick={() => setSpeechLanguage('en')}>
-                    English
+                    {t('settings.speech.en')}
                   </button>
                 </div>
               </div>
@@ -566,7 +563,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           {tab === 'about' && (
             <div className="sf-about">
               <div className="sf-about-brand">Lemma</div>
-              <div className="sf-about-version">v0.1.0 · {t('app.codename')}</div>
+              <div className="sf-about-version">v{__APP_VERSION__} · {t('app.codename')}</div>
               <p className="sf-about-desc">{t('about.desc')}</p>
               <p className="sf-about-doc">{t('about.designDoc')}</p>
             </div>

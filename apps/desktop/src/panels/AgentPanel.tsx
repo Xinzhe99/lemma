@@ -143,6 +143,15 @@ const STRINGS = {
     insertProposalLabel: '插入聊天代码块（光标处）',
     // —— 提示词库（v1.2.0 ③）——
     promptLib: '提示词库',
+    // —— v7.5.0 UI 审查补漏：角色选择器 / 空会话引导 / 演示标签 ——
+    personaTitle: '切换 AI 角色——不同角色有不同的行为方式',
+    personaDefault: '🤖 默认助手',
+    personaReviewer: '🔍 严格审稿人',
+    personaCoach: '👨‍🏫 写作教练',
+    personaTranslator: '🌐 翻译专家',
+    collabTitle: '开始与 AI 协作',
+    collabHint: '描述你想做的事——润色、找文献、改稿、修编译错误；AI 会自己调用工具完成。',
+    demoModeLabel: '演示模式（内置示例数据）',
   },
   en: {
     newSession: 'New session',
@@ -208,6 +217,14 @@ const STRINGS = {
     insertProposalLabel: 'Insert chat code block (at cursor)',
     // —— Prompt library (v1.2.0 ③) ——
     promptLib: 'Prompts',
+    personaTitle: 'Switch AI persona — each behaves differently',
+    personaDefault: '🤖 Default',
+    personaReviewer: '🔍 Reviewer',
+    personaCoach: '👨‍🏫 Coach',
+    personaTranslator: '🌐 Translator',
+    collabTitle: 'Start collaborating with AI',
+    collabHint: 'Describe what you need — polish, find papers, revise, fix compile errors; the agent runs the tools itself.',
+    demoModeLabel: 'Demo mode (built-in sample data)',
   },
 } as const;
 
@@ -260,7 +277,11 @@ export function AgentPanel() {
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? sessions[0] ?? null;
 
-  const providerLabel = useMemo(() => resolveProvider().label, [providers, activeProviderId]);
+  // v7.5.0：演示模式标签随界面语言（真实 provider 名保持原样）
+  const providerLabel = useMemo(() => {
+    const r = resolveProvider();
+    return r.real ? r.label : (STRINGS[language] as (typeof STRINGS)[Language]).demoModeLabel;
+  }, [providers, activeProviderId, language]);
   const aiPersona = useSettingsStore((s) => s.aiPersona);
   const setAiPersona = useSettingsStore((s) => s.setAiPersona);
   const plans = useAgentPlansStore((s) => s.plans);
@@ -656,12 +677,12 @@ export function AgentPanel() {
             style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '2px 10px', fontSize: 11, background: 'var(--bg-0)', color: 'var(--fg-1)' }}
             value={aiPersona}
             onChange={(e) => setAiPersona(e.target.value as typeof aiPersona)}
-            title="切换 AI 角色——不同角色有不同的行为方式"
+            title={t.personaTitle}
           >
-            <option value="default">🤖 默认助手</option>
-            <option value="reviewer">🔍 严格审稿人</option>
-            <option value="coach">👨‍🏫 写作教练</option>
-            <option value="translator">🌐 翻译专家</option>
+            <option value="default">{t.personaDefault}</option>
+            <option value="reviewer">{t.personaReviewer}</option>
+            <option value="coach">{t.personaCoach}</option>
+            <option value="translator">{t.personaTranslator}</option>
           </select>
           <span style={{ flex: 1 }} />
           <button
@@ -903,6 +924,7 @@ ${proposal.after.slice(0, 800)}`,
             onSend={send}
             onStop={() => abortChat()}
             placeholder={t.chatPlaceholder}
+            labels={{ emptyTitle: t.collabTitle, emptyHint: t.collabHint }}
             onCitekeyClick={handleCitekeyClick}
             onSlashWorkflow={(id) => {
               if (id === '__clear') {

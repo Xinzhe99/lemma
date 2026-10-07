@@ -114,6 +114,9 @@ interface Copy {
   risImportSummary: (added: number, errors: number) => string;
   zoteroButton: string;
   zoteroTitle: string;
+  /** v7.5.0：一键同步按钮（此前硬编码中文） */
+  zoteroSyncButton: string;
+  zoteroSyncTitle: string;
   zoteroPlaceholder: string;
   /** Zotero JSON 导入结果：导入 N / 跳过重复 M / 解析错误 K */
   zoteroImportSummary: (added: number, dupes: number, errors: number) => string;
@@ -207,6 +210,8 @@ const COPY: Record<Language, Copy> = {
     risImportSummary: (added, errors) => `导入 ${added} 条 / 错误 ${errors} 条`,
     zoteroButton: 'Zotero JSON',
     zoteroTitle: '导入 Zotero JSON',
+    zoteroSyncButton: 'Zotero 同步',
+    zoteroSyncTitle: '连接本地 Zotero（Better BibTeX）一键同步文献——增量去重',
     zoteroPlaceholder:
       'Zotero 中右键集合 → Export → Better BibTeX JSON，粘贴到此…\n\n[{"itemType": "journalArticle", "title": "…"}]',
     zoteroImportSummary: (added, dupes, errors) =>
@@ -299,6 +304,8 @@ const COPY: Record<Language, Copy> = {
     risImportSummary: (added, errors) => `Imported ${added} / ${errors} errors`,
     zoteroButton: 'Zotero JSON',
     zoteroTitle: 'Import Zotero JSON',
+    zoteroSyncButton: 'Zotero sync',
+    zoteroSyncTitle: 'One-click sync with local Zotero (Better BibTeX) — dedupes incrementally',
     zoteroPlaceholder:
       'In Zotero: right-click a collection → Export → Better BibTeX JSON, then paste here…\n\n[{"itemType": "journalArticle", "title": "…"}]',
     zoteroImportSummary: (added, dupes, errors) =>
@@ -813,11 +820,11 @@ export function LibraryPanel() {
             </button>
             <button
               className="sf-btn"
-              title="连接本地 Zotero（Better BibTeX）一键同步文献——增量去重"
+              title={c.zoteroSyncTitle}
               disabled={zoteroSyncState === 'busy' || zoteroSyncState === 'probing'}
               onClick={() => void runZoteroSync()}
             >
-              <RefreshCw size={12} style={{ verticalAlign: -1 }} /> Zotero 同步
+              <RefreshCw size={12} style={{ verticalAlign: -1 }} /> {c.zoteroSyncButton}
             </button>
             {zoteroSyncNote ? (
               <span

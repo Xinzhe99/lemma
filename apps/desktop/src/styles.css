@@ -724,6 +724,8 @@ body {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* v7.5.0：AI 面板较窄时按钮换行而不是被截断（此前「提示词库」会切半） */
+  flex-wrap: wrap;
 }
 .sf-agent-docs-row {
   flex-wrap: nowrap;
@@ -858,9 +860,12 @@ body {
   padding: 8px;
   overflow-y: auto;
   min-height: 0;
+  /* v7.5.0：窄面板下动作按钮换行，绝不出现横向滚动条 */
+  overflow-x: hidden;
 }
 .sf-sessions-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   flex: none;
 }
@@ -1753,7 +1758,12 @@ kbd {
 }
 .sf-lib-toolbar {
   display: flex;
+  flex-wrap: wrap; /* v7.5.0：侧栏宽约 220px，一行放不下筛选+三个导入按钮——换行而非横向滚动 */
   gap: 6px;
+}
+.sf-lib-toolbar .sf-btn,
+.sf-lib-toolbar select {
+  flex: none;
 }
 .sf-lib-filter {
   flex: 1;
@@ -2566,11 +2576,12 @@ kbd {
 
 /* ---------- 状态栏（编辑器底部一行，28px 小字） ---------- */
 .sf-statusbar {
-  height: 28px;
+  min-height: 28px;
   flex: none;
   display: flex;
+  flex-wrap: wrap; /* v7.5.0：编辑器栏较窄（约 414px）时项目换行而不是被压缩截断 */
   align-items: center;
-  gap: 14px;
+  gap: 4px 14px;
   padding: 0 12px;
   background: var(--bg-1);
   border-top: 1px solid var(--border);
@@ -2585,6 +2596,11 @@ kbd {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  /* v7.5.0：内容超宽时收缩省略，不挤压相邻状态项 */
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sf-statusbar-item.ok {

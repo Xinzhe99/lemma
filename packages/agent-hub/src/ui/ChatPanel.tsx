@@ -52,6 +52,9 @@ export interface ChatLabels {
   file?: string;
   slashMenuLabel?: string;
   mentionMenuLabel?: string;
+  /** v7.5.0：空会话居中引导（默认中文，宿主按语言覆盖） */
+  emptyTitle?: string;
+  emptyHint?: string;
 }
 
 const DEFAULT_LABELS: Required<ChatLabels> = {
@@ -73,6 +76,8 @@ const DEFAULT_LABELS: Required<ChatLabels> = {
   file: '文件',
   slashMenuLabel: '命令菜单',
   mentionMenuLabel: '引用文献或文件',
+  emptyTitle: '开始与 AI 协作',
+  emptyHint: '描述你想做的事——润色、找文献、改稿、修编译错误；AI 会自己调用工具完成。',
 };
 
 /** 内置 /清空 菜单项 id（避免与宿主注入 id 冲突） */
@@ -301,8 +306,8 @@ export function MessageList(props: MessageListProps) {
       {/* v5.3.0：空会话居中引导（Codex 式留白提示），替代一片空白 */}
       {session.messages.length === 0 && (
         <div className="sf-ah-empty-hint">
-          <strong>开始与 AI 协作</strong>
-          <span>描述你想做的事——润色、找文献、改稿、修编译错误；AI 会自己调用工具完成。</span>
+          <strong>{labels.emptyTitle}</strong>
+          <span>{labels.emptyHint}</span>
         </div>
       )}
       {session.messages.map((m, i) => {
