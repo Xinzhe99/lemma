@@ -185,6 +185,34 @@ export const PAPER_TOOLS: ToolDef[] = [
     },
   },
   {
+    // v7.5.0：结构化提问（对齐 agent-foundation UserInteractionCapability）
+    name: 'user.ask',
+    description:
+      '向用户提出一个结构化问题并阻塞等待作答。仅用于必须由人决定、且无法用工具查明的分叉（如目标期刊、写作语言、风格取舍）；能用工具获得的信息禁止问用户，自主任务不要逐步确认。',
+    permission: 'execute',
+    parameters: {
+      type: 'object',
+      properties: {
+        question: str('要问的问题（一句话，含必要背景）'),
+        options: {
+          type: 'array',
+          maxItems: 4,
+          description: '候选选项（2–4 个）',
+          items: {
+            type: 'object',
+            properties: {
+              label: str('选项文案'),
+              description: str('该选项的含义或影响'),
+            },
+            required: ['label'],
+          },
+        },
+        allowCustom: bool('是否允许用户自由输入（默认 true）'),
+      },
+      required: ['question'],
+    },
+  },
+  {
     name: 'memory.write',
     description: '写入 Project Memory（本项目历史决策、审稿意见摘要、已否决措辞等）。',
     permission: 'write',

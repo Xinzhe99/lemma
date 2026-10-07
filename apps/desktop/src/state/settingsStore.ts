@@ -71,6 +71,10 @@ export interface SettingsState {
   speechLanguage?: 'auto' | 'zh' | 'en';
   /** v7.4.0 C：单会话 token 预算（0 = 不限） */
   sessionBudgetTokens: number;
+  /** v7.5.0：会话亲和缓存（prompt_cache_key）——同会话稳定 cache key 提升服务商前缀缓存命中；默认开 */
+  promptCacheKey: boolean;
+  setSessionBudgetTokens(n: number): void;
+  setPromptCacheKey(on: boolean): void;
   theme: Theme;
   language: Language;
   addProvider(input: ProviderInput): void;
@@ -108,6 +112,7 @@ interface PersistedSettings {
   embeddingModel: string;
   speechLanguage?: 'auto' | 'zh' | 'en';
   sessionBudgetTokens?: number;
+  promptCacheKey?: boolean;
   theme: Theme;
   language: Language;
   agentEngine: AgentEngine;
@@ -131,6 +136,7 @@ function readPersisted(): PersistedSettings | null {
       embeddingModel: typeof v.embeddingModel === 'string' ? v.embeddingModel : '',
       speechLanguage: v.speechLanguage === 'auto' || v.speechLanguage === 'zh' || v.speechLanguage === 'en' ? v.speechLanguage : undefined,
       sessionBudgetTokens: typeof v.sessionBudgetTokens === 'number' && v.sessionBudgetTokens >= 0 ? v.sessionBudgetTokens : 0,
+      promptCacheKey: v.promptCacheKey !== false, // 默认开
       // 亮色为默认主题；仅显式持久化过 'dark' 才回落暗色
       theme: v.theme === 'dark' ? 'dark' : 'light',
       language: v.language === 'en' ? 'en' : 'zh',
@@ -162,6 +168,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     // v7.0.0 修复：消费 persisted 值（此前硬编码 auto，语言偏好永不跨重启）
     speechLanguage: initial?.speechLanguage ?? 'auto',
     sessionBudgetTokens: initial?.sessionBudgetTokens ?? 0,
+    promptCacheKey: initial?.promptCacheKey !== false,
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',
@@ -200,6 +207,14 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
 
   setEmbeddingModel(model) {
     set({ embeddingModel: model });
+  },
+
+  setSessionBudgetTokens(sessionBudgetTokens) {
+    set({ sessionBudgetTokens: Number.isFinite(sessionBudgetTokens) && sessionBudgetTokens > 0 ? Math.floor(sessionBudgetTokens) : 0 });
+  },
+
+  setPromptCacheKey(promptCacheKey) {
+    set({ promptCacheKey });
   },
 
   setAgentEngine(agentEngine) {
@@ -253,6 +268,7 @@ useSettingsStore.subscribe((s) => {
         // v7.0.0 修复：写侧此前遗漏该字段
         speechLanguage: s.speechLanguage,
         sessionBudgetTokens: s.sessionBudgetTokens,
+        promptCacheKey: s.promptCacheKey,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }

@@ -12,6 +12,9 @@ export interface ChatRequest {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** v7.5.0：会话亲和缓存键（OpenAI prompt_cache_key）——同会话稳定不变，
+   *  供支持前缀缓存的服务商提升缓存命中；不支持的服务商忽略该字段 */
+  cacheKey?: string;
 }
 
 export interface ChatUsage {

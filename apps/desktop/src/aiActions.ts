@@ -28,9 +28,11 @@ import { rejectPendingApproval } from './approval';
 import { buildPolishPrompt, extractLatexBody, rulePolish } from './polish';
 import { buildPlanPrompt, buildStepPrompt, parsePlan, type Plan } from './planMode';
 import { useAgentPlansStore } from './state/agentPlans';
+import { buildRuntimeContextBlock } from './runtimeContext';
+import { rejectPendingUserAnswer } from './userAsk';
 
 export const CITATION_RULE =
-  '\n\n## 核心规则\n1. 引用只能用本地文献库中存在的 citekey，可用 citation.validate 核验\n2. 写级操作（tex.edit / tex.create_file / citation.add）会弹出 diff 审批卡，用户裁决后结果回传给你\n3. 你有 13 个工具和 50 轮调用额度——不要问用户"要不要我做"，直接做\n\n## 工作方式\n你是一个自主的学术写作 Agent。用户用自然语言描述需求，你自己决定用什么工具、什么顺序。例如：\n- "润色引言" → 读文件 → 找问题 → 修改 → 提交审批\n- "帮我找关于 diffusion 的相关论文" → 检索库 → 列出结果\n- "检查引用是否有问题" → 遍历 cite → 逐一验证 → 报告\n- "写一个 method section" → 读大纲 → 读文献 → 起草 → 提交审批\n\n不要一步步问用户确认。做完了再汇报结果。如果信息不够，先用工具获取，而不是反问。';
+  '\n\n## 核心规则\n1. 引用只能用本地文献库中存在的 citekey，可用 citation.validate 核验\n2. 写级操作（tex.edit / tex.create_file / citation.add）会弹出 diff 审批卡，用户裁决后结果回传给你\n3. 你有 19 个工具和 50 轮调用额度——不要问用户"要不要我做"，直接做\n4. user.ask 是唯一例外：只在【必须由人拍板且无法用工具查明】的分叉（目标期刊/语言/风格取舍）时用一次，选项不超过 4 个\n\n## 工作方式\n你是一个自主的学术写作 Agent。用户用自然语言描述需求，你自己决定用什么工具、什么顺序。例如：\n- "润色引言" → 读文件 → 找问题 → 修改 → 提交审批\n- "帮我找关于 diffusion 的相关论文" → 检索库 → 列出结果\n- "检查引用是否有问题" → 遍历 cite → 逐一验证 → 报告\n- "写一个 method section" → 读大纲 → 读文献 → 起草 → 提交审批\n\n不要一步步问用户确认。做完了再汇报结果。如果信息不够，先用工具获取，而不是反问。\n项目根目录若有 AGENTS.md（写作约定），它优先级最高，所有产出必须遵守。';
 
 export interface ProviderChoice {
   provider: ChatProvider;
@@ -164,6 +166,101 @@ export function smartTruncateHistory(messages: AgentMessage[]): AgentMessage[] {
   }));
   // 最多保留 6 条截断的旧消息
   return [...truncatedOlder.slice(-6), ...recent];
+}
+
+// ---------------------------------------------------------------------------
+// v7.5.0：摘要式历史压缩（对齐 agent-foundation CompactionCapability）。
+// 机械截断（smartTruncateHistory）只保留旧消息开头 500 字，长会话中关键决定
+// 会丢；这里改为：超过阈值时把「更早部分」用模型压成一份会话记忆摘要，
+// 只发「摘要 + 最近 K 条完整消息」。摘要按会话缓存（covered = 已覆盖条数），
+// 新增对话增量并入，不重复付费；压缩失败回退机械截断。UI 会话原文不动。
+// ---------------------------------------------------------------------------
+
+/** 最近 K 条消息完整保留 */
+const COMPACT_KEEP_RECENT = 8;
+/** 更早部分不足此字符数不值得压缩（一次模型调用换不回多少上下文） */
+const COMPACT_MIN_OLDER_CHARS = 6000;
+/** 单条消息进压缩 prompt 的上限 */
+const COMPACT_PER_MSG_CHARS = 1200;
+
+const COMPACT_SYSTEM = '你是会话压缩器：把学术写作对话压缩为简洁的上下文摘要，供同一 AI 恢复工作记忆。只输出摘要本身，不要任何前后缀或解释。';
+
+interface CompactionCacheEntry {
+  covered: number;
+  summary: string;
+}
+const compactionCache = new Map<string, CompactionCacheEntry>();
+
+/** 组装压缩 prompt（纯函数）：既有摘要（增量模式）+ 新增对话记录 */
+export function buildCompactionPrompt(prevSummary: string | null, messages: AgentMessage[]): string {
+  const parts: string[] = [];
+  if (prevSummary) parts.push(`【既有摘要（已覆盖更早对话，在此基础上合并）】\n${prevSummary}`);
+  const transcript = messages
+    .map((m) => {
+      const role = m.role === 'user' ? '用户' : 'AI';
+      const content =
+        m.content.length > COMPACT_PER_MSG_CHARS ? `${m.content.slice(0, COMPACT_PER_MSG_CHARS)}…` : m.content;
+      return `${role}：${content}`;
+    })
+    .join('\n\n');
+  if (messages.length > 0) parts.push(`【新增对话记录】\n${transcript}`);
+  return [
+    '请把以下学术写作会话压缩为一份「会话记忆摘要」。要求：',
+    '- 保留：论文目标与当前进度、关键决定（结构/术语/方法论）、用户明确表达的偏好与要求、未完成事项',
+    '- 丢弃：寒暄、重复内容、工具调用的原始输出细节（只留结论）',
+    '- 用户的原话要求尽量保真转述',
+    '- 输出纯文本，不超过 600 字',
+    '',
+    ...parts,
+  ].join('\n');
+}
+
+/** 清空压缩缓存（测试辅助 / 会话删除后调用） */
+export function resetCompactionCache(): void {
+  compactionCache.clear();
+}
+
+/**
+ * 尝试压缩发送历史：不足阈值返回 null（调用方回退机械截断）；
+ * summarize 抛错同样返回 null——压缩是优化，绝不阻断对话。
+ */
+export async function compactHistoryForSend(
+  sessionId: string,
+  history: AgentMessage[],
+  summarize: (prompt: string) => Promise<string>,
+): Promise<AgentMessage[] | null> {
+  if (history.length <= COMPACT_KEEP_RECENT + 4) return null;
+  const cut = history.length - COMPACT_KEEP_RECENT;
+  const older = history.slice(0, cut);
+  const olderChars = older.reduce((s, m) => s + m.content.length, 0);
+  if (olderChars < COMPACT_MIN_OLDER_CHARS) return null;
+
+  const cached = compactionCache.get(sessionId);
+  const prevSummary = cached && cached.covered <= cut ? cached.summary : null;
+  const from = prevSummary ? cached!.covered : 0;
+
+  let summary = prevSummary;
+  // 覆盖数已追平（无新增）→ 直接复用缓存，不再调模型
+  if (from < cut || !prevSummary) {
+    let fresh: string;
+    try {
+      fresh = (await summarize(buildCompactionPrompt(prevSummary, history.slice(from, cut)))).trim();
+    } catch {
+      return null; // 压缩失败 → 调用方回退机械截断；压缩是优化，绝不阻断对话
+    }
+    if (!fresh) return null;
+    summary = fresh;
+    compactionCache.set(sessionId, { covered: cut, summary: fresh });
+  }
+  return [
+    {
+      id: `compact-${sessionId}-${cut}`,
+      role: 'user',
+      content: `[此前对话的压缩摘要（原 ${cut} 条消息已折叠，关键约定以摘要与 AGENTS.md 为准）]\n${summary}`,
+      createdAt: history[0]?.createdAt ?? 0,
+    },
+    ...history.slice(cut),
+  ];
 }
 
 /**
@@ -430,6 +527,8 @@ export function abortChat(): void {
   // v7.0.0 修复：立即结算未决审批——此前要等 runAgentTurn 返回（可能正阻塞在审批上），
   // 用户点停止后审批卡仍挂着（停止按钮死区）
   rejectPendingApproval('用户停止生成，本次修改未生效');
+  // v7.5.0：未决提问同样立即结算为「未作答」
+  rejectPendingUserAnswer();
 }
 
 /** v7.0.0 修复（重入）：同步占位——store 的 streaming 要到 sendMessage 才置位，
@@ -472,23 +571,47 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
 
   // v3.9.0 A：AI 角色注入——不同角色有不同的行为方式
   const persona = getPersona(useSettingsStore.getState().aiPersona);
-  const system = (await buildContextPackMd(text)) + CITATION_RULE + persona.systemAddendum;
+  // v7.5.0：provider 前置解析——历史压缩需要用当前 provider 调摘要模型
+  const { provider, model, real } = resolveProvider();
+  const settings = useSettingsStore.getState();
   // v7.0.0 修复（隔轮失忆 + 协议 400 + 费用放大）：
   //  a) 此前 .slice(0, -2) 在乐观插入【之前】快照——删掉的是上一轮真实对话（模型隔轮失忆）；
   //     快照先于插入，本就不含本轮消息，无需裁剪
   //  b) 历史过滤丢弃 role:'tool' 却保留 assistant.toolCalls → 悬空 tool_calls，
   //     严格 API（OpenAI/DeepSeek）直接 400——历史中剥离 toolCalls
   //  c) images 剥离（v6.8.0）保持——图片只随当轮发送
-  const history = smartTruncateHistory(
-    (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => {
-        const noImages = !m.images || m.images.length === 0 ? m : (({ images: _i, ...rest }) => rest)(m);
-        if (!noImages.toolCalls || noImages.toolCalls.length === 0) return noImages;
-        const { toolCalls: _t, ...rest } = noImages;
-        return rest;
-      }),
-  );
+  const rawHistory = (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => {
+      const noImages = !m.images || m.images.length === 0 ? m : (({ images: _i, ...rest }) => rest)(m);
+      if (!noImages.toolCalls || noImages.toolCalls.length === 0) return noImages;
+      const { toolCalls: _t, ...rest } = noImages;
+      return rest;
+    });
+  // v7.5.0（Compaction）：长会话先尝试摘要压缩（模型折叠更早部分，保留关键决定），
+  // 失败/不足阈值回退机械截断；演示模式直接机械截断
+  let history: AgentMessage[];
+  if (real) {
+    const compacted = await compactHistoryForSend(sessionId, rawHistory, (prompt) =>
+      runAgentTurn({ provider, model, system: COMPACT_SYSTEM, history: [], user: prompt, tools: [] }),
+    ).catch(() => null);
+    history = compacted ?? smartTruncateHistory(rawHistory);
+  } else {
+    history = smartTruncateHistory(rawHistory);
+  }
+  // v7.5.0（RuntimeContext）：注入当前时间/上下文规模/预算用量（有界投影）
+  const system =
+    (await buildContextPackMd(text)) +
+    CITATION_RULE +
+    persona.systemAddendum +
+    buildRuntimeContextBlock({
+      historyMessages: history.length,
+      historyChars: history.reduce((s, m) => s + m.content.length, 0),
+      sessionBudgetTokens: settings.sessionBudgetTokens,
+      sessionUsedTokens: session
+        ? session.messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 2), 0)
+        : 0,
+    });
   // v6.5.0：附件内容提取（文件 → 模型可读文本块，注入发送给 AI 的 user prompt）
   let attachmentBlocks: string[] = [];
   let attachmentNotes: string[] = [];
@@ -524,7 +647,6 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
     enrichedUser = `${enrichedUser}\n\n${parts.join('\n\n')}`;
   }
 
-  const { provider, model, real } = resolveProvider();
   const abort = new AbortController();
   chatAbort = abort;
   let acc = '';
@@ -539,6 +661,8 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
       userImages: images,
       tools: real ? ENABLED_TOOLS : [],
       signal: abort.signal,
+      // v7.5.0（RequestAffinity）：同会话稳定 cache key → 服务商前缀缓存命中（设置可关）
+      cacheKey: settings.promptCacheKey !== false ? sessionId : undefined,
       onDelta: (delta) => store().appendDelta(sessionId, delta),
       onToolCall: (call) => store().appendToolCall(sessionId, call),
       onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
@@ -556,6 +680,8 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
     chatAbort = null;
     // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
     rejectPendingApproval('会话已中止或结束，本次修改未生效');
+    // v7.5.0：未决提问同样立即结算
+    rejectPendingUserAnswer();
   }
 
   if (real && acc) {
@@ -1214,6 +1340,7 @@ export async function executePlan(msgId: string): Promise<void> {
     if (chatAbort === abort) chatAbort = null;
     // 会话中止/结束时，未决的阻塞审批按拒绝结算，绝不悬空
     rejectPendingApproval('计划执行已结束或中止，未决修改未生效');
+    rejectPendingUserAnswer();
   }
 
   const exec = useAgentPlansStore.getState().plans[msgId];

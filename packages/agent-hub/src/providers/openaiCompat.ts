@@ -121,6 +121,7 @@ export class OpenAICompatibleProvider implements ChatProvider {
       }));
       body.tool_choice = 'auto';
     }
+    if (req.cacheKey) body.prompt_cache_key = req.cacheKey; // v7.5.0：会话亲和（不识别的网关会忽略）
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.maxTokens !== undefined) body.max_tokens = req.maxTokens;
 

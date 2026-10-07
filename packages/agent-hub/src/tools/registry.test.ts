@@ -8,10 +8,10 @@ const tool = (name: string) => {
 };
 
 describe('PAPER_TOOLS 注册表', () => {
-  it('包含设计文档 5.3 + v3.7.0 + v5.2.0 的全部 21 个工具，id 唯一', () => {
-    expect(PAPER_TOOLS).toHaveLength(21);
+  it('包含设计文档 5.3 + v3.7.0 + v5.2.0 的全部 22 个工具（v7.5.0 +user.ask），id 唯一', () => {
+    expect(PAPER_TOOLS).toHaveLength(22); // v7.5.0 +user.ask
     const names = PAPER_TOOLS.map((t) => t.name);
-    expect(new Set(names).size).toBe(21);
+    expect(new Set(names).size).toBe(22); // v7.5.0 +user.ask
     expect(names).toContain('project.read_file');
     expect(names).toContain('project.find_in_files');
     expect(names).toContain('project.list_files');

@@ -29,6 +29,9 @@ import { resolveCompileEntry, runCompile } from './compileAction';
 import { queueSourceGoto } from './synctexBridge';
 import { scheduleAutoCommit } from './git/gitService';
 import { withTransientRetry, isTransientError } from './retryPolicy';
+import { isRepairableRequestError, sanitizeAgentMessages } from './historyIntegrity';
+import { findInstructionsFile, renderInstructionsBlock } from './projectInstructions';
+import { requestUserAnswer, type AskOption } from './userAsk';
 import { applyUnifiedDiff } from './diffApply';
 import { findVenueProfile, listVenueNames } from './submission/venues';
 
@@ -52,6 +55,7 @@ export const ENABLED_TOOL_NAMES = [
   'memory.write',
   'git.log',
   'git.show',
+  'user.ask',
 ] as const;
 
 export const ENABLED_TOOLS: ToolDef[] = PAPER_TOOLS.filter((t) =>
@@ -103,16 +107,20 @@ export function resetContextPackCache(): void {
 
 /** 组装 Context Pack 并渲染为 prompt-ready markdown（chat / 工具 / 工作流共用） */
 export async function buildContextPackMd(query: string): Promise<string> {
-  const { outline, glossary } = outlineAndGlossary(useWorkspaceStore.getState().files);
+  const files = useWorkspaceStore.getState().files;
+  const { outline, glossary } = outlineAndGlossary(files);
   const search = useLibraryStore.getState().searchKnowledge;
   const chunks = await search(query, 5);
   // Agent 记忆注入点：审批历史学到的偏好 + 近期采纳统计（agentMemory store；空记忆时为 ''）
   const memoryInjection = buildMemoryInjection();
+  // v7.5.0（FileContext）：项目根 AGENTS.md / LEMMA.md 用户手写约定，注入优先级最高
+  const instructionsFile = findInstructionsFile(files);
   const pack = buildContextPack({
     outline,
     glossary,
     relatedChunks: chunks,
     projectMemory: [
+      ...(instructionsFile ? [renderInstructionsBlock(files[instructionsFile]!)] : []),
       '演示项目约定：所有 AI 修改须经 diff 审批后落盘，引用必须本地可验证。',
       ...(memoryInjection ? [memoryInjection] : []),
     ],
@@ -539,6 +547,29 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       ws.createFile(path, content);
       return { created: true, path, note: decision.note };
     },
+    // v7.5.0（UserInteraction）：选项式提问卡阻塞等待用户拍板，答案回传模型。
+    // 与审批同模式：会话中止时由 rejectPendingUserAnswer 自动结算为「未作答」。
+    'user.ask': async (args) => {
+      const question = String(args.question ?? '').trim();
+      if (!question) return { answered: false, reason: '缺少 question' };
+      const options: AskOption[] = (Array.isArray(args.options) ? args.options : [])
+        .map((o) =>
+          typeof o === 'string'
+            ? { label: o.trim() }
+            : {
+                label: String((o as Record<string, unknown>)?.label ?? '').trim(),
+                description: String((o as Record<string, unknown>)?.description ?? '').trim() || undefined,
+              },
+        )
+        .filter((o) => o.label.length > 0)
+        .slice(0, 4);
+      const allowCustom = args.allowCustom !== false;
+      // 选项全空且不许自由输入 = 无法作答，给最简单的二选一兜底
+      const finalOptions = options.length > 0 ? options : allowCustom ? [] : [{ label: '继续' }, { label: '停止' }];
+      const answer = await requestUserAnswer(question, finalOptions, allowCustom);
+      if (answer === null) return { answered: false, reason: '用户未作答（会话已中止或被新提问取代）——请基于现状自主决策并说明' };
+      return { answered: true, answer };
+    },
   });
 }
 
@@ -561,6 +592,8 @@ export interface AgentTurnOptions extends AgentTurnEventHandlers {
   maxToolRounds?: number;
   /** v6.4.0：随首条 user 消息附图（dataUrl；provider 组装多模态 content） */
   userImages?: string[];
+  /** v7.5.0：会话亲和缓存键（prompt_cache_key），同会话保持不变以提升前缀缓存命中 */
+  cacheKey?: string;
   /** 写级操作的审批函数（测试可注入） */
   approval?: ApprovalFn;
 }
@@ -579,6 +612,8 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
   // v7.4.0：瞬态重试计数（跨轮保持——连续失败共享预算）
   let transientRetryCount = 0;
   const MAX_TRANSIENT_RETRIES = 3;
+  // v7.5.0：一次性历史自愈（SelfHealing）——400 类协议错误时清理消息序列后重试一次
+  let selfHealed = false;
 
   const messages: AgentMessage[] = [
     { id: 'sys', role: 'system', content: system, createdAt: Date.now() },
@@ -607,7 +642,7 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
     let streamError: Error | null = null;
     if (transientRetryCount < MAX_TRANSIENT_RETRIES) {
       try {
-        for await (const ev of provider.complete({ messages, model, tools, signal })) {
+        for await (const ev of provider.complete({ messages, model, tools, signal, cacheKey: opts.cacheKey })) {
           if (ev.type === 'text-delta') {
             roundText += ev.delta;
             opts.onDelta?.(ev.delta);
@@ -629,11 +664,27 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
           round--; // 重试本轮（外层 for 会 round++）
           continue; // 跳过本轮后续（工具执行等）
         }
+        // v7.5.0（SelfHealing）：400 类协议错误 → 清理消息序列（孤儿 tool 消息/
+        // 重复结果/悬空 tool_calls）后原轮重试一次；修不动则透传原错误
+        if (!selfHealed && isRepairableRequestError(e)) {
+          const repaired = sanitizeAgentMessages(messages);
+          const changed =
+            repaired.length !== messages.length || repaired.some((m, i) => m !== messages[i]);
+          if (changed) {
+            selfHealed = true;
+            messages.length = 0;
+            messages.push(...repaired);
+            roundText = '';
+            toolCalls.length = 0;
+            round--; // 重试本轮
+            continue;
+          }
+        }
         streamError = e instanceof Error ? e : new Error(String(e));
       }
     } else {
       // 重试预算已耗尽：直接消费流（错误自然抛出）
-      for await (const ev of provider.complete({ messages, model, tools, signal })) {
+      for await (const ev of provider.complete({ messages, model, tools, signal, cacheKey: opts.cacheKey })) {
         if (ev.type === 'text-delta') {
           roundText += ev.delta;
           opts.onDelta?.(ev.delta);

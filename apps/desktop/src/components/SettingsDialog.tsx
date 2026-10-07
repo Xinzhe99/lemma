@@ -111,6 +111,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const setLivePreview = useSettingsStore((s) => s.setLivePreview);
   const cliAgent = useSettingsStore((s) => s.cliAgent);
   const setCliAgent = useSettingsStore((s) => s.setCliAgent);
+  // v7.5.0：会话预算 + 会话亲和缓存
+  const sessionBudgetTokens = useSettingsStore((s) => s.sessionBudgetTokens);
+  const setSessionBudgetTokens = useSettingsStore((s) => s.setSessionBudgetTokens);
+  const promptCacheKey = useSettingsStore((s) => s.promptCacheKey);
+  const setPromptCacheKey = useSettingsStore((s) => s.setPromptCacheKey);
   const addProvider = useSettingsStore((s) => s.addProvider);
   const updateProvider = useSettingsStore((s) => s.updateProvider);
   const removeProvider = useSettingsStore((s) => s.removeProvider);
@@ -481,6 +486,34 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                     {t('settings.livePreviewHint')}
                   </label>
                 </div>
+              </div>
+
+              {/* —— Agent 会话（v7.5.0：token 预算 + 会话亲和缓存） —— */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10, display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12 }}>
+                    {language === 'en' ? 'Session token budget (0 = unlimited)' : '会话 token 预算（0 = 不限）'}
+                  </span>
+                  <input
+                    className="sf-cli-input"
+                    style={CLI_INPUT_STYLE}
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={sessionBudgetTokens}
+                    onChange={(e) => setSessionBudgetTokens(Number(e.target.value))}
+                  />
+                </div>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={promptCacheKey}
+                    onChange={(e) => setPromptCacheKey(e.target.checked)}
+                  />
+                  {language === 'en'
+                    ? 'Session affinity cache key (prompt_cache_key) — improves provider prefix-cache hits within a session'
+                    : '会话亲和缓存（prompt_cache_key）——同会话稳定缓存键，提升服务商前缀缓存命中、降低长会话费用'}
+                </label>
               </div>
               </div>
             </div>

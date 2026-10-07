@@ -54,6 +54,8 @@ import { useAgentPlansStore } from '../state/agentPlans';
 import { scheduleAutoCommit } from '../git/gitService';
 import { PlanCard } from '../components/PlanCard';
 import { DiffApprovalCard2 } from '../components/DiffApprovalCard2';
+import { AskUserCard } from '../components/AskUserCard';
+import { useUserAskStore, resolveUserAnswer } from '../userAsk';
 import { useLibraryStore } from '../state/libraryStore';
 import { recordApproval } from '../state/agentMemory';
 import { ChecklistReport } from './ChecklistReport';
@@ -239,6 +241,8 @@ export function AgentPanel() {
   const agentAction = useUiStore((s) => s.agentAction);
 
   const proposal = useProposalStore((s) => s.proposal);
+  // v7.5.0：AI 结构化提问卡（user.ask 工具）
+  const pendingAsk = useUserAskStore((st) => st.pending);
   const setProposal = useProposalStore((s) => s.setProposal);
   const clearProposal = useProposalStore((s) => s.clearProposal);
   const note = useProposalStore((s) => s.note);
@@ -818,6 +822,9 @@ export function AgentPanel() {
           润色/起草仍可经命令面板触达 */}
       <div className="sf-agent-ai">
         {note && <p className="sf-agent-note">{note}</p>}
+        {pendingAsk && (
+          <AskUserCard ask={pendingAsk} lang={language} onAnswer={resolveUserAnswer} />
+        )}
         {proposal && (
           <DiffApprovalCard2
             proposal={proposal}
