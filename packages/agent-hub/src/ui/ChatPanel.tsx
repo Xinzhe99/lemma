@@ -19,10 +19,11 @@ export interface SlashMenuItem {
   label: string;
   hint?: string;
   /**
-   * 自定义提示词正文（v1.2.0 ③）：非空时选中 = 填入输入框（用户可改后发送），
-   * 不触发 onSlashWorkflow。
+   * 提示词全文（v1.2.0 ③ → v7.7.0 打磨）：非空时选中 = 把全文插入输入框
+   * （替换触发的 /标题，光标移到末尾，用户可改后发送），不触发 onSlashWorkflow；
+   * 未携带则按工作流条目走 onSlashWorkflow 启动。
    */
-  insert?: string;
+  insertText?: string;
 }
 
 /** @ 引用菜单项（宿主注入：文献 / 文件） */
@@ -427,9 +428,25 @@ export function ChatPanel(props: ChatPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const copyTimer = useRef<number | undefined>(undefined);
+  // v7.7.0：提示词插入后把光标移到末尾——React 受控更新不改变 caret，
+  // 需在提交后的副作用里显式 setSelectionRange（ref 指向输入 textarea）
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const caretToEndRef = useRef(false);
   const streaming = session.status === 'streaming';
 
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+
+  // 插入提示词后：textarea 已重渲染为新全文 → 光标落末尾并保持焦点
+  useEffect(() => {
+    if (!caretToEndRef.current) return;
+    caretToEndRef.current = false;
+    const ta = inputRef.current;
+    if (ta) {
+      ta.focus();
+      const end = ta.value.length;
+      ta.setSelectionRange(end, end);
+    }
+  });
 
   /* ---- 输入菜单（开合与过滤由输入文本派生；Esc 置 dismissed） ---- */
   const slashQuery = /^\/([^\s]*)$/.exec(text)?.[1];
@@ -566,10 +583,13 @@ export function ChatPanel(props: ChatPanelProps) {
       setText('');
       return;
     }
-    // 用户自定义提示词（v1.2.0 ③）：insert 携带正文 → 直接填入输入框（可改后发送）
-    if (item.insert != null) {
-      setText(item.insert);
+    // 用户自定义提示词（v1.2.0 ③ → v7.7.0 打磨）：insertText 携带全文 →
+    // 替换输入框里的 /标题（斜杠菜单仅在整段输入为单个 /token 时弹出，故
+    // 全文替换即「提示词名 → 全文」），光标移到末尾，不发送（可改后回车）
+    if (item.insertText != null) {
+      setText(item.insertText);
       setMenuDismissed(true);
+      caretToEndRef.current = true;
       return;
     }
     if (onSlashWorkflow) {
@@ -836,6 +856,7 @@ export function ChatPanel(props: ChatPanelProps) {
         {/* v6.6.0 Codex 式输入卡：大输入框为主体，图标按钮收纳框内——对话才是核心 */}
         <div className="sf-ah-input">
           <textarea
+            ref={inputRef}
             value={text}
             placeholder={placeholder ?? '向 AI 提问，或 / 工作流、@ 引用、粘贴/拖入文件…'}
             onChange={(e) => handleInputChange(e.target.value)}

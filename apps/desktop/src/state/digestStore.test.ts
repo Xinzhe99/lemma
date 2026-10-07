@@ -19,6 +19,7 @@ vi.mock('../platform/types', () => ({
   getPlatform: vi.fn((): { kind: 'browser' | 'tauri' } => ({ kind: 'browser' })),
 }));
 vi.mock('../platform/tauri', () => ({
+  createTauriPlatform: () => null,
   tauriProcRun: vi.fn(async () => ({ code: 0, stdout: '', stderr: '' })),
 }));
 

@@ -1,6 +1,7 @@
 /**
  * 工作区状态：项目文件、打开的标签页、编译日志。
- * 持久化：订阅 store，把快照 JSON 写入 platform.fs 的 "workspace.json"；启动时恢复（缺失则载入演示项目）。
+ * 持久化：订阅 store，把快照 JSON 写入 platform.fs 的 "workspace.json"；启动时恢复
+ * （缺失/损坏则保持空工作区，由编辑器空态引导卡接手——演示项目不再默认载入）。
  */
 
 import { create } from 'zustand';
@@ -22,6 +23,8 @@ interface WorkspaceSnapshot {
   openTabs: string[];
   activeTab: string | null;
   snapshots: Record<string, FileSnapshot[]>;
+  /** 用户为当前项目选择的本地文件夹（绝对路径；未选择为 null）。物化/磁盘同步的目标目录 */
+  projectDir?: string | null;
 }
 
 export interface WorkspaceState extends WorkspaceSnapshot {
@@ -31,9 +34,11 @@ export interface WorkspaceState extends WorkspaceSnapshot {
   dirty: boolean;
   /** 最近一次持久化写盘成功的时间戳；尚未保存过为 null */
   lastSavedAt: number | null;
+  /** 当前项目的本地文件夹（绝对路径；未绑定磁盘目录为 null） */
+  projectDir: string | null;
   loadDemoProject(): void;
-  /** 载入一个完整项目（模板向导脚手架产出） */
-  loadProject(name: string, entry: string, files: Record<string, string>): void;
+  /** 载入一个完整项目（模板向导脚手架产出）；dir 为可选的本地文件夹绑定 */
+  loadProject(name: string, entry: string, files: Record<string, string>, dir?: string | null): void;
   /** 打开文件 */
   openFile(path: string): void;
   closeTab(path: string): void;
@@ -184,6 +189,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   openTabs: [],
   activeTab: null,
   snapshots: {},
+  projectDir: null,
   compileLog: [],
   compileStatus: 'idle',
   compileDiagnostics: [],
@@ -191,10 +197,17 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   lastSavedAt: null,
 
   loadDemoProject() {
-    set({ ...demoSnapshot(), compileLog: [], compileStatus: 'idle', dirty: false, lastSavedAt: null });
+    set({
+      ...demoSnapshot(),
+      projectDir: null,
+      compileLog: [],
+      compileStatus: 'idle',
+      dirty: false,
+      lastSavedAt: null,
+    });
   },
 
-  loadProject(name, entry, files) {
+  loadProject(name, entry, files, dir = null) {
     const openTabs = entry in files ? [entry] : Object.keys(files).slice(0, 1);
     set({
       projectName: name,
@@ -203,6 +216,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
       openTabs,
       activeTab: openTabs[0] ?? null,
       snapshots: {},
+      projectDir: dir ?? null,
       compileLog: [],
       compileStatus: 'idle',
       dirty: false,
@@ -338,6 +352,7 @@ function snapshot(s: WorkspaceState): WorkspaceSnapshot {
     openTabs: s.openTabs,
     activeTab: s.activeTab,
     snapshots: s.snapshots,
+    projectDir: s.projectDir,
   };
 }
 
@@ -383,10 +398,19 @@ useWorkspaceStore.subscribe((s) => {
   }, PERSIST_DEBOUNCE_MS);
 });
 
-/** 启动恢复：读取 workspace.json，缺失或损坏时载入演示项目。 */
+/**
+ * 启动恢复：读取 workspace.json 还原当前项目；缺失或损坏时保持空工作区——
+ * 不再自动载入演示项目（首启引导：用户显式选择「新建项目」或「先看看演示项目」，
+ * 演示入口保留在编辑器空态引导卡与命令面板）。
+ */
 export async function initWorkspace(): Promise<void> {
+  let raw: string | Uint8Array;
   try {
-    const raw = await getPlatform().fs.readFile(WORKSPACE_FILE);
+    raw = await getPlatform().fs.readFile(WORKSPACE_FILE);
+  } catch {
+    return; // 全新安装（无快照）：空工作区 + 首启引导，不塞演示项目
+  }
+  try {
     const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
     const parsed = JSON.parse(text) as Partial<WorkspaceSnapshot>;
     if (!parsed || typeof parsed.files !== 'object' || parsed.files === null) throw new Error('快照损坏');
@@ -419,12 +443,14 @@ export async function initWorkspace(): Promise<void> {
       activeTab:
         typeof parsed.activeTab === 'string' && parsed.activeTab in parsed.files ? parsed.activeTab : null,
       snapshots,
+      // 旧快照无 projectDir 字段 → null（向后兼容）
+      projectDir: typeof parsed.projectDir === 'string' && parsed.projectDir.trim() ? parsed.projectDir : null,
       compileLog: [],
       compileStatus: 'idle',
       dirty: false,
       lastSavedAt: null,
     });
   } catch {
-    useWorkspaceStore.getState().loadDemoProject();
+    // 快照损坏：保持空工作区（与全新安装同语义），由引导卡接手
   }
 }

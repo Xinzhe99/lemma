@@ -266,3 +266,75 @@ describe('损坏持久化安全回退（重启读档）', () => {
     expect(rec.snapshot.snapshots['main.tex']![0]!.content).toBe('初始版本');
   });
 });
+
+describe('dir 字段（新建项目选择本地路径）', () => {
+  it('saveCurrent：把 workspace.projectDir 持久化到记录；无绑定为 undefined', () => {
+    seedWorkspace({ projectDir: 'D:\\papers\\a' });
+    const id = useProjectsStore.getState().saveCurrent('带目录');
+    expect(useProjectsStore.getState().projects.find((p) => p.id === id)!.dir).toBe('D:\\papers\\a');
+
+    seedWorkspace({ projectDir: null });
+    const id2 = useProjectsStore.getState().saveCurrent('无目录');
+    expect(useProjectsStore.getState().projects.find((p) => p.id === id2)!.dir).toBeUndefined();
+  });
+
+  it('同名覆盖：工作区无绑定时保留旧记录的 dir；有绑定时以工作区为准', () => {
+    seedWorkspace({ projectDir: 'D:\\old' });
+    const id = useProjectsStore.getState().saveCurrent('A');
+
+    seedWorkspace({ projectDir: null });
+    useProjectsStore.getState().saveCurrent('A');
+    expect(useProjectsStore.getState().projects.find((p) => p.id === id)!.dir).toBe('D:\\old');
+
+    seedWorkspace({ projectDir: 'D:\\new' });
+    useProjectsStore.getState().saveCurrent('A');
+    expect(useProjectsStore.getState().projects.find((p) => p.id === id)!.dir).toBe('D:\\new');
+  });
+
+  it('openProject：恢复记录的目录绑定到 workspace.projectDir；无绑定恢复为 null', () => {
+    seedWorkspace({ projectDir: 'D:\\papers\\a' });
+    const id = useProjectsStore.getState().saveCurrent('带目录');
+
+    useWorkspaceStore.getState().loadProject('other', 'other.tex', { 'other.tex': 'x' }, 'D:\\elsewhere');
+    expect(useProjectsStore.getState().openProject(id)).toBe(true);
+    expect(useWorkspaceStore.getState().projectDir).toBe('D:\\papers\\a');
+
+    seedWorkspace({ projectDir: null });
+    const id2 = useProjectsStore.getState().saveCurrent('无目录');
+    useProjectsStore.getState().openProject(id2);
+    expect(useWorkspaceStore.getState().projectDir).toBeNull();
+  });
+
+  it('向后兼容：旧记录无 dir 字段照常工作（读档不报错、dir 为 undefined）', async () => {
+    const id = useProjectsStore.getState().saveCurrent('旧格式');
+    const persisted = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)!) as Record<string, unknown>[];
+    // 模拟旧版本持久化：抹掉 dir 字段
+    localStorage.setItem(
+      PROJECTS_STORAGE_KEY,
+      JSON.stringify(persisted.map((r) => ({ ...r, dir: undefined }))),
+    );
+
+    const mod = await freshProjectsStore();
+    const wsMod = await import('./workspaceStore'); // resetModules 后与 mod 同一实例
+    const rec = mod.useProjectsStore.getState().projects.find((p) => p.name === '旧格式')!;
+    expect(rec).toBeTruthy();
+    expect(rec.dir).toBeUndefined();
+    expect(mod.useProjectsStore.getState().openProject(id)).toBe(true);
+    expect(wsMod.useWorkspaceStore.getState().projectName).toBe('demo-paper');
+    expect(wsMod.useWorkspaceStore.getState().projectDir).toBeNull();
+  });
+
+  it('持久化往返：dir 字段经 localStorage 保存与读档保留；非法 dir（非字符串）被丢弃', async () => {
+    seedWorkspace({ projectDir: 'D:\\papers\\a' });
+    const id = useProjectsStore.getState().saveCurrent('带目录');
+    const persisted = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)!) as Record<string, unknown>[];
+    localStorage.setItem(
+      PROJECTS_STORAGE_KEY,
+      JSON.stringify([...persisted, { id: 'r-bad', name: '坏目录', savedAt: 1, dir: 42, snapshot: persisted[0]!.snapshot }]),
+    );
+
+    const mod = await freshProjectsStore();
+    expect(mod.useProjectsStore.getState().projects.find((p) => p.id === id)!.dir).toBe('D:\\papers\\a');
+    expect(mod.useProjectsStore.getState().projects.find((p) => p.id === 'r-bad')!.dir).toBeUndefined();
+  });
+});

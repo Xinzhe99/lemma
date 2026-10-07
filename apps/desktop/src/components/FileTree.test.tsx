@@ -77,6 +77,7 @@ import { FileTree } from './FileTree';
 import { TextDialog } from './TextDialog';
 import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { useProjectsStore } from '../state/projectsStore';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -147,7 +148,9 @@ function dialogButton(action: 'confirm' | 'cancel'): HTMLButtonElement {
 beforeEach(() => {
   useWorkspaceStore.getState().loadDemoProject();
   useWorkspaceStore.setState({ openTabs: [], activeTab: null });
+  useProjectsStore.setState({ projects: [] });
   useUiStore.getState().closeTextDialog();
+  useUiStore.setState({ toast: null });
 });
 
 afterEach(() => {
@@ -269,5 +272,74 @@ describe('FileTree', () => {
     click(document.querySelector('.sf-tree-menu .sf-menu-item[data-action="delete"]')!);
     await clickAsync(dialogButton('confirm'));
     expect(useWorkspaceStore.getState().files['README.md']).toBeUndefined();
+  });
+});
+
+describe('FileTree 按项目分组', () => {
+  /** 一条已保存项目记录（demo-paper 之外） */
+  function record(id: string, name: string) {
+    return {
+      id,
+      name,
+      savedAt: Date.now(),
+      snapshot: {
+        projectName: name,
+        entry: 'paper.tex',
+        files: { 'paper.tex': 'x', 'notes/todo.md': 'y' },
+        openTabs: ['paper.tex'],
+        activeTab: 'paper.tex',
+        snapshots: {} as Record<string, never>,
+      },
+    };
+  }
+
+  it('顶部为当前项目分组（项目名 + 当前 chip）；其他项目折叠行列出（名称 + 文件数）', () => {
+    act(() => {
+      useProjectsStore.setState({ projects: [record('p1', '其他论文'), record('p2', 'demo-paper')] });
+    });
+    renderTree();
+
+    const current = container!.querySelector('[data-testid="tree-current-project"]')!;
+    expect(current.textContent).toContain('demo-paper');
+    expect(current.textContent).toContain('当前');
+
+    // 与当前项目同名的记录不出现在「其他项目」
+    const rows = container!.querySelectorAll('.sf-tree-project');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.textContent).toContain('其他论文');
+    expect(rows[0]!.textContent).toContain('2 个文件');
+
+    // 折叠态不显示文件清单与切换按钮
+    expect(container!.querySelector('[data-testid="tree-project-p1"]')).toBeNull();
+  });
+
+  it('点击折叠行展开只读清单（不可点击打开）+「切换到此项目」；切换后当前项目更新', async () => {
+    act(() => {
+      useProjectsStore.setState({ projects: [record('p1', '其他论文')] });
+    });
+    renderTree();
+
+    click(container!.querySelector('.sf-tree-project-head[data-action="toggle"]')!);
+    const body = container!.querySelector('[data-testid="tree-project-p1"]')!;
+    expect(body.querySelector('[data-readonly-path="paper.tex"]')).toBeTruthy();
+    expect(body.querySelector('[data-readonly-path="notes/todo.md"]')).toBeTruthy();
+
+    // 切换：openProject 恢复记录项目（浏览器形态磁盘同步跳过），demo-paper 反转为「其他项目」
+    await clickAsync(body.querySelector<HTMLButtonElement>('[data-action="switch"]')!);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const ws = useWorkspaceStore.getState();
+    expect(ws.projectName).toBe('其他论文');
+    expect(ws.files['paper.tex']).toBe('x');
+    expect(container!.querySelector('[data-testid="tree-current-project"]')!.textContent).toContain('其他论文');
+    expect(useUiStore.getState().toast).toBeNull(); // 无目录绑定：无磁盘合并提示
+  });
+
+  it('无文件时显示创建引导文案', () => {
+    useWorkspaceStore.setState({ files: {}, projectName: '' });
+    renderTree();
+    expect(container!.querySelector('.sf-tree-empty')?.textContent).toContain('新建项目');
   });
 });

@@ -197,12 +197,21 @@ body {
 }
 
 .sf-project-name {
-  color: var(--fg-2);
+  /* v7.6.1：显式主题化 pill（此前依赖 UA 默认按钮样式，暗色下与顶栏同色不可见） */
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 12px;
   font-size: 12px;
+  cursor: pointer;
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.sf-project-name:hover {
+  border-color: var(--border-strong);
 }
 
 .palette-trigger {
@@ -1276,6 +1285,29 @@ body {
   color: var(--fg-2);
 }
 
+/* 分组标题：滚出视口时吸顶，便于确认当前分区 */
+.palette-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  cursor: default;
+  user-select: none;
+}
+
+/* 默认视图页脚：提示输入关键词可搜索全部命令 */
+.palette-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
 kbd {
   background: var(--bg-3);
   border: 1px solid var(--border);
@@ -1353,7 +1385,9 @@ kbd {
   flex: 1;
   overflow: auto;
   padding: 16px;
-  min-height: 220px;
+  /* v7.6.1：不再强撑 220px——短内容对话框（DOI/PDF 目录/项目管理）下方不再有大片空白；
+     需要高度稳定性的对话框自行设置 min-height（如模板向导） */
+  min-height: 0;
 }
 
 /* Provider 列表与表单 */
@@ -3361,4 +3395,202 @@ kbd {
 .sf-ask-custom .sf-input {
   flex: 1;
   min-width: 0;
+}
+
+/* ===========================================================================
+   新建项目选择本地路径 + 首启引导 + 文件树按项目分组（v7.6.x）
+   =========================================================================== */
+
+/* —— 首启引导卡（编辑器空态：全新安装无项目） —— */
+.sf-first-project {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 28px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  max-width: 380px;
+  margin: 0 auto;
+  background: var(--bg-2);
+}
+.sf-first-project-title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--fg-0);
+}
+.sf-first-project-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-1);
+  line-height: 1.6;
+}
+.sf-first-project-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* —— 新建项目对话框（名称 + 本地文件夹） —— */
+.sf-new-project .sf-dialog-body {
+  min-height: 0;
+}
+.sf-new-project-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sf-np-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-1);
+  margin-top: 4px;
+}
+.sf-np-input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  color: var(--fg-0);
+  font-size: 12.5px;
+  padding: 7px 9px;
+  outline: none;
+}
+.sf-np-input:focus {
+  border-color: var(--accent);
+}
+.sf-np-dir-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.sf-np-dir-row .sf-np-input {
+  flex: 1;
+  min-width: 0;
+}
+.sf-np-browse {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+.sf-np-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+.sf-np-hint.ok {
+  color: var(--ok);
+}
+.sf-np-hint.bad {
+  color: var(--err, #e5484d);
+}
+.sf-np-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* —— 文件树按项目分组 —— */
+.sf-tree-project-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--fg-1);
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+  margin-top: 4px;
+}
+.sf-tree-project-head:hover {
+  background: var(--bg-2);
+}
+.sf-tree-project-head.current {
+  cursor: default;
+  color: var(--fg-0);
+}
+.sf-tree-project-head.current:hover {
+  background: none;
+}
+.sf-tree-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sf-tree-current-chip {
+  flex: none;
+  font-size: 10px;
+  padding: 0 6px;
+}
+.sf-tree-project-count {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--fg-2);
+}
+.sf-tree-other-title {
+  margin: 10px 0 2px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+.sf-tree-project-body {
+  display: flex;
+  flex-direction: column;
+  padding-left: 8px;
+  margin-bottom: 4px;
+}
+.sf-tree-row.readonly {
+  cursor: default;
+  opacity: 0.72;
+}
+.sf-tree-row.readonly:hover {
+  background: none;
+}
+.sf-tree-switch {
+  align-self: flex-start;
+  margin: 4px 0 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--fg-1);
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.sf-tree-switch:hover {
+  color: var(--accent);
+  border-color: var(--border-strong);
+}
+.sf-tree-empty {
+  padding: 0 6px;
+}
+
+/* —— 会话侧栏空态引导 —— */
+.sf-sessions-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 12px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  margin-top: 8px;
+}
+.sf-sessions-empty-text {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--fg-1);
+  line-height: 1.6;
 }

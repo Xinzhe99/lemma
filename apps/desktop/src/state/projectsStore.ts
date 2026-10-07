@@ -2,6 +2,8 @@
  * 多项目管理：把 workspaceStore 当前状态保存为命名项目记录（含完整工作区快照），
  * 支持打开 / 重命名 / 复制 / 删除。持久化到 localStorage（key: sf-projects），
  * 读入时逐条 shape 校验（坏数据安全跳过），正式记录上限 20 个（超出挤掉最旧）。
+ * 记录可携带 dir（用户选择的本地文件夹绝对路径）：打开时绑定 workspace.projectDir，
+ * 供物化与磁盘同步（state/projectDisk.ts）使用；旧记录无 dir 照常工作。
  *
  * P1 崩溃恢复：ProjectSwitcher 挂载时把当前工作区写入固定 id（__current__）的临时记录，
  * 列表置顶展示，可一键转正式保存；临时记录不计入上限、切换项目后自动清除。
@@ -28,6 +30,8 @@ export interface ProjectRecord {
   name: string;
   savedAt: number;
   snapshot: ProjectSnapshot;
+  /** 用户选择的本地文件夹（绝对路径；旧记录/未选择为 undefined——向后兼容） */
+  dir?: string;
 }
 
 export const PROJECTS_STORAGE_KEY = 'sf-projects';
@@ -149,7 +153,9 @@ function sanitizeRecord(raw: unknown): ProjectRecord | null {
   const snapshot = sanitizeSnapshot(v.snapshot);
   if (!snapshot) return null;
   const savedAt = typeof v.savedAt === 'number' && Number.isFinite(v.savedAt) ? v.savedAt : 0;
-  return { id: v.id, name: v.name, savedAt, snapshot };
+  // dir 为可选新字段：旧记录缺失照常工作；非法值（非字符串/空串）静默丢弃
+  const dir = typeof v.dir === 'string' && v.dir.trim() ? v.dir.trim() : undefined;
+  return dir ? { id: v.id, name: v.name, savedAt, snapshot, dir } : { id: v.id, name: v.name, savedAt, snapshot };
 }
 
 // ---------------------------------------------------------------------------
@@ -195,11 +201,13 @@ function evictToCap(records: ProjectRecord[]): ProjectRecord[] {
   return next;
 }
 
-/** 保存/转正式共用的 upsert：同名（正式记录间）覆盖，否则新建置顶；返回记录 id */
+/** 保存/转正式共用的 upsert：同名（正式记录间）覆盖，否则新建置顶；返回记录 id。
+ *  dir 取当前工作区的 projectDir（未绑定为 undefined）；同名覆盖时工作区未绑定目录则保留旧记录的绑定。 */
 function upsertFormalIn(
   list: ProjectRecord[],
   name: string,
   snapshot: ProjectSnapshot,
+  dir: string | undefined,
 ): { projects: ProjectRecord[]; id: string } {
   const trimmed = name.trim() || FALLBACK_NAME;
   const savedAt = Date.now();
@@ -210,10 +218,13 @@ function upsertFormalIn(
   if (existingIdx >= 0) {
     const target = formal[existingIdx]!;
     id = target.id;
-    next = formal.map((p, i) => (i === existingIdx ? { ...p, savedAt, snapshot: cloneSnapshot(snapshot) } : p));
+    const nextDir = dir ?? target.dir;
+    next = formal.map((p, i) =>
+      i === existingIdx ? { ...p, savedAt, snapshot: cloneSnapshot(snapshot), dir: nextDir } : p,
+    );
   } else {
     id = createId();
-    next = [{ id, name: trimmed, savedAt, snapshot: cloneSnapshot(snapshot) }, ...formal];
+    next = [{ id, name: trimmed, savedAt, snapshot: cloneSnapshot(snapshot), ...(dir ? { dir } : {}) }, ...formal];
   }
   return { projects: evictToCap(next), id };
 }
@@ -227,7 +238,7 @@ export const useProjectsStore = create<ProjectsState>()((set, get) => ({
 
   saveCurrent(name) {
     const ws = useWorkspaceStore.getState();
-    const { projects, id } = upsertFormalIn(get().projects, name ?? ws.projectName, snapshotOf(ws));
+    const { projects, id } = upsertFormalIn(get().projects, name ?? ws.projectName, snapshotOf(ws), ws.projectDir ?? undefined);
     // 正式入库后保留崩溃恢复临时记录（仅 promoteCurrent 会消费它）
     const temp = get().projects.find((p) => p.id === CURRENT_PROJECT_ID);
     set({ projects: temp ? [temp, ...projects] : projects });
@@ -239,8 +250,8 @@ export const useProjectsStore = create<ProjectsState>()((set, get) => ({
     const rec = get().projects.find((p) => p.id === id);
     if (!rec) return false;
     const snap = cloneSnapshot(rec.snapshot);
-    // loadProject 恢复文件集；随后补齐保存时的页签与文件快照（loadProject 自身会重置这两者）
-    useWorkspaceStore.getState().loadProject(snap.projectName || rec.name, snap.entry, { ...snap.files });
+    // loadProject 恢复文件集（含本地目录绑定）；随后补齐保存时的页签与文件快照（loadProject 自身会重置这两者）
+    useWorkspaceStore.getState().loadProject(snap.projectName || rec.name, snap.entry, { ...snap.files }, rec.dir ?? null);
     useWorkspaceStore.setState({
       openTabs: snap.openTabs.filter((p) => p in snap.files),
       activeTab: snap.activeTab !== null && snap.activeTab in snap.files ? snap.activeTab : null,
@@ -277,6 +288,7 @@ export const useProjectsStore = create<ProjectsState>()((set, get) => ({
       name: `${src.name} 副本`,
       savedAt: Date.now(),
       snapshot: cloneSnapshot(src.snapshot),
+      ...(src.dir ? { dir: src.dir } : {}),
     };
     set({ projects: evictToCap([copy, ...get().projects]) });
     return copy.id;
@@ -289,6 +301,7 @@ export const useProjectsStore = create<ProjectsState>()((set, get) => ({
       name: ws.projectName.trim() || FALLBACK_NAME,
       savedAt: Date.now(),
       snapshot: snapshotOf(ws),
+      ...(ws.projectDir ? { dir: ws.projectDir } : {}),
     };
     set((s) => ({ projects: [temp, ...s.projects.filter((p) => p.id !== CURRENT_PROJECT_ID)] }));
   },
@@ -296,7 +309,7 @@ export const useProjectsStore = create<ProjectsState>()((set, get) => ({
   promoteCurrent() {
     const temp = get().projects.find((p) => p.id === CURRENT_PROJECT_ID);
     if (!temp) return null;
-    const { projects, id } = upsertFormalIn(get().projects, temp.name, temp.snapshot);
+    const { projects, id } = upsertFormalIn(get().projects, temp.name, temp.snapshot, temp.dir);
     set({ projects });
     return id;
   },

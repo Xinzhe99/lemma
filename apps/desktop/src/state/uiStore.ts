@@ -106,6 +106,10 @@ interface UiState {
   spellcheckEnabled: boolean;
   /** 应用内 prompt/confirm 对话框（替代 window.prompt/confirm，Tauri WKWebView 下原生对话框不可用） */
   textDialog: TextDialogRequest | null;
+  /** 新建项目对话框（名称 + 本地文件夹选择；SessionsPanel / 编辑器空态引导卡共用入口） */
+  newProjectDialogOpen: boolean;
+  /** 全局轻提示（自动消失；App 渲染为 sf-toast。项目创建/磁盘合并等跨面板消息走这里） */
+  toast: string | null;
 
   setSidebarTab(tab: SidebarTab): void;
   setKnowledgeTab(tab: KnowledgeTab): void;
@@ -148,7 +152,14 @@ interface UiState {
   setSpellcheckEnabled(on: boolean): void;
   openTextDialog(req: TextDialogRequest): void;
   closeTextDialog(): void;
+  setNewProjectDialogOpen(open: boolean): void;
+  /** 显示轻提示并自动消失（与 App 内 sf-toast 的展示时长一致） */
+  showToast(message: string): void;
 }
+
+/** toast 自动消失时长（与 App 既有 TOAST_MS 一致） */
+const TOAST_MS = 2400;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useUiStore = create<UiState>((set) => ({
   sidebarTab: 'sessions',
@@ -190,6 +201,8 @@ export const useUiStore = create<UiState>((set) => ({
   statsDialogOpen: false,
   spellcheckEnabled: true,
   textDialog: null,
+  newProjectDialogOpen: false,
+  toast: null,
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setKnowledgeTab: (tab) => set({ knowledgeTab: tab }),
@@ -231,4 +244,13 @@ export const useUiStore = create<UiState>((set) => ({
   setSpellcheckEnabled: (on) => set({ spellcheckEnabled: on }),
   openTextDialog: (req) => set({ textDialog: req }),
   closeTextDialog: () => set({ textDialog: null }),
+  setNewProjectDialogOpen: (open) => set({ newProjectDialogOpen: open }),
+  showToast: (message) => {
+    if (toastTimer) clearTimeout(toastTimer);
+    set({ toast: message });
+    toastTimer = setTimeout(() => {
+      toastTimer = null;
+      useUiStore.setState({ toast: null });
+    }, TOAST_MS);
+  },
 }));

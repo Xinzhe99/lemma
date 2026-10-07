@@ -108,6 +108,53 @@ export async function tauriWriteFileBase64(path: string, data: string): Promise<
   await invoke<void>('fs_write_base64', { path, data });
 }
 
+// ---------------------------------------------------------------------------
+// 用户选择的本地项目文件夹（绝对路径）桥：新建项目选择本地路径后，
+// 项目文件物化到该目录 / 打开项目时扫描合并。相对路径命令族（fs_*）的
+// safe_rel 一律拒绝绝对路径，故绝对路径操作必须走下面这组显式命令。
+// ---------------------------------------------------------------------------
+
+/** 原生文件夹选择器（tauri-plugin-dialog，注册于 lib.rs；权限 dialog:default）。取消/失败 → null */
+export async function tauriPickDirectory(title: string): Promise<string | null> {
+  try {
+    const picked = await invoke<string | string[] | null>('plugin:dialog|open', {
+      options: { directory: true, multiple: false, title },
+    });
+    if (typeof picked === 'string' && picked.trim()) return picked;
+    if (Array.isArray(picked) && typeof picked[0] === 'string' && picked[0]!.trim()) return picked[0]!;
+    return null;
+  } catch {
+    // 插件缺失/权限拒绝（如旧安装包）：回落 null，调用方保留手输路径输入框
+    return null;
+  }
+}
+
+/** 把项目文本文件写入用户选择的本地目录（dir 绝对路径 + rel 项目内相对路径） */
+export async function tauriWriteProjectFile(dir: string, rel: string, content: string): Promise<void> {
+  await invoke<void>('fs_write_absolute', { dir, rel, content });
+}
+
+/** 读取用户本地项目目录下的文本文件（打开项目时磁盘 → 记录合并用） */
+export async function tauriReadProjectFile(dir: string, rel: string): Promise<string> {
+  return invoke<string>('fs_read_absolute', { dir, rel });
+}
+
+/** 删除用户本地项目目录下的文件（写探针清理；目标不存在不报错） */
+export async function tauriDeleteProjectFile(dir: string, rel: string): Promise<void> {
+  await invoke<void>('fs_delete_absolute', { dir, rel });
+}
+
+/** 目录扫描条目：相对路径 + 修改时间（Unix 毫秒） */
+export interface DirEntryInfo {
+  path: string;
+  mtimeMs: number;
+}
+
+/** 扫描用户本地项目目录（跳过隐藏条目；目录不存在抛错） */
+export async function tauriScanProjectDir(dir: string): Promise<DirEntryInfo[]> {
+  return invoke<DirEntryInfo[]>('fs_scan_absolute', { dir });
+}
+
 /** 检测 __TAURI__：存在则用约定桥，否则回落 BrowserPlatform。 */
 export function createTauriPlatform(): Platform {
   if (!hasTauriBridge()) return browserPlatform;

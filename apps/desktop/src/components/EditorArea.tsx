@@ -44,6 +44,7 @@ import { setInsertHandler } from '../editorInsert';
 import { polishSelection, quickAsk, paraphraseSelection, expandSelection, condenseSelection, resolveProvider, resolveProviderRouted } from '../aiActions';
 import { extractKeyAtPosition, resolveJumpTarget } from '../jumpDefinition';
 import { jumpTo } from '../editorJump';
+import { FirstProjectGuide } from './FirstProjectGuide';
 import { inlineCompletionExtension } from '@lemma/editor';
 import { runAgentTurn } from '../agentTools';
 import { StatusBar } from './StatusBar';
@@ -470,11 +471,13 @@ export function EditorArea({ lockedFile }: EditorAreaProps = {}) {
   }, [papers, files]);
 
   if (!activeTab) {
+    // 全新安装空态：无任何项目文件时展示首启引导卡（新建项目 / 先看看演示项目）
+    const workspaceEmpty = Object.keys(files).length === 0;
     return (
       <div className="sf-editor-host" style={{ display: 'flex', flexDirection: 'column' }}>
         {tableAction}
         <div className="sf-editor-placeholder" style={{ flex: 1, minHeight: 0, justifyContent: 'center' }}>
-          <p className="placeholder">{t('editor.pending')}</p>
+          {workspaceEmpty ? <FirstProjectGuide /> : <p className="placeholder">{t('editor.pending')}</p>}
         </div>
         <StatusBar />
       </div>

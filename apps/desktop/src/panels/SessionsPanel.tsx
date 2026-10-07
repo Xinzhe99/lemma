@@ -1,11 +1,12 @@
 /**
  * 会话管理面板（v5.6.0 Codex 式两级结构）：
  * 项目分组 → 项目下多个会话。
- * - 新建项目：空模板 + 自动切入 + 建首个会话；
+ * - 新建项目：正式 sf-dialog（名称 + 本地文件夹选择，NewProjectDialog）+ 自动切入 + 建首个会话；
  * - 项目组：点击折叠/展开，hover 出「打开 / 重命名 / 删除」；
  *   删除项目仅解除归属（会话移入「未分组」），不删数据；
  * - 会话项：点击切换，hover 出「重命名 / 删除」；
- * - 项目名 = 会话的 projectName 隔离键（与 workspace.projectName / projectsStore 记录一致）。
+ * - 项目名 = 会话的 projectName 隔离键（与 workspace.projectName / projectsStore 记录一致）；
+ * - 空态（无项目无会话）：引导创建第一个项目。
  */
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, Pencil, Trash2 } from 'lucide-react';
@@ -13,33 +14,14 @@ import { useAgentHubStore } from '@lemma/agent-hub';
 import { useProjectsStore } from '../state/projectsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { confirmDialog, promptDialog } from '../dialogs';
+import { openProjectWithDiskSync } from '../state/projectDisk';
 import { useT } from '../i18n';
 import { useSettingsStore } from '../state/settingsStore';
+import { useUiStore } from '../state/uiStore';
 
 /** 未分组会话的组键（projectName 为空的旧会话） */
 const UNGROUPED = '__ungrouped__';
 const UNGROUPED_LABEL_KEY = 'sessions.ungrouped';
-
-/** 新项目的最小可编译模板 */
-const NEW_PROJECT_FILES: Record<string, string> = {
-  'main.tex': [
-    '\\documentclass{article}',
-    '\\usepackage{amsmath,graphicx,hyperref}',
-    '',
-    '\\title{新论文}',
-    '\\author{}',
-    '\\date{\\today}',
-    '',
-    '\\begin{document}',
-    '\\maketitle',
-    '',
-    '\\section{引言}',
-    '从这里开始写。',
-    '',
-    '\\end{document}',
-    '',
-  ].join('\n'),
-};
 
 export function SessionsPanel() {
   const t = useT();
@@ -99,22 +81,21 @@ export function SessionsPanel() {
     useAgentHubStore.getState().newSession('host', projectName || undefined, t('sessions.newSession'));
   };
 
-  const onCreateProject = async () => {
-    const input = await promptDialog(t('sessions.newProjectPrompt'), t('sessions.newProjectDefault'));
-    const name = input?.trim();
-    if (!name) return;
-    setBusy(true);
-    try {
-      useWorkspaceStore.getState().loadProject(name, 'main.tex', { ...NEW_PROJECT_FILES });
-      useProjectsStore.getState().saveCurrent(name);
-      useAgentHubStore.getState().newSession('host', name, t('sessions.newSession'));
-    } finally {
-      setBusy(false);
-    }
+  const onCreateProject = () => {
+    // 新建项目走正式对话框（名称 + 本地文件夹选择 + 物化），会话由对话框创建后统一建首个
+    useUiStore.getState().setNewProjectDialogOpen(true);
   };
 
   const onOpenProject = (id: string) => {
-    useProjectsStore.getState().openProject(id);
+    // 打开并与其本地目录增量同步（磁盘有而记录无 → 并入；磁盘更新 → 以磁盘为准），提示合并数
+    void openProjectWithDiskSync(id).then((res) => {
+      if (!res.opened) return;
+      if (res.sync && (res.sync.merged.length > 0 || res.sync.updated.length > 0)) {
+        useUiStore
+          .getState()
+          .showToast(t('toast.diskSync', { merged: res.sync.merged.length, updated: res.sync.updated.length }));
+      }
+    });
   };
 
   const onRenameProject = async (key: string, recordId?: string) => {
@@ -223,6 +204,14 @@ export function SessionsPanel() {
           <FolderPlus size={13} /> {t('sessions.newProject')}
         </button>
       </div>
+      {groups.length === 0 && (
+        <div className="sf-sessions-empty" data-testid="sessions-empty-guide">
+          <p className="sf-sessions-empty-text">{t('sessions.emptyGuide')}</p>
+          <button type="button" className="sf-pill-btn" onClick={onCreateProject}>
+            <FolderPlus size={13} /> {t('sessions.newProject')}
+          </button>
+        </div>
+      )}
       {groups.map((g) => {
         const isCollapsed = collapsed.has(g.key);
         return (

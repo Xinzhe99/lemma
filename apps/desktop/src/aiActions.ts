@@ -31,6 +31,7 @@ import { buildPlanPrompt, buildStepPrompt, parsePlan, type Plan } from './planMo
 import { useAgentPlansStore } from './state/agentPlans';
 import { buildRuntimeContextBlock } from './runtimeContext';
 import { rejectPendingUserAnswer } from './userAsk';
+import { generateSessionTitle } from './sessionTitle';
 
 export const CITATION_RULE =
   '\n\n## 核心规则\n1. 引用只能用本地文献库中存在的 citekey，可用 citation.validate 核验\n2. 写级操作（tex.edit / tex.create_file / citation.add）会弹出 diff 审批卡，用户裁决后结果回传给你\n3. 你有 19 个工具和 50 轮调用额度——不要问用户"要不要我做"，直接做\n4. user.ask 是唯一例外：只在【必须由人拍板且无法用工具查明】的分叉（目标期刊/语言/风格取舍）时用一次，选项不超过 4 个\n\n## 工作方式\n你是一个自主的学术写作 Agent。用户用自然语言描述需求，你自己决定用什么工具、什么顺序。例如：\n- "润色引言" → 读文件 → 找问题 → 修改 → 提交审批\n- "帮我找关于 diffusion 的相关论文" → 检索库 → 列出结果\n- "检查引用是否有问题" → 遍历 cite → 逐一验证 → 报告\n- "写一个 method section" → 读大纲 → 读文献 → 起草 → 提交审批\n\n不要一步步问用户确认。做完了再汇报结果。如果信息不够，先用工具获取，而不是反问。\n项目根目录若有 AGENTS.md（写作约定），它优先级最高，所有产出必须遵守。';
@@ -624,6 +625,10 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
   const fileMark = files && files.length > 0 ? `
 [附件：${files.map((f) => f.name).join('、')}]` : '';
 
+  // v7.7.0（Codex 式会话标题）：门控数据——仅「会话第一轮」（此前消息数 ≤ 1）触发；
+  // 必须在乐观插入前快照，插入后消息数恒 > 1
+  const isFirstRound = (store().sessions.find((s) => s.id === sessionId)?.messages.length ?? 0) <= 1;
+
   // UI 显示原始消息（附图/附件以标记+缩略图呈现）
   store().sendMessage(
     sessionId,
@@ -712,6 +717,23 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
     );
   }
   store().finishSession(sessionId, 'idle');
+
+  // v7.7.0（Codex 式会话标题）：第一轮真实回复成功完成后，异步生成 AI 标题。
+  // fire-and-forget：generateSessionTitle 失败/超时返回 null，这里再兜一层 catch；
+  // 仅当标题仍是首条消息前缀的派生值时才覆盖（用户手动改名后不抢）。
+  if (real && isFirstRound && acc && !abort.signal.aborted) {
+    void generateSessionTitle(text, acc)
+      .then((title) => {
+        if (!title) return;
+        const hub = useAgentHubStore.getState();
+        const s = hub.sessions.find((x) => x.id === sessionId);
+        const firstUser = s?.messages.find((m) => m.role === 'user');
+        if (!s || !firstUser) return;
+        // 与 store.sendMessage 的派生规则一致：首条 user 消息 trim 后取前 24 字
+        if (s.title === firstUser.content.trim().slice(0, 24)) hub.renameSession(s.id, title);
+      })
+      .catch(() => undefined);
+  }
 }
 
 /** 润色编辑器选中文本：产生整文件 diff 提案（规则润色离线可用，模型走 runAgentTurn） */

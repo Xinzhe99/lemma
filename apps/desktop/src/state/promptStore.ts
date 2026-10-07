@@ -1,7 +1,7 @@
 /**
  * 自定义提示词库（v1.2.0 ③）：研究者把高频指令沉淀为可复用资产。
  *  - 场景：反复手打「请检查全文时态一致性并给出修改建议」这类指令；
- *  - 挂载：斜杠菜单注入（ChatPanel SlashMenuItem.insert 填入输入框，可改后发送）；
+ *  - 挂载：斜杠菜单注入（ChatPanel SlashMenuItem.insertText 全文填入输入框，可改后发送）；
  *  - 管理：AgentPanel「提示词库」按钮 → PromptLibraryDialog（增改删）；
  *  - 持久化：localStorage（sf-user-prompts，小数据量；失败静默不打断 UI）。
  */
@@ -31,6 +31,8 @@ interface PromptState {
   addPrompt(title: string, body: string): string;
   updatePrompt(id: string, patch: { title?: string; body?: string }): void;
   deletePrompt(id: string): void;
+  /** v7.7.0：批量导入（追加、同名去重）。返回 { added, skipped } 供界面反馈 */
+  importPrompts(items: Array<{ title: string; text: string }>): { added: number; skipped: number };
 }
 
 /** 单条宽容校验：字段类型不符返回 null（不整体拒绝持久化数据） */
@@ -70,7 +72,7 @@ function persist(prompts: UserPrompt[]): void {
   }
 }
 
-export const usePromptStore = create<PromptState>((set) => ({
+export const usePromptStore = create<PromptState>((set, get) => ({
   prompts: loadPersistedPrompts(),
 
   addPrompt: (title, body) => {
@@ -110,16 +112,102 @@ export const usePromptStore = create<PromptState>((set) => ({
       persist(next);
       return { prompts: next };
     }),
+
+  importPrompts: (items) => {
+    const existing = get().prompts;
+    const seen = new Set(existing.map((p) => p.title));
+    const fresh: UserPrompt[] = [];
+    let skipped = 0;
+    for (const item of items) {
+      const title = item.title.trim().slice(0, PROMPT_TITLE_MAX);
+      const text = item.text.trim().slice(0, PROMPT_BODY_MAX);
+      // 空标题/空内容丢弃；与既有库或同批内同名的跳过并计数
+      if (!title || !text || seen.has(title)) {
+        skipped += 1;
+        continue;
+      }
+      seen.add(title);
+      fresh.push({ id: createId(), title, body: text, createdAt: Date.now(), updatedAt: Date.now() });
+    }
+    if (fresh.length > 0) {
+      const next = [...fresh.reverse(), ...existing].slice(0, PROMPTS_LIMIT); // 新的在前
+      persist(next);
+      set({ prompts: next });
+    }
+    return { added: fresh.length, skipped };
+  },
 }));
 
 /** 斜杠菜单注入形态（宿主映射；title 无斜杠前缀时补「/」） */
-export function promptsToSlashItems(prompts: UserPrompt[]): { id: string; label: string; hint?: string; insert: string }[] {
+export function promptsToSlashItems(prompts: UserPrompt[]): {
+  id: string;
+  label: string;
+  hint?: string;
+  insertText: string;
+}[] {
   return prompts.map((p) => ({
     id: `up:${p.id}`,
     label: p.title.startsWith('/') ? p.title : `/${p.title}`,
     hint: p.body.length > 40 ? `${p.body.slice(0, 40)}…` : p.body,
-    insert: p.body,
+    insertText: p.body,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// v7.7.0 提示词导入 / 导出：纯解析与格式化（UI 在 PromptLibraryDialog）。
+// 支持两种格式（自动识别）：
+//  1. JSON 数组 [{"title":"...","text":"..."}]（text 缺失时兼容 body 字段）；
+//  2. 行格式「标题｜内容」——全角｜或半角 | 分隔，后续不含分隔符的行并入上一条
+//     内容（多行提示词），直到下一个标题行。
+// ---------------------------------------------------------------------------
+
+/** 解析导入文本为 {title, text} 列表：坏记录丢弃，全不识别返回 [] */
+export function parsePromptImport(raw: string): Array<{ title: string; text: string }> {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  // 1) JSON 数组自动识别（解析失败落回行格式）
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const out: Array<{ title: string; text: string }> = [];
+        for (const item of parsed) {
+          if (!item || typeof item !== 'object') continue;
+          const o = item as Record<string, unknown>;
+          const title = typeof o.title === 'string' ? o.title.trim() : '';
+          const text =
+            typeof o.text === 'string' ? o.text : typeof o.body === 'string' ? o.body : '';
+          if (title && text.trim()) out.push({ title, text: text.trim() });
+        }
+        return out;
+      }
+    } catch {
+      /* 非 JSON → 按行格式解析 */
+    }
+  }
+  // 2) 行格式：「标题｜内容」；不含分隔符的非空行并入上一条内容
+  const out: Array<{ title: string; text: string }> = [];
+  let current: { title: string; text: string } | null = null;
+  for (const line of trimmed.split(/\r?\n/)) {
+    const m = /^([^｜|]+)[｜|](.*)$/.exec(line);
+    if (m) {
+      if (current) out.push(current);
+      current = { title: m[1].trim(), text: m[2].trim() };
+    } else if (current && line.trim()) {
+      current.text = current.text ? `${current.text}\n${line.trim()}` : line.trim();
+    }
+  }
+  if (current) out.push(current);
+  return out.filter((p) => p.title && p.text);
+}
+
+/** 导出格式化：与导入同口径的 JSON（title + text 字段，稳定可读） */
+export function formatPromptsForExport(prompts: Array<Pick<UserPrompt, 'title' | 'body'>>): string {
+  return JSON.stringify(
+    prompts.map((p) => ({ title: p.title, text: p.body })),
+    null,
+    2,
+  );
 }
 
 /** 测试隔离：重置内存态并清空持久化副本 */

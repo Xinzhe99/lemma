@@ -263,11 +263,12 @@ describe('历史回填与收发回归', () => {
 });
 
 // ---------------------------------------------------------------------------
-// v1.2.0：③ 自定义提示词 insert 项 / ② latex 插入按钮透传
+// v1.2.0：③ 自定义提示词 insertText 项（v7.7.0 打磨：全文替换 + 光标末尾）
+//         / ② latex 插入按钮透传
 // ---------------------------------------------------------------------------
 
-describe('自定义提示词（insert 项）与 latex 插入透传', () => {
-  it('选中 insert 项 → 正文填入输入框（可改后发送），不触发 onSlashWorkflow', () => {
+describe('自定义提示词（insertText 项）与 latex 插入透传', () => {
+  it('选中 insertText 项 → 全文填入输入框（光标在末尾），不触发 onSlashWorkflow 也不发送', () => {
     const onSlashWorkflow = vi.fn();
     const onSend = vi.fn();
     const { container } = render(
@@ -276,21 +277,71 @@ describe('自定义提示词（insert 项）与 latex 插入透传', () => {
         onSend={onSend}
         onSlashWorkflow={onSlashWorkflow}
         slashItems={[
-          { id: 'up:1', label: '/检查时态', hint: '…', insert: '请检查全文时态一致性' },
+          { id: 'up:1', label: '/检查时态', hint: '…', insertText: '请检查全文时态一致性' },
         ]}
       />,
     );
-    const ta = container.querySelector('textarea')!;
+    let ta = container.querySelector('textarea')!;
     fireEvent.change(ta, { target: { value: '/检查' } });
     const items = container.querySelectorAll('.sf-ah-menu--slash .sf-ah-menu-item');
     expect(items).toHaveLength(1);
     fireEvent.click(items[0]!);
-    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('请检查全文时态一致性');
+    ta = container.querySelector('textarea')!;
+    expect(ta.value).toBe('请检查全文时态一致性');
+    expect(ta.selectionStart).toBe(ta.value.length); // 光标移到末尾
+    expect(ta.selectionEnd).toBe(ta.value.length);
+    expect(container.querySelector('.sf-ah-menu--slash')).toBeNull(); // 菜单关闭
     expect(onSlashWorkflow).not.toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled(); // 插入 ≠ 发送（可改后回车）
     // 修改后发送
-    fireEvent.change(container.querySelector('textarea')!, { target: { value: '请检查全文时态一致性，逐段给 diff' } });
-    fireEvent.keyDown(container.querySelector('textarea')!, { key: 'Enter' });
+    fireEvent.change(ta, { target: { value: '请检查全文时态一致性，逐段给 diff' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
     expect(onSend).toHaveBeenCalledWith('请检查全文时态一致性，逐段给 diff', undefined, undefined);
+  });
+
+  it('键盘路径：↑↓ 导航到提示词项 + Enter 插入（工作流项仍在 Enter 启动）', () => {
+    const onSlashWorkflow = vi.fn();
+    const { container } = render(
+      <ChatPanel
+        session={makeSession()}
+        onSlashWorkflow={onSlashWorkflow}
+        slashItems={[
+          { id: 'w-draft', label: '/章节起草', hint: '起草一节' },
+          { id: 'up:1', label: '/检查时态', hint: '…', insertText: '请检查全文时态一致性' },
+        ]}
+      />,
+    );
+    const ta = () => container.querySelector('textarea')!;
+    fireEvent.change(ta(), { target: { value: '/' } });
+    // / 章节 两个高亮项：初始高亮工作流，Enter 启动
+    fireEvent.keyDown(ta(), { key: 'Enter' });
+    expect(onSlashWorkflow).toHaveBeenCalledWith('w-draft');
+    expect(ta().value).toBe('');
+    // ↓ 移到提示词项，Enter 插入全文
+    fireEvent.change(ta(), { target: { value: '/' } });
+    fireEvent.keyDown(ta(), { key: 'ArrowDown' });
+    fireEvent.keyDown(ta(), { key: 'Enter' });
+    expect(ta().value).toBe('请检查全文时态一致性');
+    expect(ta().selectionStart).toBe(ta().value.length);
+    expect(onSlashWorkflow).toHaveBeenCalledTimes(1); // 提示词项不走启动
+  });
+
+  it('Esc 关闭菜单，随后 Enter 走普通发送（导航/关闭回归）', () => {
+    const onSend = vi.fn();
+    const { container } = render(
+      <ChatPanel
+        session={makeSession()}
+        onSend={onSend}
+        slashItems={[{ id: 'up:1', label: '/检查时态', insertText: '正文' }]}
+      />,
+    );
+    const ta = container.querySelector('textarea')!;
+    fireEvent.change(ta, { target: { value: '/' } });
+    expect(container.querySelector('.sf-ah-menu--slash')).toBeTruthy();
+    fireEvent.keyDown(ta, { key: 'Escape' });
+    expect(container.querySelector('.sf-ah-menu--slash')).toBeNull();
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(onSend).toHaveBeenCalledWith('/', undefined, undefined);
   });
 
   it('onInsertLatex 透传：assistant 消息中 latex 围栏渲染插入按钮并回调', () => {

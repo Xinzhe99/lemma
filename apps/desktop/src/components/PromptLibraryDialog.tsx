@@ -1,6 +1,6 @@
 /**
  * 提示词库对话框（v1.2.0 ③；LazyFeatureDialog 契约：export PromptLibraryDialog({ onClose })）：
- * 管理研究者沉淀的高频指令——新增（标题 + 正文）、就地编辑、删除；
+ * 管理研究者沉淀的高频指令——新增（标题 + 正文）、就地编辑、删除、导入/导出（v7.7.0）；
  * 保存即进斜杠菜单（/ 标题 → 正文填入聊天输入框，可改后发送）。
  * 数据源 usePromptStore（localStorage 持久化）；zh/en 组件内字典；不新增 CSS。
  */
@@ -12,6 +12,8 @@ import {
   usePromptStore,
   PROMPT_TITLE_MAX,
   PROMPT_BODY_MAX,
+  parsePromptImport,
+  formatPromptsForExport,
   type UserPrompt,
 } from '../state/promptStore';
 
@@ -31,6 +33,18 @@ const STRINGS = {
     close: '关闭',
     chars: (n: number) => `${n} 字`,
     titleRequired: '标题与正文不能为空',
+    // —— v7.7.0 导入 / 导出 ——
+    importBtn: '导入',
+    exportBtn: '导出',
+    importPlaceholder:
+      '粘贴导入内容，每条一行「标题｜内容」（全角/半角竖线均可；内容可跨多行，直到下一个标题），或 JSON 数组 [{"title":"…","text":"…"}]。',
+    importConfirm: '确认导入',
+    importResult: (added: number, skipped: number) =>
+      `已导入 ${added} 条${skipped > 0 ? `，跳过 ${skipped} 条（同名或无效）` : ''}`,
+    importEmpty: '没有识别到可导入的提示词（检查「标题｜内容」格式或 JSON 数组）',
+    exportResult: (n: number) => `已复制 ${n} 条到剪贴板`,
+    exportFail: '复制到剪贴板失败（当前环境不支持或未授权）',
+    exportEmpty: '暂无可导出的提示词',
   },
   en: {
     title: 'Prompt library',
@@ -47,6 +61,18 @@ const STRINGS = {
     close: 'Close',
     chars: (n: number) => `${n} chars`,
     titleRequired: 'Title and body are required',
+    // —— v7.7.0 Import / Export ——
+    importBtn: 'Import',
+    exportBtn: 'Export',
+    importPlaceholder:
+      'Paste import content, one prompt per line as "Title | Body" (full- or half-width pipe; body may span lines until the next title), or a JSON array [{"title":"…","text":"…"}].',
+    importConfirm: 'Import',
+    importResult: (added: number, skipped: number) =>
+      `Imported ${added}${skipped > 0 ? `, skipped ${skipped} (duplicate or invalid)` : ''}`,
+    importEmpty: 'No prompts recognized (check the "Title | Body" lines or JSON array)',
+    exportResult: (n: number) => `Copied ${n} prompts to the clipboard`,
+    exportFail: 'Copy to clipboard failed (unsupported or not permitted in this environment)',
+    exportEmpty: 'Nothing to export yet',
   },
 } as const;
 
@@ -58,6 +84,7 @@ export function PromptLibraryDialog({ onClose }: { onClose: () => void }) {
   const addPrompt = usePromptStore((s) => s.addPrompt);
   const updatePrompt = usePromptStore((s) => s.updatePrompt);
   const deletePrompt = usePromptStore((s) => s.deletePrompt);
+  const importPrompts = usePromptStore((s) => s.importPrompts);
 
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
@@ -65,6 +92,10 @@ export function PromptLibraryDialog({ onClose }: { onClose: () => void }) {
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // —— v7.7.0 导入 / 导出 ——
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -111,6 +142,40 @@ export function PromptLibraryDialog({ onClose }: { onClose: () => void }) {
     });
   };
 
+  // —— v7.7.0 导入 / 导出 ——
+
+  /** 确认导入：解析 → 追加去重 → 结果反馈（识别不到给行动提示） */
+  const handleImport = (): void => {
+    const parsed = parsePromptImport(importText);
+    if (parsed.length === 0) {
+      setError(L.importEmpty);
+      setStatus(null);
+      return;
+    }
+    setError(null);
+    const { added, skipped } = importPrompts(parsed);
+    setImportOpen(false);
+    setImportText('');
+    setStatus(L.importResult(added, skipped));
+  };
+
+  /** 导出：同格式 JSON 复制到剪贴板；失败给提示（权限/环境不支持） */
+  const handleExport = async (): Promise<void> => {
+    if (prompts.length === 0) {
+      setError(L.exportEmpty);
+      setStatus(null);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(formatPromptsForExport(prompts));
+      setError(null);
+      setStatus(L.exportResult(prompts.length));
+    } catch {
+      setError(L.exportFail);
+      setStatus(null);
+    }
+  };
+
   return (
     <div className="sf-dialog-overlay" onMouseDown={onClose}>
       <div className="sf-dialog" onMouseDown={(e) => e.stopPropagation()}>
@@ -143,6 +208,35 @@ export function PromptLibraryDialog({ onClose }: { onClose: () => void }) {
             </label>
           </div>
           {error && <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--err)' }}>{error}</p>}
+          {status && <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--ok, var(--fg-1))' }}>{status}</p>}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button className="sf-btn" onClick={() => setImportOpen((v) => !v)}>
+              {L.importBtn}
+            </button>
+            <button className="sf-btn" onClick={() => void handleExport()} disabled={prompts.length === 0}>
+              {L.exportBtn}
+            </button>
+          </div>
+          {importOpen && (
+            <div style={{ marginBottom: 12 }}>
+              <textarea
+                className="sf-input"
+                rows={4}
+                value={importText}
+                placeholder={L.importPlaceholder}
+                onChange={(e) => setImportText(e.target.value)}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <button className="sf-btn sf-btn--primary" onClick={handleImport} disabled={!importText.trim()}>
+                  {L.importConfirm}
+                </button>
+                <button className="sf-btn dim" onClick={() => setImportOpen(false)}>
+                  {L.cancel}
+                </button>
+              </div>
+            </div>
+          )}
           <button className="sf-btn" onClick={handleAdd} disabled={!newTitle.trim() || !newBody.trim()}>
             {L.add}
           </button>

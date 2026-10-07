@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const procMock = vi.hoisted(() => vi.fn());
 vi.mock('./platform/tauri', () => ({
+  createTauriPlatform: () => null,
   tauriProcRun: procMock,
   tauriReadBase64: vi.fn(),
   tauriWrite: vi.fn(),

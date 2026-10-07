@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useWorkspaceStore } from './workspaceStore';
+import { useWorkspaceStore, initWorkspace } from './workspaceStore';
 
 // 持久化写盘改为可控挂起：手动放行以确定性验证 dirty 生命周期（成功回调）。
+// readFile 可控（readState.next）：验证 initWorkspace 的启动恢复语义。
 const pendingWrites = vi.hoisted(() => [] as (() => void)[]);
+const readState = vi.hoisted(() => ({ next: undefined as string | undefined }));
+const writeCalls = vi.hoisted(() => [] as Array<{ path: string; content: string }>);
 vi.mock('../platform/types', () => ({
   getPlatform: () => ({
     kind: 'browser' as const,
     fs: {
       async readFile() {
-        throw new Error('测试环境无快照');
+        if (readState.next === undefined) throw new Error('测试环境无快照');
+        return readState.next;
       },
-      writeFile() {
+      writeFile(path: string, content: string) {
+        writeCalls.push({ path, content });
         return new Promise<void>((resolve) => {
           pendingWrites.push(resolve);
         });
@@ -30,12 +35,15 @@ vi.mock('../platform/types', () => ({
 }));
 
 function reset() {
+  readState.next = undefined;
   useWorkspaceStore.setState({
     projectName: '',
     entry: '',
     files: {},
     openTabs: [],
     activeTab: null,
+    snapshots: {},
+    projectDir: null,
     compileLog: [],
     compileStatus: 'idle',
     dirty: false,
@@ -212,5 +220,86 @@ describe('workspaceStore 保存状态（dirty 生命周期）', () => {
     useWorkspaceStore.getState().loadProject('p', 'main.tex', { 'main.tex': 'x' });
     expect(useWorkspaceStore.getState().dirty).toBe(false);
     expect(useWorkspaceStore.getState().lastSavedAt).toBeNull();
+  });
+});
+
+describe('workspaceStore projectDir 绑定', () => {
+  beforeEach(reset);
+
+  it('loadProject 可绑定本地目录；缺省重置为 null；loadDemoProject 重置为 null', () => {
+    useWorkspaceStore.getState().loadProject('p', 'main.tex', { 'main.tex': 'x' }, 'D:\\papers\\p');
+    expect(useWorkspaceStore.getState().projectDir).toBe('D:\\papers\\p');
+
+    // 不传 dir（模板向导/导入 zip 路径）：绑定清空
+    useWorkspaceStore.getState().loadProject('q', 'main.tex', { 'main.tex': 'y' });
+    expect(useWorkspaceStore.getState().projectDir).toBeNull();
+
+    useWorkspaceStore.getState().loadProject('r', 'main.tex', { 'main.tex': 'z' }, 'D:\\papers\\r');
+    useWorkspaceStore.getState().loadDemoProject();
+    expect(useWorkspaceStore.getState().projectDir).toBeNull();
+  });
+
+  it('持久化快照携带 projectDir（workspace.json 恢复当前项目的目录绑定）', async () => {
+    writeCalls.length = 0;
+    useWorkspaceStore.getState().loadProject('p', 'main.tex', { 'main.tex': 'x' }, 'D:\\papers\\p');
+    useWorkspaceStore.getState().updateFile('main.tex', '触发持久化');
+    await afterDebounce();
+    flushWrites();
+    await afterDebounce();
+
+    const wsWrite = writeCalls.find((c) => c.path === 'workspace.json');
+    expect(wsWrite).toBeTruthy();
+    expect(JSON.parse(wsWrite!.content).projectDir).toBe('D:\\papers\\p');
+  });
+});
+
+describe('initWorkspace 启动语义（无 demo fallback）', () => {
+  beforeEach(reset);
+
+  it('全新安装（无 workspace.json）：保持空工作区，不再自动载入演示项目', async () => {
+    await initWorkspace();
+    const s = useWorkspaceStore.getState();
+    expect(s.files).toEqual({});
+    expect(s.projectName).toBe('');
+    expect(s.activeTab).toBeNull();
+  });
+
+  it('快照损坏：同样保持空工作区（由首启引导卡接手）', async () => {
+    readState.next = '{oops not json';
+    await initWorkspace();
+    const s = useWorkspaceStore.getState();
+    expect(s.files).toEqual({});
+    expect(s.projectName).toBe('');
+  });
+
+  it('有快照：恢复正常，并兼容旧快照缺 projectDir 字段（→ null）', async () => {
+    readState.next = JSON.stringify({
+      projectName: '论文A',
+      entry: 'main.tex',
+      files: { 'main.tex': 'x' },
+      openTabs: ['main.tex'],
+      activeTab: 'main.tex',
+      snapshots: {},
+    });
+    await initWorkspace();
+    const s = useWorkspaceStore.getState();
+    expect(s.projectName).toBe('论文A');
+    expect(s.files['main.tex']).toBe('x');
+    expect(s.activeTab).toBe('main.tex');
+    expect(s.projectDir).toBeNull();
+  });
+
+  it('有快照且带 projectDir：目录绑定一并恢复', async () => {
+    readState.next = JSON.stringify({
+      projectName: '论文B',
+      entry: 'main.tex',
+      files: { 'main.tex': 'y' },
+      openTabs: ['main.tex'],
+      activeTab: 'main.tex',
+      snapshots: {},
+      projectDir: 'D:\\papers\\b',
+    });
+    await initWorkspace();
+    expect(useWorkspaceStore.getState().projectDir).toBe('D:\\papers\\b');
   });
 });

@@ -5,7 +5,6 @@
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
-  BookOpen,
   FileText,
   GitBranch,
   History,
@@ -72,13 +71,12 @@ function warmPdfChunk(): void {
 }
 import { jumpPdfToSource, onPdfGoto } from './synctexBridge'; // WS-2 编译同步闭环（App 窄 carve-out）
 
-const TOAST_MS = 2400;
-
 export function App() {
   const t = useT();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  // 轻提示：跨面板消息（项目创建/磁盘合并等）经 uiStore.showToast 解耦（原 App 本地 state 迁入 store）
+  const toast = useUiStore((s) => s.toast);
   // 欢迎导览（完整新手引导系统）：首屏判定一次，完成/稍后/跳过后经 onClose 卸载
   const [tourOpen, setTourOpen] = useState(false);
 
@@ -86,7 +84,6 @@ export function App() {
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
   const knowledgeTab = useUiStore((s) => s.knowledgeTab);
   const setKnowledgeTab = useUiStore((s) => s.setKnowledgeTab);
-  const requestPdfPicker = useUiStore((s) => s.requestPdfPicker);
   const pdfPickerTick = useUiStore((s) => s.pdfPickerTick);
   const zipPickerTick = useUiStore((s) => s.zipPickerTick);
   const pdfView = useUiStore((s) => s.pdfView);
@@ -97,6 +94,7 @@ export function App() {
   const setTableEditorOpen = useUiStore((s) => s.setTableEditorOpen);
   const projectSwitcherOpen = useUiStore((s) => s.projectSwitcherOpen);
   const setProjectSwitcherOpen = useUiStore((s) => s.setProjectSwitcherOpen);
+  const newProjectDialogOpen = useUiStore((s) => s.newProjectDialogOpen);
   const searchPanelOpen = useUiStore((s) => s.searchPanelOpen);
   const imageWizardOpen = useUiStore((s) => s.imageWizardOpen);
   const citationPickerOpen = useUiStore((s) => s.citationPickerOpen);
@@ -132,7 +130,6 @@ export function App() {
   const annotationsByFile = useAnnotationStore((s) => s.byFile);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
 
@@ -148,7 +145,12 @@ export function App() {
     // 空闲预热：PDF 阅读器 + KaTeX 公式引擎分包（见 warmPdfChunk）
     warmPdfChunk();
     // v5.0.0 内置 git：启动即探测可用性
-    void detectGitAvailability();
+    void detectGitAvailability().then((avail) => {
+      // v7.6.1：预热——后台确保仓库就绪（物化+init），首次打开 Git 面板不再等待
+      if (avail === 'ok') {
+        void import('./git/gitService').then(({ ensureGitRepo }) => ensureGitRepo());
+      }
+    });
     // v7.6.0：禁用 WebView2/WKWebView 原生右键菜单（其中的「刷新」会整页重载，
     // 用户误触后以为数据全丢）——输入框/文本域内保留系统菜单以便复制粘贴
     const suppressContext = (e: MouseEvent): void => {
@@ -287,9 +289,7 @@ export function App() {
   }, [setQuickOpenOpen, setShortcutsOpen]);
 
   const showToast = useCallback((message: string) => {
-    setToast(message);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
+    useUiStore.getState().showToast(message);
   }, []);
 
   const focusFileTree = useCallback(() => {
@@ -341,9 +341,6 @@ export function App() {
         </button>
       ))}
       <div className="nav-spacer" />
-      <button className="nav-btn" title={t('nav.reading')} onClick={requestPdfPicker}>
-        <BookOpen size={18} />
-      </button>
     </nav>
   );
 
@@ -779,6 +776,10 @@ export function App() {
 
       {projectSwitcherOpen && <LazyFeatureDialog file="ProjectSwitcher" onClose={() => setProjectSwitcherOpen(false)} />}
 
+      {newProjectDialogOpen && (
+        <LazyFeatureDialog file="NewProjectDialog" onClose={() => useUiStore.getState().setNewProjectDialogOpen(false)} />
+      )}
+
       {searchPanelOpen && <LazyFeatureDialog file="SearchPanel" onClose={() => useUiStore.getState().setSearchPanelOpen(false)} />}
 
       {imageWizardOpen && <LazyFeatureDialog file="ImageWizard" onClose={() => useUiStore.getState().setImageWizardOpen(false)} />}
@@ -823,6 +824,7 @@ function LazyFeatureDialog({
   file:
     | 'TableEditor'
     | 'ProjectSwitcher'
+    | 'NewProjectDialog'
     | 'SearchPanel'
     | 'ImageWizard'
     | 'TextDialog'
@@ -842,7 +844,7 @@ function LazyFeatureDialog({
   onClose: () => void;
 }) {
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog,TikzFigureDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,NewProjectDialog,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog,TikzFigureDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

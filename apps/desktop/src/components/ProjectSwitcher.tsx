@@ -10,6 +10,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { CURRENT_PROJECT_ID, useProjectsStore, type ProjectRecord } from '../state/projectsStore';
+import { isDesktopKind, materializeProjectToDisk, syncProjectFromDisk } from '../state/projectDisk';
 
 const STRINGS = {
   zh: {
@@ -99,10 +100,38 @@ export function ProjectSwitcher({ onClose }: { onClose: () => void }) {
 
   const handleSave = () => {
     saveCurrent(nameInput.trim() || undefined);
+    // 项目绑定了本地目录：保存时把文件物化到该目录（失败不打断，轻提示）
+    const ws = useWorkspaceStore.getState();
+    if (ws.projectDir && isDesktopKind()) {
+      materializeProjectToDisk(ws.projectDir, ws.files)
+        .then(() => useUiStore.getState().showToast(language === 'en' ? 'Saved to local folder' : '已保存到本地文件夹'))
+        .catch((e: unknown) =>
+          useUiStore
+            .getState()
+            .showToast(
+              (language === 'en' ? 'Failed to write local folder: ' : '写入本地文件夹失败：') +
+                (e instanceof Error ? e.message : String(e)),
+            ),
+        );
+    }
   };
 
   const open = (id: string) => {
-    if (openProject(id)) onClose();
+    const rec = useProjectsStore.getState().projects.find((p) => p.id === id);
+    if (!useProjectsStore.getState().openProject(id)) return;
+    onClose();
+    // 打开后与其本地目录增量同步（磁盘有而记录无 → 并入；磁盘更新 → 以磁盘为准），轻提示合并数
+    void syncProjectFromDisk(rec?.dir, rec?.savedAt ?? Date.now()).then((sync) => {
+      if (sync && (sync.merged.length > 0 || sync.updated.length > 0)) {
+        useUiStore
+          .getState()
+          .showToast(
+            language === 'en'
+              ? `Merged ${sync.merged.length} file(s) from disk, ${sync.updated.length} taken from newer disk versions`
+              : `已从本地文件夹并入 ${sync.merged.length} 个文件，${sync.updated.length} 个以磁盘新版本为准`,
+          );
+      }
+    });
   };
 
   const newBlank = () => {

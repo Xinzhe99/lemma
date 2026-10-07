@@ -1,7 +1,11 @@
 /**
- * 项目文件树：由 files Record 按 "/" 嵌套渲染；文件夹可折叠（展开态存组件内 state）；
- * 悬停 ⋯ 菜单支持新建 / 重命名 / 删除（三者的输入与确认均走应用内文本对话框，
- * 经 uiStore.openTextDialog 返回 Promise，Tauri WKWebView 下原生对话框不可用）。
+ * 项目文件树（按项目分组）：
+ * - 顶部为当前项目分组：项目名标题 + 「当前」chip + 该项目文件树（既有能力保留：
+ *   嵌套渲染/折叠/新建/重命名/删除，经 uiStore.openTextDialog 的应用内对话框）；
+ * - 下方列出其他已保存项目（projectsStore 记录）：折叠行 = 项目名 + 文件数，
+ *   点击展开只读文件清单 + 「切换到此项目」（openProject + 本地目录磁盘同步合并）；
+ *   当前项目行高亮 chip，不出现在「其他项目」列表。
+ * 输入与确认均走应用内文本对话框（Tauri WKWebView 下原生对话框不可用）。
  */
 
 import { useEffect, useState } from 'react';
@@ -23,6 +27,8 @@ import {
 import { useT } from '../i18n';
 import { useUiStore, type TextDialogRequest } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { CURRENT_PROJECT_ID, useProjectsStore } from '../state/projectsStore';
+import { openProjectWithDiskSync } from '../state/projectDisk';
 
 /** 打开应用内文本对话框并等待用户输入/确认（取消返回 null） */
 function askText(req: Omit<TextDialogRequest, 'resolve'>): Promise<string | null> {
@@ -80,10 +86,17 @@ export function FileTree() {
   const createFile = useWorkspaceStore((s) => s.createFile);
   const renameFile = useWorkspaceStore((s) => s.renameFile);
   const deleteFile = useWorkspaceStore((s) => s.deleteFile);
+  const projectName = useWorkspaceStore((s) => s.projectName);
+  const records = useProjectsStore((s) => s.projects);
 
   const tree = buildTree(files);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** 展开的其他项目记录 id 集合（默认全部折叠） */
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  // 其他已保存项目（排除当前项目名的记录与临时崩溃恢复记录），新保存的在前
+  const otherProjects = records.filter((p) => p.id !== CURRENT_PROJECT_ID && p.name !== projectName);
 
   useEffect(() => {
     if (menuFor === null) return;
@@ -97,6 +110,14 @@ export function FileTree() {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
       else next.add(path);
+      return next;
+    });
+
+  const toggleProject = (id: string) =>
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
 
@@ -145,6 +166,18 @@ export function FileTree() {
     } else {
       deleteFile(node.path);
     }
+  };
+
+  /** 切换到其他已保存项目（openProject + 本地目录磁盘同步），合并结果经轻提示 */
+  const switchToProject = (id: string) => {
+    void openProjectWithDiskSync(id).then((res) => {
+      if (!res.opened) return;
+      if (res.sync && (res.sync.merged.length > 0 || res.sync.updated.length > 0)) {
+        useUiStore
+          .getState()
+          .showToast(t('toast.diskSync', { merged: res.sync.merged.length, updated: res.sync.updated.length }));
+      }
+    });
   };
 
   const renderRow = (node: TreeNode, depth: number) => {
@@ -219,6 +252,25 @@ export function FileTree() {
     );
   };
 
+  /** 其他项目的只读文件清单（来自 projectsStore 记录，不可点击打开） */
+  const renderReadonlyRow = (projectId: string, path: string, depth: number) => {
+    const Icon = iconFor(path);
+    return (
+      <div
+        key={`${projectId}:${path}`}
+        className="sf-tree-row readonly"
+        data-readonly-path={path}
+        style={{ paddingLeft: depth * 14 + 6 }}
+        title={t('tree.readonlyHint')}
+      >
+        <span className="sf-tree-icon">
+          <Icon size={14} />
+        </span>
+        <span className="sf-tree-name">{path}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="sf-tree">
       <div className="sf-tree-toolbar">
@@ -227,11 +279,61 @@ export function FileTree() {
           <span>{t('tree.newFile')}</span>
         </button>
       </div>
+
+      {/* 当前项目分组 */}
+      <div className="sf-tree-project-head current" data-testid="tree-current-project">
+        <span className="sf-tree-project-name" title={projectName}>
+          {projectName || t('tree.untitledProject')}
+        </span>
+        <span className="sf-chip sf-tree-current-chip">{t('tree.currentChip')}</span>
+      </div>
       {tree.length === 0 ? (
-        <p className="placeholder">{t('editor.noOpen')}</p>
+        <p className="placeholder sf-tree-empty">{t('tree.emptyGuide')}</p>
       ) : (
         tree.map((n) => renderRow(n, 0))
       )}
+
+      {/* 其他已保存项目（折叠行，只读清单 + 切换） */}
+      {otherProjects.length > 0 && <div className="sf-tree-other-title">{t('tree.otherProjects')}</div>}
+      {otherProjects.map((rec) => {
+        const expanded = expandedProjects.has(rec.id);
+        const paths = Object.keys(rec.snapshot.files).sort();
+        return (
+          <div key={rec.id} className="sf-tree-project" data-project={rec.id}>
+            <div
+              className="sf-tree-project-head"
+              data-action="toggle"
+              onClick={() => toggleProject(rec.id)}
+            >
+              {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              <span className="sf-tree-project-name" title={rec.name}>
+                {rec.name}
+              </span>
+              <span className="sf-tree-project-count">{t('tree.fileCount', { n: paths.length })}</span>
+            </div>
+            {expanded && (
+              <div className="sf-tree-project-body" data-testid={`tree-project-${rec.id}`}>
+                {paths.length === 0 ? (
+                  <p className="placeholder">{t('tree.projectNoFiles')}</p>
+                ) : (
+                  paths.map((p) => renderReadonlyRow(rec.id, p, 0))
+                )}
+                <button
+                  type="button"
+                  className="sf-tree-switch"
+                  data-action="switch"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    switchToProject(rec.id);
+                  }}
+                >
+                  {t('tree.switchTo')}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

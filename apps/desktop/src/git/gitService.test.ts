@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // platform 桥 mock：proc_run 可编程应答
 const procMock = vi.hoisted(() => vi.fn());
 vi.mock('../platform/tauri', () => ({
+  createTauriPlatform: () => null,
   tauriProcRun: procMock,
   tauriReadBase64: vi.fn(),
   tauriWrite: vi.fn(),

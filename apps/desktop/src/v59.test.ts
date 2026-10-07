@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Paper } from '@lemma/shared';
 
 vi.mock('./platform/tauri', () => ({
+  createTauriPlatform: () => null,
   tauriProcRun: vi.fn(),
   tauriReadBase64: vi.fn(),
   tauriWrite: vi.fn(),

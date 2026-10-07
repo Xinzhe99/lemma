@@ -13,6 +13,18 @@ const dict: MessageDict = {
   'palette.trigger': { zh: '命令面板', en: 'Command palette' },
   'palette.placeholder': { zh: '输入命令…', en: 'Type a command…' },
   'palette.empty': { zh: '无匹配命令', en: 'No matching commands' },
+  // 命令面板分组标题与默认视图提示（顺序见 commandPalette.tsx 的 PALETTE_GROUP_ORDER）
+  'palette.group.project': { zh: '项目与文件', en: 'Project & Files' },
+  'palette.group.compile': { zh: '编译与预览', en: 'Compile & Preview' },
+  'palette.group.edit': { zh: '编辑与插入', en: 'Editing & Insert' },
+  'palette.group.ai': { zh: 'AI 助手', en: 'AI Assistant' },
+  'palette.group.library': { zh: '文献与阅读', en: 'Library & Reading' },
+  'palette.group.view': { zh: '视图与面板', en: 'View & Panels' },
+  'palette.group.workflow': { zh: '工作流', en: 'Workflows' },
+  'palette.group.submit': { zh: '投稿', en: 'Submission' },
+  'palette.group.knowledge': { zh: '知识库', en: 'Knowledge' },
+  'palette.group.app': { zh: '应用', en: 'App' },
+  'palette.searchAll': { zh: '输入关键词，搜索全部 {n} 个命令', en: 'Type to search all {n} commands' },
   'compile.idle': { zh: '编译 · 未运行', en: 'Compile · idle' },
   'compile.running': { zh: '编译 · 运行中…', en: 'Compile · running…' },
   'compile.ok': { zh: '编译 · 成功', en: 'Compile · ok' },
@@ -54,11 +66,32 @@ const dict: MessageDict = {
   'tree.newFilePrompt': { zh: '新建文件路径（如 sections/notes.tex）', en: 'New file path (e.g. sections/notes.tex)' },
   'tree.renamePrompt': { zh: '重命名为', en: 'Rename to' },
   'tree.deleteConfirm': { zh: '确认删除', en: 'Confirm delete' },
+  // 文件树按项目分组
+  'tree.currentChip': { zh: '当前', en: 'Current' },
+  'tree.untitledProject': { zh: '未命名项目', en: 'Untitled project' },
+  'tree.otherProjects': { zh: '其他项目', en: 'Other projects' },
+  'tree.fileCount': { zh: '{n} 个文件', en: '{n} files' },
+  'tree.switchTo': { zh: '切换到此项目', en: 'Switch to this project' },
+  'tree.readonlyHint': { zh: '只读清单——切换到该项目后可编辑', en: 'Read-only list — switch to this project to edit' },
+  'tree.emptyGuide': {
+    zh: '还没有文件——点「新建项目」创建你的第一个项目，或从模板开始。',
+    en: 'No files yet — click "New project" to create your first one, or start from a template.',
+  },
+  'tree.projectNoFiles': { zh: '（该记录没有文件）', en: '(no files in this record)' },
 
   // 编辑区
   'editor.pending': { zh: '打开文件开始编辑', en: 'Open a file to start editing' },
   'editor.noOpen': { zh: '未打开文件', en: 'No file open' },
   'editor.unsupportedType': { zh: '该文件类型暂不支持文本编辑', en: 'This file type is not editable as text' },
+
+  // 首启引导卡（全新安装空态：编辑器区）
+  'empty.firstProject.title': { zh: '创建你的第一个项目', en: 'Create your first project' },
+  'empty.firstProject.desc': {
+    zh: '给项目起个名字，可选一个本地文件夹保存；也可以先看看内置的演示项目。',
+    en: 'Name your project and optionally pick a local folder to save it in; or take a look at the built-in demo first.',
+  },
+  'empty.firstProject.create': { zh: '新建项目', en: 'New project' },
+  'empty.firstProject.demo': { zh: '先看看演示项目', en: 'View the demo project' },
 
   // 选中即问工具条（EditorArea）
   'selbar.selected': { zh: '已选 {n} 字', en: '{n} chars selected' },
@@ -96,6 +129,10 @@ const dict: MessageDict = {
   'sessions.deleteSessionDesc': { zh: '会话消息将一并删除，不可恢复。', en: 'All messages will be deleted permanently.' },
   'sessions.newProjectPrompt': { zh: '新建项目', en: 'New project' },
   'sessions.newProjectDefault': { zh: '新论文', en: 'New paper' },
+  'sessions.emptyGuide': {
+    zh: '还没有项目——点「新建项目」创建你的第一个项目，并选择本地保存位置。',
+    en: 'No projects yet — click "New project" to create your first one and pick where to save it.',
+  },
   'sessions.renameProject': { zh: '重命名项目', en: 'Rename project' },
   'sessions.deleteProject': { zh: '删除项目', en: 'Delete project' },
   'sessions.deleteProjectTitle': { zh: '删除项目', en: 'Delete project' },
@@ -365,6 +402,11 @@ const dict: MessageDict = {
   },
   'toast.zipSkipped': { zh: '，跳过 {count} 个二进制文件', en: ', {count} binary files skipped' },
   'toast.zipImportFailed': { zh: '导入失败：{reason}', en: 'Import failed: {reason}' },
+  // 项目 ↔ 本地目录磁盘同步（打开/切换项目时）
+  'toast.diskSync': {
+    zh: '已从本地文件夹并入 {merged} 个文件，{updated} 个以磁盘新版本为准',
+    en: 'Merged {merged} file(s) from the local folder; {updated} taken from newer disk versions',
+  },
 
   // 模板向导
   'wiz.title': { zh: '新建项目（模板向导）', en: 'New project (template wizard)' },

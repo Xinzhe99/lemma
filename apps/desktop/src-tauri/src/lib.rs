@@ -4,6 +4,10 @@
  * 桥接约定与 apps/desktop/src/platform/tauri.ts 一一对应：
  * - fs_read / fs_read_base64 / fs_write / fs_write_base64 / fs_delete / fs_list：
  *   项目虚拟文件系统（数据目录下的相对路径）；fs_write_base64 供二进制写入（插图向导的 figures/ 图片）
+ * - fs_read_absolute / fs_write_absolute / fs_delete_absolute / fs_scan_absolute：
+ *   用户在新建项目时选择的本地文件夹（绝对路径 dir + safe_rel 校验的相对路径 rel）——
+ *   项目文件物化到用户目录 / 打开项目时与磁盘同步合并。独立于相对路径命令族：
+ *   safe_rel 一律拒绝绝对路径，绝对路径必须走本组显式命令（目录锚定 + 相对段校验，双保险）
  * - secret_get / secret_set：API key 存取（当前为数据目录 JSON 文件；正式版换 OS keychain）
  * - proc_run：一次性命令执行（Tectonic/latexmk/lualatex 编译与 CLI agent 调用；
  *   async 命令 + spawn_blocking 不阻塞主线程，Windows 带 CREATE_NO_WINDOW 不弹黑窗；
@@ -149,6 +153,122 @@ fn fs_list(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     walk(&dir, "", &mut out);
     out.sort();
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// 用户选择的本地项目文件夹（绝对路径）命令族：
+// 「新建项目选择本地路径」后，项目文本文件物化到该目录；打开项目时扫描磁盘做
+// 增量合并（磁盘有而记录无 → 并入；磁盘比记录新 → 以磁盘为准）。
+// 安全边界：dir 必须是绝对路径（由前端文件夹选择器给出）；rel 走 safe_rel
+// （禁绝对路径与 ..，防止借 dir 锚点逃逸到目录外）；不提供整目录删除。
+// ---------------------------------------------------------------------------
+
+/// 校验用户选择的绝对目录：非空、无 \0、必须为绝对路径（前端文件夹选择器的产物）
+fn abs_dir(dir: &str) -> Result<PathBuf, String> {
+    if dir.trim().is_empty() || dir.contains('\0') {
+        return Err("目录不能为空".into());
+    }
+    let p = PathBuf::from(dir);
+    if !p.is_absolute() {
+        return Err(format!("需要绝对路径：{dir}"));
+    }
+    Ok(p)
+}
+
+/// 修改时间 → Unix 毫秒（早于 epoch 等异常情况回落 0）
+fn mtime_ms_of(path: &Path) -> u64 {
+    path.metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// 扫描用户项目目录的 walker：跳过隐藏条目（`.` 开头），条目数封顶防巨型目录拖垮 IPC
+fn walk_abs(dir: &Path, prefix: &str, out: &mut Vec<(String, u64)>) {
+    const MAX_ENTRIES: usize = 4000;
+    if out.len() >= MAX_ENTRIES {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if out.len() >= MAX_ENTRIES {
+            return;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let rel = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
+        let path = entry.path();
+        if path.is_dir() {
+            walk_abs(&path, &rel, out);
+        } else {
+            out.push((rel, mtime_ms_of(&path)));
+        }
+    }
+}
+
+#[tauri::command]
+fn fs_write_absolute(dir: String, rel: String, content: String) -> Result<(), String> {
+    let base = abs_dir(&dir)?;
+    let rel = safe_rel(&rel)?;
+    let target = base.join(&rel);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建目录失败：{e}"))?;
+    }
+    fs::write(&target, content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn fs_read_absolute(dir: String, rel: String) -> Result<String, String> {
+    let base = abs_dir(&dir)?;
+    let rel = safe_rel(&rel)?;
+    let target = base.join(&rel);
+    if !target.is_file() {
+        return Err(format!("文件不存在：{rel}"));
+    }
+    let bytes = fs::read(&target).map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&bytes).to_string())
+}
+
+#[tauri::command]
+fn fs_delete_absolute(dir: String, rel: String) -> Result<(), String> {
+    let base = abs_dir(&dir)?;
+    let rel = safe_rel(&rel)?;
+    let target = base.join(&rel);
+    if target.is_file() {
+        fs::remove_file(&target).map_err(|e| e.to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[derive(serde::Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct AbsDirEntry {
+    /// 相对 dir 的路径（/ 分隔）
+    path: String,
+    /// 修改时间（Unix 毫秒；不可得为 0）
+    mtime_ms: u64,
+}
+
+#[tauri::command]
+fn fs_scan_absolute(dir: String) -> Result<Vec<AbsDirEntry>, String> {
+    let base = abs_dir(&dir)?;
+    if !base.is_dir() {
+        return Err(format!("目录不存在：{dir}"));
+    }
+    let mut raw: Vec<(String, u64)> = Vec::new();
+    walk_abs(&base, "", &mut raw);
+    raw.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(raw
+        .into_iter()
+        .map(|(path, mtime_ms)| AbsDirEntry { path, mtime_ms })
+        .collect())
 }
 
 fn load_secrets(app: &tauri::AppHandle) -> BTreeMap<String, String> {
@@ -766,10 +886,82 @@ mod pandoc_install_tests {
     }
 }
 
+#[cfg(test)]
+mod abs_fs_tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("sf-abs-fs-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// abs_dir：接受绝对路径、拒绝空串与相对路径（相对路径必须走数据目录命令族）
+    #[test]
+    fn abs_dir_validates_input() {
+        let tmp = temp_dir("validate");
+        let as_str = tmp.to_string_lossy().into_owned();
+        assert_eq!(abs_dir(&as_str).unwrap(), tmp);
+        assert!(abs_dir("").is_err());
+        assert!(abs_dir("   ").is_err());
+        assert!(abs_dir("relative/path").is_err());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// write → read 往返；子目录自动创建；rel 段校验复用 safe_rel（拒 .. 与绝对 rel）
+    #[test]
+    fn write_read_roundtrip_and_rel_validation() {
+        let tmp = temp_dir("roundtrip");
+        let dir = tmp.to_string_lossy().into_owned();
+
+        fs_write_absolute(dir.clone(), "sections/intro.tex".into(), "hello".into()).unwrap();
+        assert_eq!(fs_read_absolute(dir.clone(), "sections/intro.tex".into()).unwrap(), "hello");
+        assert!(tmp.join("sections").is_dir());
+
+        assert!(fs_write_absolute(dir.clone(), "../escape.tex".into(), "x".into()).is_err());
+        assert!(fs_write_absolute(dir.clone(), "C:\\abs.tex".into(), "x".into()).is_err());
+        assert!(fs_read_absolute(dir.clone(), "missing.tex".into()).is_err());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// scan：返回相对路径 + mtime，隐藏文件跳过；delete 收尾探针文件
+    #[test]
+    fn scan_lists_relative_paths_and_skips_hidden() {
+        let tmp = temp_dir("scan");
+        let dir = tmp.to_string_lossy().into_owned();
+        fs_write_absolute(dir.clone(), "main.tex".into(), "x".into()).unwrap();
+        fs_write_absolute(dir.clone(), "sections/method.tex".into(), "y".into()).unwrap();
+        fs_write_absolute(dir.clone(), ".hidden.cfg".into(), "z".into()).unwrap();
+
+        let entries = fs_scan_absolute(dir.clone()).unwrap();
+        let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["main.tex", "sections/method.tex"]);
+        assert!(entries.iter().all(|e| e.mtime_ms > 0));
+
+        fs_delete_absolute(dir.clone(), "main.tex".into()).unwrap();
+        assert!(!tmp.join("main.tex").exists());
+        // 删除不存在的文件不报错（与 fs_delete 同语义）
+        fs_delete_absolute(dir.clone(), "main.tex".into()).unwrap();
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// scan：目录不存在时中文报错
+    #[test]
+    fn scan_missing_dir_errors() {
+        let tmp = temp_dir("missing-scan");
+        let err = fs_scan_absolute(tmp.join("nope").to_string_lossy().into_owned()).unwrap_err();
+        assert!(err.contains("目录不存在"), "{err}");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // 原生文件夹选择器（新建项目选择本地路径）；权限见 capabilities/default.json（dialog:default）
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             fs_read,
             fs_read_base64,
@@ -777,6 +969,10 @@ mod pandoc_install_tests {
             fs_write_base64,
             fs_delete,
             fs_list,
+            fs_read_absolute,
+            fs_write_absolute,
+            fs_delete_absolute,
+            fs_scan_absolute,
             secret_get,
             secret_set,
             proc_run,

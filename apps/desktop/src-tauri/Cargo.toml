@@ -1,6 +1,6 @@
 [package]
 name = "lemma"
-version = "7.6.0"
+version = "7.7.0"
 description = "Lemma — AI-native end-to-end scholarly writing workstation"
 edition = "2021"
 
@@ -25,6 +25,7 @@ ureq = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"
+tauri-plugin-dialog = "2"
 
 [profile.release]
 panic = "abort"
