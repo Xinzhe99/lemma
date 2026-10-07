@@ -12,6 +12,8 @@ let hydrated = false;
  */
 
 import { useAgentHubStore, parsePersistedSessions, serializeSessionsForPersist } from '@lemma/agent-hub';
+import { useUiStore } from './uiStore';
+import { useSettingsStore } from './settingsStore';
 import { getBigData, setBigData } from '../storage/kvStore';
 
 /** kv 键（版本化：结构不兼容时换 v2 键平滑失效） */
@@ -34,6 +36,17 @@ export async function hydrateAgentSessions(): Promise<void> {
   if (sessions.length === 0) return;
   useAgentHubStore.getState().hydrateSessions(sessions, raw.activeSessionId ?? null);
   hydrated = true;
+  // v7.7.2：恢复可感知——明确告诉用户「上次会话已恢复，可直接继续聊」
+  const activeId = raw.activeSessionId ?? null;
+  const restored = sessions.find((x) => x.id === activeId) ?? sessions[0];
+  if (restored && restored.messages.length > 0) {
+    const zh = useSettingsStore.getState().language !== 'en';
+    useUiStore.getState().showToast(
+      zh
+        ? `已恢复上次会话「${restored.title}」（${restored.messages.length} 条消息），可直接继续聊`
+        : `Restored session "${restored.title}" (${restored.messages.length} messages) — continue anytime`,
+    );
+  }
 }
 
 /**

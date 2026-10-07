@@ -903,3 +903,14 @@
   background: var(--bg-3, #f0f0f2);
   color: var(--accent-dim, #0b815f);
 }
+
+/* v7.7.2：消息定位条（ZCode 式 minimap）容器 */
+.sf-ah-msgs-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.sf-ah-msgs-wrap .sf-ah-msgs {
+  flex: 1;
+  min-width: 0;
+}

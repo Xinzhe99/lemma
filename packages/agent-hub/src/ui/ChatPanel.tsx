@@ -9,6 +9,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { isSpeechSupported, startSpeechSession, type SpeechSession } from '../asr/speechInput';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import { ChatOverviewBar } from './ChatOverviewBar';
 import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
 import type { AgentSession } from '../store';
 import { renderMarkdown } from './markdown';
@@ -303,7 +304,8 @@ export function MessageList(props: MessageListProps) {
     if (m.role === 'tool' && m.toolCallId) toolResults.set(m.toolCallId, m);
   }
   return (
-    <div className="sf-ah-msgs">
+    <div className="sf-ah-msgs-wrap">
+      <div className="sf-ah-msgs">
       {/* v5.3.0：空会话居中引导（Codex 式留白提示），替代一片空白 */}
       {session.messages.length === 0 && (
         <div className="sf-ah-empty-hint">
@@ -377,6 +379,9 @@ export function MessageList(props: MessageListProps) {
           </div>
         );
       })}
+      </div>
+      {/* v7.7.2：ZCode 式消息定位条（长会话快速回看） */}
+      <ChatOverviewBar messages={session.messages} />
     </div>
   );
 }
