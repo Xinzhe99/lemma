@@ -21,7 +21,7 @@
 
 [![Star 趋势](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
 
-**[功能](#-功能) · [下载](#-下载) · [快速开始](#-快速开始) · [架构](#%EF%B8%8F-架构) · [参与贡献](#-参与贡献)**
+**[功能](#-功能) · [下载](#-下载) · [快速开始](#-快速开始) · [架构](#%EF%B8%8F-架构) · [文档](#-文档) · [参与贡献](#-参与贡献)**
 
 </div>
 
@@ -54,13 +54,13 @@ Lemma 是**为 LaTeX 论文重建的 Codex**：
 
 ### 🖋 写作环境
 
-- **编辑器 + 实时 PDF 并排**——0.5 秒自动重编译；**重新编译不跳页**；AI 修改后 PDF 自动滚动到对应位置（SyncTeX 正向定位）
-- **PDF 全文搜索**——输入即搜，Enter/Shift+Enter 在命中页间循环
-- **PDF 批注**——四色语义高亮；逐条「待处理/已处理」；一键把未处理批注发给 AI 起草逐条回复信
-- **全引擎矩阵**——Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk 自动检测；缺引擎自动下载 Tectonic（约 30MB 零配置），**启动闲时预热**——首次编译零等待
+- **编辑器 + 实时 PDF 并排**——0.5 秒自动重编译；重新编译不跳页；AI 修改后 PDF 自动滚动到对应位置（SyncTeX 正向定位）
+- **PDF 全文搜索**——输入即搜，Enter / Shift+Enter 在命中页间循环并显示页码
+- **PDF 批注**——四色语义高亮；逐条「待处理 / 已处理」；一键把未处理批注交给 AI 起草逐条回复信
+- **全引擎矩阵**——Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk 自动检测；缺引擎自动下载 Tectonic（约 30MB，零配置）并闲时预热，首次编译零等待
 - 编译失败一键 **✦ AI 修复**
 
-### 🤖 AI（Lemma 的核心）
+### 🤖 AI
 
 agent 可调用 **19 个工具**，最多 50 轮自主执行：
 
@@ -75,15 +75,15 @@ agent 可调用 **19 个工具**，最多 50 轮自主执行：
 | 记忆与历史 | `memory.write`——AI 记住你的写作约定，跨会话生效；`git.log` / `git.show`——AI 能读懂自己的改动历史 |
 | 投稿与安全 | `submission.checklist`（期刊要求）、`snapshot.create`（写前快照）、`user.ask`（必须由人拍板时的一次结构化提问） |
 
-另有 3 个工具已在注册表中但本形态未接通（`library.search`、`paper.citations`、`figure.render`），调用会返回明确的「未接通」说明。
+> 另有 3 个工具已在注册表中但本形态未接通（`library.search`、`paper.citations`、`figure.render`），调用会返回明确的「未接通」说明。
 
-**输入通道**：文字、🎤 语音（Whisper 纯本地）、📎 图片（多模态）、**任意文件**（拖入 PDF / Word / CSV，内容自动提取注入）。**输出**：稿件修改（走审批）、TikZ 图表（编译预览）、排版视觉检查（✦ AI 查此页）、朗读校对（TTS）。
+**输入**：文字、🎤 语音（Whisper 纯本地）、📎 图片（多模态）、**任意文件**——拖入 PDF / Word / CSV，内容自动提取注入。**输出**：稿件修改（diff 审批）、TikZ 图表（编译预览）、排版视觉检查（✦ AI 查此页）、朗读校对（TTS）。
 
 ### 📚 文献与审阅
 
-- Zotero 一键同步（Better BibTeX 端点）、BibTeX/RIS/DOI/arXiv 导入
+- Zotero 一键同步（Better BibTeX 端点）；BibTeX / RIS / DOI / arXiv 导入
 - 混合全文检索（BM25 + 向量；附件 PDF 已入索引）
-- 导师往返：导入 Word/PDF 批注 → 逐条勾销 → AI 起草逐条回复信
+- 导师往返：导入 Word / PDF 批注 → 逐条勾销 → AI 起草逐条回复信
 
 ### 🔖 版本管理（内置 git）
 
@@ -93,20 +93,20 @@ agent 可调用 **19 个工具**，最多 50 轮自主执行：
 
 ### 🛠 更多
 
-- 20 个内置模板（IEEE/ACM 观感、Elsevier/数学期刊、arXiv、学位论文、中文期刊、Beamer ×2、A0 海报、Cover Letter…）
+- 20 个内置模板（IEEE / ACM 观感、Elsevier / 数学期刊、arXiv、学位论文、中文期刊、Beamer ×2、A0 海报、Cover Letter…）
 - 语音转文字（Whisper 本地，首次下载后离线可用）
 - Codex 式自动更新：闲时检查 → 后台下载 → 确认 → 重启恢复一切
-- 中文 / English 界面切换
+- 中文 / English 界面
 
 ## 📥 下载
 
-| 平台 | 链接 |
+| 平台 | 安装包 |
 |---|---|
-| Windows | [Lemma_x64-setup.exe](https://github.com/Xinzhe99/lemma/releases/latest) |
-| macOS（Apple Silicon） | [Lemma_aarch64.dmg](https://github.com/Xinzhe99/lemma/releases/latest) |
-| macOS（Intel） | [Lemma_x64.dmg](https://github.com/Xinzhe99/lemma/releases/latest) |
+| Windows 10 / 11 | `.exe` 安装器 — [最新版](https://github.com/Xinzhe99/lemma/releases/latest) |
+| macOS（Apple Silicon） | `.dmg` — [最新版](https://github.com/Xinzhe99/lemma/releases/latest) |
+| macOS（Intel） | `.dmg` — [最新版](https://github.com/Xinzhe99/lemma/releases/latest) |
 
-全部版本：[Releases](https://github.com/Xinzhe99/lemma/releases)
+全部版本：[Releases](https://github.com/Xinzhe99/lemma/releases)。已安装的副本可通过应用内自动更新升级。
 
 ## 🚀 快速开始
 
@@ -116,16 +116,26 @@ agent 可调用 **19 个工具**，最多 50 轮自主执行：
 git clone https://github.com/Xinzhe99/lemma.git
 cd lemma
 npm install
-npm run dev            # 网页预览（模拟编译）
-# 或桌面版：
-cd apps/desktop && npm run desktop:dev
+npm run dev              # 网页预览（模拟编译）
+cd apps/desktop
+npm run desktop:dev      # 桌面版（Tauri）
 ```
 
-前置：Rust + Node 20+。**无需预装 LaTeX**（Tectonic 自动下载）；git 可选（无则版本面板自动降级）。
+**环境要求**
+
+- Rust（[rustup](https://rustup.rs)）与 Node.js 20+
+- 无需预装 LaTeX——Tectonic 自动下载
+- git 可选；缺失时版本面板自动降级
 
 ### 配置 AI（30 秒）
 
-设置 → 模型服务 → 选预设（DeepSeek / 智谱 GLM / Kimi / 通义 / OpenAI / 自建）→ 粘贴 API Key → 测试连接。未配置时以演示模式运行。
+1. 打开 **设置 → 模型服务**
+2. 选预设（DeepSeek / 智谱 GLM / Kimi / 通义 / OpenAI / 自建）并粘贴 API Key
+3. **测试连接**后保存——未配置 Key 时以演示模式运行
+
+### 构建安装包
+
+Windows：[TAURI.md](TAURI.md) · macOS：[docs/BUILD_MAC.md](docs/BUILD_MAC.md)
 
 ## 🏗️ 架构
 
@@ -141,19 +151,17 @@ packages/knowledge      RAG · Context Pack · 引用护栏
 
 **工程数据**：2,350 个单元测试（205 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API Key 永不离开本机）。
 
-## 🗺 路线图
+## 📚 文档
 
-- [x] v1–v4：编辑器/编译/文献/工作流打底；v4.2：主 bundle 2006KB → 1375KB（-31%）
-- [x] v5：**Codex 式重构**——会话中心、实时 PDF、内置 git、功能删减
-- [x] v6：图片/语音/文件三通道输入，视觉检查与 TTS 输出
-- [x] v7：多 agent 深度评审——22 个确认 bug 全修复
-- [x] v7.8：全量缺陷审查（7 路并行）——修复 90+ 项，含数据丢失竞态与 20 个模板中的 11 个（其中 9 个根本无法编译）
-- [ ] 实时多人协同（需要信令服务器）
-- [ ] AI 科研绘图生成
+- [CHANGELOG.md](CHANGELOG.md)——版本历史
+- [DESIGN.md](DESIGN.md)——产品与系统设计
+- [TAURI.md](TAURI.md)——桌面壳、桥命令与 Windows 构建
+- [docs/BUILD_MAC.md](docs/BUILD_MAC.md)——macOS 构建与签名
+- [docs/agent-foundation-alignment.md](docs/agent-foundation-alignment.md)——agent 能力对齐矩阵
 
 ## 🤝 参与贡献
 
-欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm test`（与 CI 同款门禁）。完整版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm test`——与 CI 同款门禁。
 
 ## 📄 许可
 
