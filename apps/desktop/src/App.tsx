@@ -103,7 +103,6 @@ export function App() {
   const reviewsImportOpen = useUiStore((s) => s.reviewsImportOpen);
   const externalDiffOpen = useUiStore((s) => s.externalDiffOpen);
   const usageDialogOpen = useUiStore((s) => s.usageDialogOpen);
-  const promptsLibOpen = useUiStore((s) => s.promptsLibOpen);
   const collabDialogOpen = useUiStore((s) => s.collabDialogOpen);
   const citeSuggestOpen = useUiStore((s) => s.citeSuggestOpen);
   const quickCiteOpen = useUiStore((s) => s.quickCiteOpen);
@@ -818,7 +817,6 @@ export function App() {
       {externalDiffOpen && <LazyFeatureDialog file="ExternalDiffDialog" onClose={() => useUiStore.getState().setExternalDiffOpen(false)} />}
 
       {usageDialogOpen && <LazyFeatureDialog file="UsagePanel" onClose={() => useUiStore.getState().setUsageDialogOpen(false)} />}
-      {promptsLibOpen && <LazyFeatureDialog file="PromptLibraryDialog" onClose={() => useUiStore.getState().setPromptsLibOpen(false)} />}
       {collabDialogOpen && <LazyFeatureDialog file="CollabMergeDialog" onClose={() => useUiStore.getState().setCollabDialogOpen(false)} />}
       {citeSuggestOpen && <LazyFeatureDialog file="CitationSuggest" onClose={() => useUiStore.getState().setCiteSuggestOpen(false)} />}
       {quickCiteOpen && <LazyFeatureDialog file="QuickCiteDialog" onClose={() => useUiStore.getState().setQuickCiteOpen(false)} />}
@@ -857,7 +855,6 @@ function LazyFeatureDialog({
     | 'ReviewsImportDialog'
     | 'ExternalDiffDialog'
     | 'UsagePanel'
-    | 'PromptLibraryDialog'
     | 'CollabMergeDialog'
     | 'CitationSuggest'
     | 'QuickCiteDialog'
@@ -868,7 +865,7 @@ function LazyFeatureDialog({
 }) {
   const t = useT();
   const modules = import.meta.glob<Record<string, unknown>>(
-    './components/{TableEditor,ProjectSwitcher,NewProjectDialog,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog,TikzFigureDialog}.tsx',
+    './components/{TableEditor,ProjectSwitcher,NewProjectDialog,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog,TikzFigureDialog}.tsx',
   );
   const [Comp, setComp] = useState<ComponentType<{ onClose: () => void }> | null>(null);
   const [failed, setFailed] = useState(false);

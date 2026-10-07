@@ -488,14 +488,6 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => useUiStore.getState().setUsageDialogOpen(true),
     },
     {
-      id: 'agent.prompts',
-      group: 'palette.group.ai',
-      featured: true,
-      title: ctx.t('cmd.agentPrompts'),
-      hint: ctx.t('hint.agent'),
-      run: () => useUiStore.getState().setPromptsLibOpen(true),
-    },
-    {
       id: 'cite.suggest',
       group: 'palette.group.ai',
       title: ctx.t('cmd.citeSuggest'),

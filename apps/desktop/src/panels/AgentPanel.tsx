@@ -29,7 +29,6 @@ import { DiffView } from '@lemma/editor';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { promptDialog, confirmDialog } from '../dialogs';
 import { lastCursor } from '../editorJump';
-import { usePromptStore, promptsToSlashItems } from '../state/promptStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
@@ -148,8 +147,6 @@ const STRINGS = {
     // —— 聊天 latex 块一键入稿（v1.2.0 ②）——
     insertLatexBtn: '插入到稿件 ↵',
     insertProposalLabel: '插入聊天代码块（光标处）',
-    // —— 提示词库（v1.2.0 ③）——
-    promptLib: '提示词库',
     // —— v7.5.0 UI 审查补漏：角色选择器 / 空会话引导 / 演示标签 ——
     personaTitle: '切换 AI 角色——不同角色有不同的行为方式',
     personaDefault: '🤖 默认助手',
@@ -238,8 +235,6 @@ const STRINGS = {
     // —— Chat latex block insert (v1.2.0 ②) ——
     insertLatexBtn: 'Insert to manuscript ↵',
     insertProposalLabel: 'Insert chat code block (at cursor)',
-    // —— Prompt library (v1.2.0 ③) ——
-    promptLib: 'Prompts',
     personaTitle: 'Switch AI persona — each behaves differently',
     personaDefault: '🤖 Default',
     personaReviewer: '🔍 Reviewer',
@@ -350,7 +345,6 @@ export function AgentPanel() {
   const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
   const libraryPapers = useLibraryStore((s) => s.papers);
   const speechLanguage = useSettingsStore((s) => s.speechLanguage);
-  const userPrompts = usePromptStore((s) => s.prompts);
 
   // ------------------------------------------------------------------
   // 激活器：providers 为空时的快速配置卡（预设 + Key + 测试 + 保存并激活）。
@@ -938,10 +932,7 @@ export function AgentPanel() {
               )}
             </div>
           )}
-        </div>
-          <button className="sf-pill-btn" onClick={() => useUiStore.getState().setPromptsLibOpen(true)}>
-            {t.promptLib}
-          </button>
+          </div>
         </div>
       </div>
 
@@ -1212,7 +1203,6 @@ ${proposal.after.slice(0, 800)}`,
                 label: `/${workflowName(w.id, w.name, language)}`,
                 hint: workflowDescription(w.id, w.description, language),
               })),
-              ...promptsToSlashItems(userPrompts),
             ]}
             mentionItems={[
               ...libraryPapers.slice(0, 200).map((p) => ({ id: p.id, label: p.citekey, type: 'paper' as const })),

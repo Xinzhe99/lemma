@@ -360,7 +360,6 @@ const dict: MessageDict = {
   'cmd.agentPlan': { zh: '计划模式：先规划后逐步执行（复杂任务）', en: 'Plan mode: plan first, then execute step by step' },
   'cmd.agentResearch': { zh: '并行研究：拆分子任务多角度调研', en: 'Parallel research: split and investigate from multiple angles' },
   'cmd.agentUsage': { zh: 'Agent 用量与成本', en: 'Agent usage & cost' },
-  'cmd.agentPrompts': { zh: '提示词库（管理高频指令）', en: 'Prompt library (manage recurring instructions)' },
   'cmd.styleReport': { zh: '风格分析报告（长句/被动语态/可读性）', en: 'Style report (long sentences/passive/readability)' },
   'cmd.normalizeDoc': { zh: '格式规范化（智能引号/破折号/空格一键清理）', en: 'Normalize document (smart quotes/dashes/spaces)' },
   'cmd.mathPalette': { zh: '数学符号面板（希腊字母/运算符/箭头，点击插入）', en: 'Math symbol palette (Greek/operators/arrows, click to insert)' },

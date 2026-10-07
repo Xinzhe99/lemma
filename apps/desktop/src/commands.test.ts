@@ -239,7 +239,6 @@ describe('命令面板分组与精选（palette 分区重设计）', () => {
         // AI 助手
         'agent.newSession',
         'agent.polish',
-        'agent.prompts',
         // 文献与阅读
         'library.discover',
         'library.quickCite',

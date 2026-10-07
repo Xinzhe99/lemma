@@ -89,8 +89,6 @@ interface UiState {
   externalDiffOpen: boolean;
   /** Agent 用量与成本面板 */
   usageDialogOpen: boolean;
-  /** 提示词库（自定义高频指令管理，v1.2.0） */
-  promptsLibOpen: boolean;
   /** 风格分析报告（v1.3.0） */
   styleReportOpen: boolean;
   /** 协作补丁对话框（v1.5.0） */
@@ -150,7 +148,6 @@ interface UiState {
   setReviewsImportOpen(open: boolean): void;
   setExternalDiffOpen(open: boolean): void;
   setUsageDialogOpen(open: boolean): void;
-  setPromptsLibOpen(open: boolean): void;
   setStyleReportOpen(open: boolean): void;
   setCollabDialogOpen(open: boolean): void;
   setCiteSuggestOpen(open: boolean): void;
@@ -200,7 +197,6 @@ export const useUiStore = create<UiState>((set) => ({
   reviewsImportOpen: false,
   externalDiffOpen: false,
   usageDialogOpen: false,
-  promptsLibOpen: false,
   styleReportOpen: false,
   collabDialogOpen: false,
   citeSuggestOpen: false,
@@ -251,7 +247,6 @@ export const useUiStore = create<UiState>((set) => ({
   setReviewsImportOpen: (open) => set({ reviewsImportOpen: open }),
   setExternalDiffOpen: (open) => set({ externalDiffOpen: open }),
   setUsageDialogOpen: (open) => set({ usageDialogOpen: open }),
-  setPromptsLibOpen: (open) => set({ promptsLibOpen: open }),
   setStyleReportOpen: (open) => set({ styleReportOpen: open }),
   setCollabDialogOpen: (open) => set({ collabDialogOpen: open }),
   setCiteSuggestOpen: (open) => set({ citeSuggestOpen: open }),
