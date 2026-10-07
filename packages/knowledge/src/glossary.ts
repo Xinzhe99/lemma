@@ -114,6 +114,10 @@ function abbrUsages(text: string, abbr: string): number[] {
   return positions;
 }
 
+/** ③ 中以全称构造正则的长度上限：连续大写词的长串会被 DEF_RE 误当作「全称」，
+ *  万级字符的 term 会让 RegExp 编译直接抛错（SyntaxError/RangeError）并中断整次检查 */
+const MAX_TERM_CHARS = 200;
+
 /** 检查文本与术语表的一致性：定义前使用 / 重复定义不一致 / 全称冗余（提示） */
 export function checkConsistency(text: string, glossary: GlossaryTerm[]): GlossaryIssue[] {
   const issues: GlossaryIssue[] = [];
@@ -187,6 +191,8 @@ export function checkConsistency(text: string, glossary: GlossaryTerm[]): Glossa
     if (!termsToCheck.has(d.term)) termsToCheck.set(d.term, d.abbr);
   }
   for (const [term, abbr] of termsToCheck) {
+    // 巨型正则防护：超长「全称」不是真术语，跳过该条提示（否则 RegExp 编译抛错）
+    if (term.length > MAX_TERM_CHARS) continue;
     const defsOfKey = defsByAbbr.get(abbr.toLowerCase()) ?? [];
     if (defsOfKey.length === 0) continue;
     const firstDef = Math.min(...defsOfKey.map((d) => d.index));

@@ -171,6 +171,13 @@ function parseFields(
       i++;
       continue;
     }
+    // “%” 到行尾为注释（JabRef/biber 写法）：按空白跳过，
+    // 否则注释后的字段会被当成无法识别的字段名而整段丢弃
+    if (ch === '%') {
+      const eol = text.indexOf('\n', i);
+      i = eol === -1 ? text.length : eol + 1;
+      continue;
+    }
     const nameMatch = /^[A-Za-z][A-Za-z0-9_.+\-]*/.exec(text.slice(i));
     if (!nameMatch) {
       onError(`条目 ${label}：无法识别的字段名，已跳过 “${text.slice(i, i + 20).trim()}”`);

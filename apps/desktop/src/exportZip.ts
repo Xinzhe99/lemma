@@ -35,7 +35,15 @@ export async function exportProjectZip(): Promise<void> {
   const ws = useWorkspaceStore.getState();
   if (Object.keys(ws.files).length === 0) return;
   const figures = await readFigures();
-  const { name, bytes } = buildProjectZip(ws.files, ws.projectName || 'project', figures);
+  // v7.8.0 修复：figures/ 空串是「图片在磁盘」的占位标记，不是文本内容——
+  // buildProjectZip 以文本条目优先，占位会把下面读回的真实图片字节挡掉，
+  // 导出的投稿包里图片变成 0 字节（对端编译缺图）。占位条目不进文本映射。
+  const textFiles: Record<string, string> = {};
+  for (const [path, content] of Object.entries(ws.files)) {
+    if (content === '' && path.startsWith('figures/')) continue;
+    textFiles[path] = content;
+  }
+  const { name, bytes } = buildProjectZip(textFiles, ws.projectName || 'project', figures);
   const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/zip' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

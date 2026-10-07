@@ -22,7 +22,7 @@ export const journalTwoColumn: TemplateModule = {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：journal-twocolumn
-\documentclass[10pt,twocolumn]
+\documentclass[10pt,twocolumn]{article}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}

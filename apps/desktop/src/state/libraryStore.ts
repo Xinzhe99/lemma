@@ -36,7 +36,7 @@ import {
   readPdfFromDisk,
   sweepAttachmentsToDisk,
 } from './libraryDisk';
-import { useSettingsStore } from './settingsStore';
+import { useSettingsStore, type ProviderConfig } from './settingsStore';
 import { useUiStore } from './uiStore';
 import { paperAnnotationKey, useAnnotationStore } from './annotationStore';
 import {
@@ -120,16 +120,19 @@ function chooseEmbedder(): void {
   const s = useSettingsStore.getState();
   const cfg = s.providers.find((p) => p.id === s.activeProviderId);
   const model = s.embeddingModel.trim();
-  if (cfg && cfg.baseUrl.trim() && cfg.apiKey.trim() && model) {
-    const sig = `${cfg.baseUrl.trim()}|${model}`;
+  // v7.8.0：字段类型防御——脏 providers（手改 localStorage 等）不得让整库载入流程抛错
+  const baseUrl = typeof cfg?.baseUrl === 'string' ? cfg.baseUrl.trim() : '';
+  const apiKey = typeof cfg?.apiKey === 'string' ? cfg.apiKey.trim() : '';
+  if (baseUrl && apiKey && model) {
+    const sig = `${baseUrl}|${model}`;
     if (sig !== apiEmbedCacheSig) {
       // 服务或模型变更：旧向量与新向量不可比，缓存整体失效
       apiEmbedCacheSig = sig;
       apiEmbedCache.clear();
     }
     embedder = new OpenAICompatEmbeddings({
-      url: cfg.baseUrl.trim(),
-      apiKey: cfg.apiKey.trim(),
+      url: baseUrl,
+      apiKey,
       model,
       fetchFn: (url, init) => fetch(url, init),
     });
@@ -521,7 +524,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
 // 持久化订阅：papers 整库写 IndexedDB（setBigData 异步、同键串行、永不因配额抛错）；
 // 旧 localStorage 副本由启动迁移搬走，读路径经 getBigData 兜底。
+//
+// v7.8.0 修复（数据丢失）：此前任何 state 变更都会落盘，且快照取「当前内存 papers」——
+// 启动时模块级附件 hydrate 先于 App effect 的 initLibrary() 完成时，内存 papers 还是
+// 模块加载默认值（sf-library 已被迁移搬进 IndexedDB → localStorage 副本不在 → 空数组），
+// 于是一条附件的 hydrate 就会把空库写回 IndexedDB，随后 initLibrary 读到空库整库消失。
+// 现仅在 papers 引用变化时落盘（持久化投影只含 papers / seeded，其余字段变更不写盘）。
+let persistedPapers: Paper[] = useLibraryStore.getState().papers;
+
 useLibraryStore.subscribe((s) => {
+  if (s.papers === persistedPapers) return;
+  persistedPapers = s.papers;
   const snap: PersistedLibrary = { papers: s.papers, seeded: true };
   void setBigData(STORAGE_KEY, snap);
 });
@@ -612,14 +625,29 @@ export async function initLibrary(): Promise<void> {
   }).catch((e) => console.warn('[library] 附件清扫失败：', e));
 }
 
-// 嵌入配置（激活服务 / 嵌入模型）变化时自动重建索引
+// 嵌入配置（激活服务 / 嵌入模型 / 该服务地址与 Key）变化时自动重建索引。
+// v7.8.0 修复：
+//  - 此前只比较 embeddingModel / activeProviderId——用户给「已激活服务」补填或更换
+//    BaseURL / API Key（设置对话框保存既有服务）不会重选嵌入源，本会话一直停留在
+//    本地哈希（indexMode 显示 hash），直到改模型或重启；
+//  - 此前直接 rebuildIndex：嵌入模型名是逐字符写入 store 的，每敲一个字符就整库重建
+//    并发出一次带「半截模型名」的嵌入请求（随失败回退把索引态翻成 api-fallback）。
+//    现改走 scheduleRebuild（250ms 合并窗口），连续变更只重建一次。
+function embedConfigSignature(s: {
+  providers: ProviderConfig[];
+  activeProviderId: string | null;
+  embeddingModel: string;
+}): string {
+  const cfg = s.providers.find((p) => p?.id === s.activeProviderId);
+  const baseUrl = typeof cfg?.baseUrl === 'string' ? cfg.baseUrl : '';
+  const apiKey = typeof cfg?.apiKey === 'string' ? cfg.apiKey : '';
+  return [s.activeProviderId ?? '', s.embeddingModel, baseUrl, apiKey].join('\u0000');
+}
+
 useSettingsStore.subscribe((s, prev) => {
-  if (s.embeddingModel !== prev.embeddingModel || s.activeProviderId !== prev.activeProviderId) {
-    chooseEmbedder();
-    void rebuildIndex(useLibraryStore.getState().papers).then(() =>
-      useLibraryStore.setState({ indexReady: true, indexMode: embedderMode }),
-    );
-  }
+  if (embedConfigSignature(s) === embedConfigSignature(prev)) return;
+  chooseEmbedder();
+  scheduleRebuild(useLibraryStore.getState().papers);
 });
 
 // 模块加载即自举（App 无需接线）：

@@ -45,7 +45,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
     try {
       const { real, provider, model } = resolveProvider();
       if (!real) {
-        setError('演示模式不支持画图——请先在设置中配置模型服务');
+        setError(t('tikz.demoMode'));
         return;
       }
       const reply = await runAgentTurn({
@@ -73,7 +73,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
         /* 用量记录失败不影响画图 */
       }
       if (!cleaned.includes('tikzpicture')) {
-        setError('生成结果不含 tikzpicture——换个更具体的描述试试');
+        setError(t('tikz.noTikz'));
         return;
       }
       setCode(cleaned);
@@ -96,7 +96,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
       const { compileTexPreview } = await import('../compileAction');
       const result = await compileTexPreview('sf-tikz-preview.tex');
       if (!result.ok) {
-        setError('预览编译失败——检查 TikZ 代码（常见：缺少 tikzlibrary）');
+        setError(t('tikz.previewFailed'));
         return;
       }
       // 不内嵌：编译成功后右侧预览区自动切到 sf-tikz-preview.pdf（原生查看器）
@@ -123,7 +123,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
         .split('\n')
         .map((l) => `  ${l}`)
         .join('\n'),
-      `  \\caption{${desc.trim().slice(0, 60) || '示意图'}}`,
+      `  \\caption{${desc.trim().slice(0, 60) || t('tikz.defaultCaption')}}`,
       '  \\label{fig:ai-generated}',
       '\\end{figure}',
     ].join('\n');
@@ -133,7 +133,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
       before,
       after,
       kind: 'draft-section',
-      label: 'AI 画图（TikZ）插入',
+      label: t('tikz.insertLabel'),
       via: 'tikz-figure',
     });
     onClose();
@@ -145,7 +145,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
     <div
       className="sf-dialog-overlay"
       role="dialog"
-      aria-label="AI 画图"
+      aria-label={t('tikz.dialogLabel')}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -185,7 +185,7 @@ export function TikzFigureDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ) : null}
               <button type="button" className="sf-pill-btn" onClick={onInsert}>
-                t('tikz.insert')
+                {t('tikz.insert')}
               </button>
             </>
           ) : null}

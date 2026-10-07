@@ -176,6 +176,37 @@ describe('OpenAICompatibleProvider', () => {
     expect(events[1].type).toBe('done');
   });
 
+  // v7.8.0：流结束时最后一帧未以空行终止（部分网关/代理如此断流）——尾帧正文与工具分片不可丢
+  it('未终止的尾帧：正文与工具调用分片照常收尾（不再只取 usage）', async () => {
+    const fetchFn: FetchLike = async () =>
+      sseResponse(
+        [
+          sse({ choices: [{ delta: { content: '前半' } }] }),
+          // 尾帧：无结尾空行，且同时携带工具调用分片
+          `data: ${JSON.stringify({
+            choices: [
+              {
+                delta: {
+                  content: '后半',
+                  tool_calls: [{ index: 0, id: 'tail_1', function: { name: 'tex.compile', arguments: '{"force":true}' } }],
+                },
+              },
+            ],
+          })}`,
+        ].join(''),
+      );
+    const provider = new OpenAICompatibleProvider({
+      id: 'x', label: 'x', baseUrl: 'https://x.example/v1', apiKey: 'k', fetchFn,
+    });
+    const events = await collect(req(), provider);
+    const text = events.filter((e) => e.type === 'text-delta').map((e: any) => e.delta).join('');
+    expect(text).toBe('前半后半');
+    const toolCalls = events.filter((e) => e.type === 'tool-call');
+    expect(toolCalls).toHaveLength(1);
+    expect((toolCalls[0] as any).call).toEqual({ id: 'tail_1', tool: 'tex.compile', args: { force: true } });
+    expect(events.at(-1)?.type).toBe('done');
+  });
+
   it('HTTP 非 2xx 转为 error 事件', async () => {
     const fetchFn: FetchLike = async () => new Response('unauthorized', { status: 401 });
     const provider = new OpenAICompatibleProvider({

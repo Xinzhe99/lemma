@@ -28,7 +28,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
       const file = item?.getAsFile();
       if (!file) return;
       e.preventDefault();
-      void fileToDataUrl(file).then(setImage).catch(() => setError('读取剪贴板图片失败'));
+      void fileToDataUrl(file).then(setImage).catch(() => setError(t('img2tex.pasteFailed')));
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
@@ -50,7 +50,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
     try {
       setImage(await fileToDataUrl(file));
     } catch {
-      setError('读取图片失败');
+      setError(t('img2tex.readFailed'));
     }
   };
 
@@ -61,7 +61,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
     try {
       const r = await imageToLatex(image, kind);
       if (r.ok && r.latex) setLatex(r.latex);
-      else setError(r.error ?? '转换失败');
+      else setError(r.error ?? t('img2tex.convertFailed'));
     } finally {
       setBusy(false);
     }
@@ -82,14 +82,14 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
       before,
       after,
       kind: 'draft-section',
-      label: '图像转 LaTeX（截图 → 公式/表格）',
+      label: t('img2tex.insertLabel'),
       via: 'vision',
     });
     onClose();
   };
 
   return (
-    <div className="sf-dialog-overlay" role="dialog" aria-label="图像转 LaTeX" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="sf-dialog-overlay" role="dialog" aria-label={t('img2tex.dialogLabel')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sf-dialog" style={{ width: 620, maxWidth: '92vw' }}>
         <h3>{t('img2tex.title')}</h3>
         <p className="dim" style={{ fontSize: 12 }}>
@@ -116,7 +116,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
           }}
         >
           {image ? (
-            <img src={image} alt="待转换截图" style={{ maxWidth: '100%', maxHeight: 220 }} />
+            <img src={image} alt={t('img2tex.previewAlt')} style={{ maxWidth: '100%', maxHeight: 220 }} />
           ) : (
             <span className="dim" style={{ fontSize: 12 }}>
               {t('img2tex.drop')}
@@ -169,7 +169,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
         {latex ? (
           <>
             <div className="dim" style={{ fontSize: 11, margin: '10px 0 4px' }}>
-              转换结果（可编辑）：
+              {t('img2tex.result')}
             </div>
             <textarea
               value={latex}
@@ -193,7 +193,7 @@ export function ImageToLatexDialog({ onClose }: { onClose: () => void }) {
                 {t('dlg.cancel')}
               </button>
               <button type="button" className="sf-btn primary" onClick={onInsert}>
-                t('img2tex.insert')
+                {t('img2tex.insert')}
               </button>
             </div>
           </>

@@ -76,6 +76,25 @@ describe('parseFilter', () => {
     const { nodes } = parseFilter('year:abc rating:x status:bogus venue: tag: "');
     expect(nodes.every(n => n.type === 'invalid')).toBe(true);
   });
+
+  it('字段取值可加引号（含空格的多词标签/场所名）', () => {
+    expect(parseFilter('tag:"machine learning"').nodes).toEqual([
+      { type: 'tag', value: 'machine learning' },
+    ]);
+    expect(parseFilter("venue:'Nature Machine Intelligence'").nodes).toEqual([
+      { type: 'venue', value: 'Nature Machine Intelligence' },
+    ]);
+    expect(parseFilter('year:">2020"').nodes).toEqual([{ type: 'year', op: '>', value: 2020 }]);
+    // 未闭合引号宽松降级：按“去掉开引号后的取值”处理
+    expect(parseFilter('tag:"machine learning').nodes).toEqual([
+      { type: 'tag', value: 'machine learning' },
+    ]);
+    // 引号值后的其他词仍是独立节点
+    expect(parseFilter('tag:"machine learning" status:reading').nodes.map(n => n.type)).toEqual([
+      'tag',
+      'status',
+    ]);
+  });
 });
 
 describe('applyFilter', () => {
@@ -118,6 +137,18 @@ describe('applyFilter', () => {
     expect(ids(applyFilter(papers, 'optimization'))).toEqual(['p2']);
     expect(ids(applyFilter(papers, 'diffusion cvpr'))).toEqual(['p1']);
     expect(ids(applyFilter(papers, 'diffusion attention'))).toEqual([]);
+  });
+
+  it('多词标签/场所名加引号后可精确过滤', () => {
+    const withSpaces: Paper[] = [
+      { ...papers[0]!, id: 's1', tags: ['machine learning'], venue: { type: 'journal', name: 'Nature Machine Intelligence' } },
+      { ...papers[1]!, id: 's2', tags: ['machine vision'] },
+    ];
+    expect(ids(applyFilter(withSpaces, 'tag:"machine learning"'))).toEqual(['s1']);
+    expect(ids(applyFilter(withSpaces, 'venue:"Nature Machine Intelligence"'))).toEqual(['s1']);
+    expect(ids(applyFilter(withSpaces, 'tag:"machine vision"'))).toEqual(['s2']);
+    // 引号值不再被当成两个词：machine 不会退化成裸词匹配
+    expect(ids(applyFilter(withSpaces, 'tag:"not a real tag"'))).toEqual([]);
   });
 
   it('坏词被忽略，不产生过滤效果', () => {

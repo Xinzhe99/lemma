@@ -126,7 +126,12 @@ export class CliAgentProvider implements ChatProvider {
     }
     const prompt = buildCliPrompt(req.messages);
     let argv = buildCliArgs(this.cfg.argsTemplate, prompt);
-    if (argv === null) argv = [...this.cfg.argsTemplate.trim().split(/\s+/).filter(Boolean), prompt];
+    if (argv === null) {
+      // 模板缺 {prompt}（会话内刚改成坏模板、重启前）：提示词追加在末尾。
+      // v7.8.0：复用同一套引号解析（旧实现的空白切分会把 `--model "gpt x"` 拆成
+      // `"gpt` + `x"` 两个 argv，带空格的 flag 值直接传错）
+      argv = buildCliArgs(`${this.cfg.argsTemplate.trim()} {prompt}`, prompt) ?? [prompt];
+    }
 
     let result: { code: number; stdout: string; stderr: string };
     try {

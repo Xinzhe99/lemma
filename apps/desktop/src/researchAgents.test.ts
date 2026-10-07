@@ -204,4 +204,27 @@ describe('runResearchAgents · 真实模式（注入 runTurn）', () => {
     const session = useAgentHubStore.getState().sessions.find((s) => s.id === 's-busy')!;
     expect(session.messages).toEqual([]);
   });
+
+  // v7.8.0 审计回归：并行研究同样把会话置为 streaming，停止按钮必须真的能停
+  it('停止按钮（abortChat）可中止并行研究：子任务收到信号、会话正常收尾', async () => {
+    const { abortChat } = await import('./aiActions');
+    const signals: AbortSignal[] = [];
+    const runTurn = (_prompt: string, signal: AbortSignal): Promise<string> =>
+      new Promise<string>((_, reject) => {
+        signals.push(signal);
+        signal.addEventListener('abort', () => reject(new Error('已中止')), { once: true });
+      });
+
+    const pending = runResearchAgents('中止测试任务', { k: 2, providerChoice: realChoice(), runTurn });
+    await vi.waitFor(() => expect(signals).toHaveLength(2), { timeout: 2000 });
+    abortChat(); // 回归：此前研究没接 chatAbort，停止按钮点了没反应
+
+    const results = await pending; // 不应挂起
+    expect(signals.every((s) => s.aborted)).toBe(true);
+    expect(results).toHaveLength(2);
+    expect(results.every((r) => r.output.startsWith(FAILED_TOPIC_PREFIX))).toBe(true);
+    expect(lastAssistant()).toContain('并行研究已中止');
+    const hub = useAgentHubStore.getState();
+    expect(hub.sessions.find((s) => s.id === hub.activeSessionId)!.status).toBe('idle');
+  });
 });

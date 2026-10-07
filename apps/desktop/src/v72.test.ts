@@ -151,6 +151,17 @@ describe('checkBibHealth（v7.2.0 F4）', () => {
     expect(r.issues.find((i) => i.kind === 'dangling-cite')?.citekey).toBe('ghost2024');
   });
 
+  it('两段可选参数的 \\citep[see][p. 3]{key} 也算引用（v7.8.0 修复：此前整条漏掉）', () => {
+    const r = checkBibHealth({
+      'main.tex': 'We cite \\citep[see][p. 3]{ghost2024} here.',
+      'refs.bib': '@misc{vaswani2017, title={Attention}, author={V, A}, year={2017}}',
+    });
+    expect(r.totalCites).toBe(1);
+    expect(r.issues.find((i) => i.kind === 'dangling-cite')?.citekey).toBe('ghost2024');
+    // 该键不再被误判为「孤儿」之外的悬空漏报：唯一 bib 条目仍未被引用
+    expect(r.issues.filter((i) => i.kind === 'orphan').map((i) => i.citekey)).toEqual(['vaswani2017']);
+  });
+
   it('缺失字段 → warning', () => {
     const r = checkBibHealth({
       'main.tex': 'Cite \\cite{incomplete}.',

@@ -175,16 +175,11 @@ export interface ReplaceResult {
   preview: Array<{ file: string; line: number; before: string; after: string }>;
 }
 
-/** 构建与 searchProject 同一语义的替换正则（大小写/整字一致） */
-function buildReplaceRegex(query: string, caseSensitive: boolean, wholeWord: boolean): RegExp {
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = wholeWord ? `\\b${escaped}\\b` : escaped;
-  return new RegExp(pattern, caseSensitive ? 'g' : 'gi');
-}
-
 /**
  * 项目级搜索替换（纯函数）：返回替换后的新 files（不修改原对象）。
- * 与 searchProject 的 findSpans 保持同一匹配语义（大小写/整字）。
+ * 与 searchProject 的 findSpans 共用同一匹配语义（大小写/整字，含 CJK 整词）；
+ * 替换文本按字面量写入——绝不走 String.replace 的 $&/$1/$$ 模式展开
+ * （LaTeX 里 `$$…$$`、`$&` 是常见书写，展开会静默改写数学公式）。
  */
 export function replaceInProject(
   files: Record<string, string>,
@@ -198,7 +193,9 @@ export function replaceInProject(
   const newFiles: Record<string, string> = {};
   if (!query) return { changedFiles, replacementCount: 0, preview, newFiles: files };
 
-  const regex = buildReplaceRegex(query, opts.caseSensitive ?? false, opts.wholeWord ?? false);
+  const caseSensitive = opts.caseSensitive ?? false;
+  const wholeWord = opts.wholeWord ?? false;
+  const queryLower = query.toLowerCase();
   for (const file of Object.keys(files)) {
     if (isSkippedPath(file)) { newFiles[file] = files[file]!; continue; }
     const content = files[file]!;
@@ -208,12 +205,29 @@ export function replaceInProject(
     const newLines: string[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
-      if (!regex.test(line)) { newLines.push(line); regex.lastIndex = 0; continue; }
-      regex.lastIndex = 0;
-      const after = line.replace(regex, replacement);
+      const spans = findSpans(line, query, queryLower, caseSensitive, wholeWord);
+      if (spans.length === 0) {
+        newLines.push(line);
+        continue;
+      }
+      // 命中区间逐段拼接（重叠命中按不重叠语义处理：如查询 "aa" 命中 "aaa" 只替换首处）
+      let after = '';
+      let cursor = 0;
+      let applied = 0;
+      for (const [start, end] of spans) {
+        if (start < cursor) continue;
+        after += line.slice(cursor, start) + replacement;
+        cursor = end;
+        applied++;
+      }
+      if (applied === 0) {
+        newLines.push(line);
+        continue;
+      }
+      after += line.slice(cursor);
       if (after !== line) {
         fileChanged = true;
-        replacementCount += line.split(regex).length - 1;
+        replacementCount += applied;
         if (preview.length < 200) preview.push({ file, line: i + 1, before: line, after });
       }
       newLines.push(after);

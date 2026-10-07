@@ -87,7 +87,7 @@ export function GitPanel() {
     setNote('');
     try {
       const commit = await gitCommitAll();
-      setNote(commit ? `已提交：${commit.subject}` : '没有可提交的变更');
+      setNote(commit ? t('git.committed', { subject: commit.subject }) : t('git.nothingToCommit'));
       await refresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
@@ -114,10 +114,10 @@ export function GitPanel() {
   /** v6.0.0：生成修改对照 PDF（该提交 vs 父），成功后右侧预览切换到 changes.pdf */
   const onChangesPdf = async (c: GitCommitInfo) => {
     setBusy(true);
-    setNote(`生成对照 PDF（${c.subject.slice(0, 20)}…）…`);
+    setNote(t('git.changesPdfBuilding', { subject: c.subject.slice(0, 20) }));
     try {
       const r = await buildChangesPdf(c.hash, c.subject);
-      setNote(`对照 PDF 已生成：${r.fileCount} 个文件 / ${r.lineCount} 行变更（右侧预览）`);
+      setNote(t('git.changesPdfDone', { files: r.fileCount, lines: r.lineCount }));
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     } finally {
@@ -127,19 +127,14 @@ export function GitPanel() {
 
   /** v7.2.0 F3：一键回滚到上次提交（丢弃全部未提交改动） */
   const onResetToHead = async () => {
-    if (
-      !(await confirmDialog(
-        '回滚到上次提交？',
-        '所有未提交的修改（含 AI 刚做的改动）将被丢弃。此操作不可撤销。',
-      ))
-    ) {
+    if (!(await confirmDialog(t('git.resetConfirmTitle'), t('git.resetToHead')))) {
       return;
     }
     setBusy(true);
     setNote('');
     try {
       const r = await gitResetToHead();
-      setNote(`已回滚到上次提交（${r.fileCount} 个文件同步）`);
+      setNote(t('git.rolledBack', { n: r.fileCount }));
       await refresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
@@ -150,18 +145,18 @@ export function GitPanel() {
 
   const onLinkRemote = async () => {
     if (remote) {
-      if (!(await confirmDialog('解除远端关联？', `将移除 origin（${remote}），本地历史保留。`))) return;
+      if (!(await confirmDialog(t('git.unlinkConfirmTitle', { remote }), t('git.unlink')))) return;
       setRemote(null);
-      setNote('已解除（重启应用后生效）');
+      setNote(t('git.remoteUnlinked'));
       return;
     }
-    const input = await promptDialog('关联 GitHub 仓库', 'https://github.com/user/repo.git 或 git@github.com:user/repo.git');
+    const input = await promptDialog(t('git.remotePrompt'), t('git.remotePlaceholder'));
     const url = input?.trim();
     if (!url) return;
     setBusy(true);
     try {
       await gitSetRemote(url);
-      setNote('已关联远端');
+      setNote(t('git.remoteLinked'));
       await refresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
@@ -172,7 +167,7 @@ export function GitPanel() {
 
   const onPush = async () => {
     setBusy(true);
-    setNote('推送中…');
+    setNote(t('git.push'));
     try {
       setNote(await gitPush());
       await refresh();
@@ -185,7 +180,7 @@ export function GitPanel() {
 
   const onPull = async () => {
     setBusy(true);
-    setNote('拉取中…');
+    setNote(t('git.pull'));
     try {
       setNote(await gitPull());
       await refresh();
@@ -197,19 +192,15 @@ export function GitPanel() {
   };
 
   const onRestore = async (c: GitCommitInfo) => {
-    if (
-      !(await confirmDialog(
-        `恢复到「${c.subject.slice(0, 40)}」？`,
-        '当前源文件将被该提交的版本覆盖（此操作本身也会产生新变更，可再提交）。',
-      ))
-    ) {
+    const subject = c.subject.slice(0, 40);
+    if (!(await confirmDialog(t('git.restoreConfirmTitle', { subject }), t('git.restore')))) {
       return;
     }
     setBusy(true);
     setNote('');
     try {
       const n = await gitRestore(c.hash);
-      setNote(`已恢复 ${n} 个文件到「${c.subject.slice(0, 30)}」`);
+      setNote(t('git.restored', { n, subject: c.subject.slice(0, 30) }));
       await refresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
@@ -235,7 +226,7 @@ export function GitPanel() {
             {remote ?? t('git.remote')}
           </span>
           <button type="button" className="sf-gitpanel-mini" title={remote ? t('git.unlink') : t('git.linkRemote')} disabled={busy} onClick={() => void onLinkRemote()}>
-            {remote ? '解除' : '关联'}
+            {remote ? t('git.unlink') : t('git.link')}
           </button>
         </div>
         {remote ? (
@@ -258,10 +249,10 @@ export function GitPanel() {
         className="sf-gitpanel-commit"
         style={{ color: 'var(--err, #cf222e)' }}
         disabled={busy}
-        title="丢弃所有未提交改动，回到上次提交状态"
+        title={t('git.resetToHeadTitle')}
         onClick={() => void onResetToHead()}
       >
-        <Undo2 size={14} /> 回滚到上次提交
+        <Undo2 size={14} /> {t('git.resetToHead')}
       </button>
       {note ? <div className="sf-gitpanel-note">{note}</div> : null}
       <div className="sf-gitpanel-list">

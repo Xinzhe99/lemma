@@ -145,6 +145,8 @@ interface CompileDict {
   pdfMissing: (pdfPath: string, err: string) => string;
   synctexOk: (synctexPath: string, bytes: number) => string;
   synctexFail: (synctexPath: string, err: string) => string;
+  /** 偏好引擎不可用 → 回落提示（引擎展示名以 ENGINE_INFO.label 传入） */
+  prefFallback: (pref: string, label: string) => string;
   autoCompileStart(): string;
 }
 
@@ -171,6 +173,7 @@ export const L: Record<Language, CompileDict> = {
     pdfMissing: (pdfPath, err) => `⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${err}）。请检查引擎输出目录设置。`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX 索引已注册（${synctexPath}，${bytes} 字节），PDF ↔ 源码同步可用`,
     synctexFail: (synctexPath, err) => `⚠ SyncTeX 索引不可用（${synctexPath} 读取失败：${err}），PDF ↔ 源码同步已停用。`,
+    prefFallback: (pref, label) => `⚠ 偏好引擎 ${pref} 不可用，回落 ${label}`,
     autoCompileStart: () => '⟳ 自动编译（保存后触发，可在状态栏关闭）…',
   },
   en: {
@@ -195,6 +198,7 @@ export const L: Record<Language, CompileDict> = {
     pdfMissing: (pdfPath, err) => `⚠ Compiled successfully but the PDF artifact was not found: reading ${pdfPath} failed (${err}). Check the engine output directory settings.`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX index registered (${synctexPath}, ${bytes} bytes); PDF ↔ source sync enabled`,
     synctexFail: (synctexPath, err) => `⚠ SyncTeX index unavailable (failed to read ${synctexPath}: ${err}); PDF ↔ source sync disabled.`,
+    prefFallback: (pref, label) => `⚠ Preferred engine ${pref} is unavailable; falling back to ${label}`,
     autoCompileStart: () => '⟳ Auto compile (after save; toggle in status bar)…',
   },
 };
@@ -316,6 +320,10 @@ export async function materializeProjectFiles(
   let count = 0;
   for (const [path, content] of Object.entries(files)) {
     if (typeof content !== 'string') continue; // 二进制文件不参与文本物化
+    // v7.8.0 修复：figures/ 空串是 initWorkspace 的「图片在磁盘」占位标记，不是文本内容——
+    // 写下去会把数据目录里的真实图片覆盖成 0 字节（图片永久丢失 + 编译缺图）。
+    // 与 state/projectDisk.materializeProjectToDisk 同一口径。
+    if (content === '' && path.startsWith('figures/')) continue;
     await writeFile(path, content);
     count++;
   }
@@ -481,7 +489,7 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
   const sel = selectEngine(probes, pref, !!getReadyBuiltinTectonicPath());
   let engineKind: EngineKind | null = sel?.kind ?? null;
   if (sel?.fellBack) {
-    s.appendCompileLog(`⚠ 偏好引擎 ${pref} 不可用，回落 ${ENGINE_INFO[sel.kind].label}`);
+    s.appendCompileLog(t.prefFallback(pref, ENGINE_INFO[sel.kind].label));
   }
   let builtinPath = engineKind === 'builtin-tectonic' ? getReadyBuiltinTectonicPath() : null;
   if (!engineKind) {

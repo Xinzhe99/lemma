@@ -32,37 +32,56 @@ export function isRepairableRequestError(e: unknown): boolean {
  * 清理消息序列（纯函数）：
  * 1. tool 消息必须出现在声明它的 assistant(tool_calls) 之后，否则丢弃（孤儿）；
  * 2. 同一 toolCallId 的重复 tool 结果只保留第一个；
- * 3. assistant 的 toolCalls 若结果不齐，剥离 toolCalls 只留文本（防悬空）。
+ * 3. assistant 的 toolCalls 若结果不齐，剥离 toolCalls 只留文本（防悬空），
+ *    其已到达的部分结果一并丢弃——否则会留下没有声明者的孤儿 tool 消息。
+ *
+ * v7.8.0 修复：此前先扫一遍全部 assistant 的 tool_calls 建集合，工具结果即使
+ * 排在声明者之前也会被当作「已应答」保留（顺序检查形同虚设）；且部分应答的
+ * assistant 被剥离 toolCalls 后，它的那条结果仍留在序列里 → 修完还是孤儿，
+ * SelfHealing 重试必然再吃一次同样的 400。
  */
 export function sanitizeAgentMessages(messages: AgentMessage[]): AgentMessage[] {
-  // 第一遍：确定「合法且首次出现」的结果 id 集合
-  const open = new Set<string>();
-  const answered = new Set<string>();
-  for (const m of messages) {
+  // 第一遍（顺序敏感）：记录每个 toolCallId 的声明者下标与首个结果下标
+  const declaredAt = new Map<string, number>();
+  const firstResultAt = new Map<string, number>();
+  messages.forEach((m, i) => {
     if (m.role === 'assistant' && m.toolCalls?.length) {
-      for (const tc of m.toolCalls) open.add(tc.id);
+      for (const tc of m.toolCalls) if (!declaredAt.has(tc.id)) declaredAt.set(tc.id, i);
     } else if (m.role === 'tool' && m.toolCallId) {
-      if (open.has(m.toolCallId) && !answered.has(m.toolCallId)) answered.add(m.toolCallId);
+      const decl = declaredAt.get(m.toolCallId);
+      if (decl !== undefined && decl < i && !firstResultAt.has(m.toolCallId)) firstResultAt.set(m.toolCallId, i);
     }
-  }
+  });
+  // 结果齐全（每个 toolCall 都有紧随其后的结果）的块才保留 toolCalls
+  const complete = new Set<string>();
+  const incompleteBlocks = new Set<number>();
+  messages.forEach((m, i) => {
+    if (m.role !== 'assistant' || !m.toolCalls?.length) return;
+    const allAnswered = m.toolCalls.every((tc) => {
+      const at = firstResultAt.get(tc.id);
+      return at !== undefined && at > i;
+    });
+    if (allAnswered) for (const tc of m.toolCalls) complete.add(tc.id);
+    else incompleteBlocks.add(i);
+  });
   // 第二遍：重建
   const out: AgentMessage[] = [];
   const used = new Set<string>();
-  for (const m of messages) {
+  messages.forEach((m, i) => {
     if (m.role === 'tool' && m.toolCallId) {
-      if (!answered.has(m.toolCallId) || used.has(m.toolCallId)) continue;
+      if (!complete.has(m.toolCallId) || used.has(m.toolCallId) || firstResultAt.get(m.toolCallId) !== i) return;
       used.add(m.toolCallId);
       out.push(m);
     } else if (m.role === 'assistant' && m.toolCalls?.length) {
-      if (m.toolCalls.every((tc) => answered.has(tc.id))) {
-        out.push(m);
-      } else {
+      if (incompleteBlocks.has(i)) {
         const { toolCalls: _t, ...rest } = m;
         out.push(rest);
+      } else {
+        out.push(m);
       }
     } else {
       out.push(m);
     }
-  }
+  });
   return out;
 }

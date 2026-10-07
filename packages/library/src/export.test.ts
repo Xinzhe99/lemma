@@ -31,6 +31,12 @@ describe('escapeBibtex', () => {
   it('无特殊字符时原样返回', () => {
     expect(escapeBibtex('plain title')).toBe('plain title');
   });
+
+  it('成对大括号保留（保护性大写），无法配对的括号丢弃', () => {
+    expect(escapeBibtex('Deep {Convolutional} Networks')).toBe('Deep {Convolutional} Networks');
+    expect(escapeBibtex('Deep {Learning')).toBe('Deep Learning');
+    expect(escapeBibtex('Brace} first')).toBe('Brace first');
+  });
 });
 
 describe('papersToBibtex：条目选型', () => {
@@ -151,6 +157,21 @@ describe('papersToBibtex：整体输出', () => {
     const bib = paperToBibtex(makePaper({ citekey: '', id: 'fallback-id' }));
     expect(bib).toMatch(/^@misc\{fallback-id,/);
     expect(bib).toContain('title = {Attention Is All You Need},');
+  });
+
+  it('某条目标题/摘要里的大括号不平衡时，其余条目仍可完整往返（不吞条目）', () => {
+    const papers = [
+      makePaper({ citekey: 'bad', title: 'Deep {Learning', abstract: 'notation {x' }),
+      makePaper({ citekey: 'good1', title: 'Second Paper', year: 2020 }),
+      makePaper({ citekey: 'good2', title: 'Third Paper', year: 2021 }),
+    ];
+    const bib = papersToBibtex(papers);
+    expect(bib).toContain('title = {Deep Learning},');
+    const roundTrip = parseBibtex(bib);
+    expect(roundTrip.errors).toEqual([]);
+    expect(roundTrip.papers.map((p) => p.citekey)).toEqual(['bad', 'good1', 'good2']);
+    expect(roundTrip.papers[1]!.title).toBe('Second Paper');
+    expect(roundTrip.papers[2]!.title).toBe('Third Paper');
   });
 });
 

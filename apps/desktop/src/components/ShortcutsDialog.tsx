@@ -33,6 +33,7 @@ const GROUPS: Record<'zh' | 'en', { title: string; items: ShortcutItem[] }[]> = 
       title: '全局',
       items: [
         { desc: '命令面板', kbd: '⌘K / Ctrl+K' },
+        { desc: '保存并编译', kbd: 'Ctrl+S / ⌘S' },
         { desc: '快速打开文件', kbd: 'Ctrl+P' },
         { desc: '快捷键帮助', kbd: 'Ctrl+/' },
         { desc: '设置', kbd: 'Ctrl+,' },
@@ -41,7 +42,7 @@ const GROUPS: Record<'zh' | 'en', { title: string; items: ShortcutItem[] }[]> = 
     {
       title: '编辑',
       items: [
-        { desc: '保存（自动持久化到工作区）', kbd: 'Ctrl+S' },
+        { desc: '保存（编辑即自动持久化）', kbd: '自动' },
         { desc: '撤销 / 重做', kbd: 'Ctrl+Z / Ctrl+Shift+Z' },
         { desc: '查找与替换', kbd: 'Ctrl+F' },
         { desc: '缩进', kbd: 'Tab' },
@@ -65,7 +66,7 @@ const GROUPS: Record<'zh' | 'en', { title: string; items: ShortcutItem[] }[]> = 
       title: 'Global',
       items: [
         { desc: 'Command palette', kbd: '⌘K / Ctrl+K' },
-        { desc: '立即编译（保存并编译）', kbd: 'Ctrl+S / ⌘S' },
+        { desc: 'Save & compile', kbd: 'Ctrl+S / ⌘S' },
         { desc: 'Quick open file', kbd: 'Ctrl+P' },
         { desc: 'Keyboard shortcuts', kbd: 'Ctrl+/' },
         { desc: 'Settings', kbd: 'Ctrl+,' },
@@ -74,7 +75,7 @@ const GROUPS: Record<'zh' | 'en', { title: string; items: ShortcutItem[] }[]> = 
     {
       title: 'Editor',
       items: [
-        { desc: 'Save (auto-persisted to workspace)', kbd: 'Ctrl+S' },
+        { desc: 'Save (auto-persisted as you type)', kbd: 'Auto' },
         { desc: 'Undo / Redo', kbd: 'Ctrl+Z / Ctrl+Shift+Z' },
         { desc: 'Find & replace', kbd: 'Ctrl+F' },
         { desc: 'Indent', kbd: 'Tab' },

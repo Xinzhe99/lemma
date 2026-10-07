@@ -32,6 +32,15 @@ function familyOf(paper: Paper, index: number): string {
   return lettersOnly || family.trim().toLowerCase();
 }
 
+/**
+ * citekey 片段只保留字母/数字/连字符：`& _ % # \ "` 等字符会让宿主插入的
+ * `\cite{…}` 编译失败（& 与 _ 在 LaTeX 正文中非法、% 注释掉整行），
+ * 也会让 `${citekey}.pdf` 之类文件名非法。
+ */
+function sanitizeKeyPart(value: string): string {
+  return value.replace(/[^\p{L}\p{N}-]/gu, '');
+}
+
 function shortTitle(title: string): string {
   const cleaned = title
     .replace(/\\[a-zA-Z]+\s?/g, '') // 去除 TeX 命令
@@ -47,7 +56,7 @@ function shortTitle(title: string): string {
     picked.push(word.charAt(0).toUpperCase() + word.slice(1));
     if (picked.length === 3) break;
   }
-  return picked.join('');
+  return sanitizeKeyPart(picked.join(''));
 }
 
 /** 按 Better-BibTeX 风格模式生成 citekey；模式片段用 “:” 分隔。 */

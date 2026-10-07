@@ -39,6 +39,12 @@ describe('normalizeDocument', () => {
     expect(result).toContain('after double');
   });
 
+  it('verbatim/lstlisting 环境标记本身不被删除（回归）', () => {
+    const input = '\\begin{lstlisting}\n  code  here\n\\end{lstlisting}\ntail  text';
+    const { result } = normalizeDocument(input);
+    expect(result).toBe('\\begin{lstlisting}\n  code  here\n\\end{lstlisting}\ntail text');
+  });
+
   it('无问题的文档返回原文', () => {
     const input = 'This is clean LaTeX with $x^2$ and \\textbf{bold}.';
     const { result, changes } = normalizeDocument(input);

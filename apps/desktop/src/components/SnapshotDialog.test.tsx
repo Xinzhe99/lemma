@@ -44,6 +44,7 @@ vi.mock('zustand', async () => {
 
 import { SnapshotDialog } from './SnapshotDialog';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { useUiStore } from '../state/uiStore';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -158,12 +159,30 @@ describe('SnapshotDialog · 快照 diff 对比', () => {
     expect(container!.querySelector('.sf-snap-diff .sf-diff')).toBeTruthy();
   });
 
-  it('恢复与 Esc 关闭行为不回归', () => {
+  it('恢复需二次确认：取消不覆盖当前内容，确认后才恢复；Esc 关闭不回归', async () => {
     click(compareButtons()[0]!);
     const restoreBtn = [...rows()[0]!.querySelectorAll<HTMLButtonElement>('.sf-btn')].find(
       (b) => b.textContent === '恢复此版本',
     )!;
+
+    // 第一次：弹出应用内确认，取消 → 内容不变、对话框不关闭
     click(restoreBtn);
+    const req = useUiStore.getState().textDialog!;
+    expect(req.mode).toBe('confirm');
+    expect(req.title).toContain('main.tex');
+    req.resolve(null);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(useWorkspaceStore.getState().files['main.tex']).toBe(NEW_MAIN);
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 第二次：确认 → 覆盖为该快照内容并关闭
+    click(restoreBtn);
+    await act(async () => {
+      useUiStore.getState().textDialog!.resolve('');
+      await new Promise((r) => setTimeout(r, 0));
+    });
     expect(useWorkspaceStore.getState().files['main.tex']).toBe(OLD_MAIN);
     expect(onClose).toHaveBeenCalledTimes(1);
 

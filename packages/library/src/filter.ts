@@ -5,7 +5,7 @@ import type { Paper, ReadStatus } from '@lemma/shared';
  *   year:>2023 | year:>=2020 | year:2020-2024 | year:2023
  *   venue:CVPR（venue.name 子串，忽略大小写）
  *   status:unread|reading|done
- *   tag:xyz（忽略大小写精确匹配）
+ *   tag:xyz（忽略大小写精确匹配；含空格的取值加引号：tag:"machine learning"）
  *   rating:>=4 | rating:3
  *   "带引号短语"（匹配 title/abstract）
  *   裸词（关键词 AND，匹配题录全部可检索字段）
@@ -42,6 +42,16 @@ const STATUS_ALIASES: Record<string, ReadStatus> = {
   read: 'done',
 };
 
+/** 字段取值前缀：“name:” 之后可以跟引号取值（tag:"machine learning"）。 */
+const FIELD_PREFIX = /^[a-zA-Z]+:$/;
+
+/** 去掉字段取值外层的成对引号；未闭合引号（宽松降级）只去掉开引号，其余原样返回。 */
+function unquoteValue(raw: string): string {
+  const quoted = /^(["'])([\s\S]*)\1$/.exec(raw);
+  if (quoted) return quoted[2]!;
+  return /^["']/.test(raw) ? raw.slice(1) : raw;
+}
+
 function tokenize(query: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
@@ -62,7 +72,16 @@ function tokenize(query: string): Token[] {
       i = end + 1;
     } else {
       let j = i;
-      while (j < query.length && !/\s/.test(query[j]!)) j++;
+      while (j < query.length && !/\s/.test(query[j]!)) {
+        // 字段取值带引号（tag:"machine learning"）：引号内允许空白，整体作为一个 token
+        const c = query[j]!;
+        if ((c === '"' || c === "'") && FIELD_PREFIX.test(query.slice(i, j))) {
+          const end = query.indexOf(c, j + 1);
+          j = end === -1 ? query.length : end + 1;
+          continue;
+        }
+        j++;
+      }
       tokens.push({ text: query.slice(i, j), quoted: false });
       i = j;
     }
@@ -114,7 +133,7 @@ export function parseFilter(query: string): ParsedFilter {
       continue;
     }
     const name = field[1]!.toLowerCase();
-    const raw = field[2]!.trim();
+    const raw = unquoteValue(field[2]!.trim());
     switch (name) {
       case 'year':
         nodes.push(parseYearNode(raw, token.text));

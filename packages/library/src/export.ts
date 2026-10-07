@@ -18,9 +18,34 @@ import type {
 // BibTeX 导出
 // ---------------------------------------------------------------------------
 
-/** BibTeX 特殊字符转义：& % # _ */
+/**
+ * 丢弃无法配对的大括号：`{` `}` 是 BibTeX 字段值的定界符，值内出现不平衡括号会让
+ * 该字段“吃掉”后面的条目（整份 .bib 失效：重新导入时全部条目丢失）。
+ * 成对括号（如题名中的 {Convolutional} 保护性大写）原样保留。
+ */
+function balanceBraces(value: string): string {
+  const out: string[] = [];
+  const unclosed: number[] = [];
+  for (const ch of value) {
+    if (ch === '{') {
+      unclosed.push(out.length);
+      out.push(ch);
+    } else if (ch === '}') {
+      if (unclosed.length > 0) {
+        unclosed.pop();
+        out.push(ch);
+      }
+    } else {
+      out.push(ch);
+    }
+  }
+  for (const index of unclosed) out[index] = '';
+  return out.join('');
+}
+
+/** BibTeX 特殊字符转义：& % # _（另有无法配对的大括号清理，见 balanceBraces） */
 export function escapeBibtex(value: string): string {
-  return value
+  return balanceBraces(value)
     .replace(/&/g, '\\&')
     .replace(/%/g, '\\%')
     .replace(/#/g, '\\#')

@@ -36,6 +36,87 @@ function localTitle(key: keyof typeof COMMAND_STRINGS): string {
   return COMMAND_STRINGS[key][lang];
 }
 
+/** 参考文献体检 toast 的分段数据（zh/en 共用同一份，避免两边口径漂移） */
+interface BibReportParts {
+  total: number;
+  err: number;
+  warn: number;
+  dangling: string[];
+  missing: string[];
+  dupes: string[];
+}
+
+/**
+ * 命令内提示文案的本地字典（v7.8.0：此前这些 toast 写死中文，界面语言为 en 时
+ * 中英混排；口径同 COMMAND_STRINGS——新字符串不进 i18n.ts）。
+ */
+interface LocalTexts {
+  pathInvalid: { zh: string; en: string };
+  ttsUnsupported: { zh: string; en: string };
+  ttsNoTexFile: { zh: string; en: string };
+  ttsEmptySection: { zh: string; en: string };
+  ttsFailed: { zh: string; en: string };
+  ttsStopped: { zh: string; en: string };
+  ttsStarted: { zh: (lines: string) => string; en: (lines: string) => string };
+  editConflict: { zh: string; en: string };
+  bibNoCite: { zh: string; en: string };
+  bibHealthy: { zh: (n: number) => string; en: (n: number) => string };
+  bibReport: { zh: (p: BibReportParts) => string; en: (p: BibReportParts) => string };
+}
+
+const LOCAL_TEXTS: LocalTexts = {
+  pathInvalid: {
+    zh: '文件路径不合法（含 ..、绝对路径或反斜杠）',
+    en: 'Invalid file path (contains "..", an absolute path, or a backslash)',
+  },
+  ttsUnsupported: { zh: '当前环境不支持语音合成', en: 'Speech synthesis is not available in this environment' },
+  ttsNoTexFile: { zh: '先打开一个 .tex 文件', en: 'Open a .tex file first' },
+  ttsEmptySection: { zh: '这一节没有可朗读的文本', en: 'This section has no readable text' },
+  ttsFailed: { zh: '朗读启动失败', en: 'Failed to start reading aloud' },
+  ttsStopped: { zh: '已停止朗读', en: 'Reading stopped' },
+  ttsStarted: {
+    zh: (lines) => `朗读中（第 ${lines} 行）——命令面板「停止朗读」可中断`,
+    en: (lines) => `Reading aloud (lines ${lines}) — use "Stop reading aloud" in the command palette to interrupt`,
+  },
+  editConflict: {
+    zh: '文件在审批期间发生了其他修改，本次未应用',
+    en: 'The file changed during approval; this edit was not applied',
+  },
+  bibNoCite: {
+    zh: '未找到可导出的被引文献（稿件中无 \\cite 引用，或文献库为空）',
+    en: 'No cited references to export (no \\cite in the manuscript, or the library is empty)',
+  },
+  bibHealthy: {
+    zh: (n) => `✓ 参考文献体检通过：${n} 条 · 无问题`,
+    en: (n) => `✓ Bibliography check passed: ${n} entry(ies) · no issues`,
+  },
+  bibReport: {
+    zh: (p) =>
+      [
+        `参考文献体检：${p.total} 条 · ${p.err} 错误 · ${p.warn} 警告`,
+        p.dangling.length > 0 ? `悬空引用：${p.dangling.slice(0, 5).join(', ')}${p.dangling.length > 5 ? '…' : ''}` : '',
+        p.missing.length > 0 ? `缺失字段：${p.missing.slice(0, 3).join('; ')}${p.missing.length > 3 ? '…' : ''}` : '',
+        p.dupes.length > 0 ? `疑似重复：${p.dupes.slice(0, 5).join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    en: (p) =>
+      [
+        `Bibliography check: ${p.total} entries · ${p.err} error(s) · ${p.warn} warning(s)`,
+        p.dangling.length > 0 ? `Dangling citations: ${p.dangling.slice(0, 5).join(', ')}${p.dangling.length > 5 ? '…' : ''}` : '',
+        p.missing.length > 0 ? `Missing fields: ${p.missing.slice(0, 3).join('; ')}${p.missing.length > 3 ? '…' : ''}` : '',
+        p.dupes.length > 0 ? `Possible duplicates: ${p.dupes.slice(0, 5).join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+  },
+};
+
+/** 按当前界面语言取命令内提示文案（发提示那一刻读取语言） */
+function localText<K extends keyof LocalTexts>(key: K): LocalTexts[K]['zh'] {
+  return LOCAL_TEXTS[key][useSettingsStore.getState().language] as LocalTexts[K]['zh'];
+}
+
 export function buildCommands(ctx: CommandContext): Command[] {
   const raw: Command[] = [
     {
@@ -71,7 +152,11 @@ export function buildCommands(ctx: CommandContext): Command[] {
       title: ctx.t('cmd.exportBibCited'),
       hint: ctx.t('hint.view'),
       run: () => {
-        void import('./exportBib').then(({ exportLibraryBib }) => exportLibraryBib(true));
+        // v7.8.0：无被引条目时 exportLibraryBib 不再把整个库当「被引文献」写出，
+        // 改为如实返回 false，这里给出来自提示（否则点击后毫无反馈）
+        void import('./exportBib').then(({ exportLibraryBib }) => {
+          if (!exportLibraryBib(true)) ctx.toast(localText('bibNoCite'));
+        });
       },
     },
     {
@@ -129,23 +214,25 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => {
         const ws = useWorkspaceStore.getState();
         void import('./bibHealth').then(({ checkBibHealth }) => {
-          const report = checkBibHealth(ws.files);
+          const report = checkBibHealth(ws.files, useSettingsStore.getState().language);
           const err = report.errorCount;
           const warn = report.warningCount;
           const total = report.totalEntries;
           if (err === 0 && warn === 0) {
-            ctx.toast(`✓ 参考文献体检通过：${total} 条 · 无问题`);
+            ctx.toast(localText('bibHealthy')(total));
           } else {
-            const dangling = report.issues.filter((i) => i.kind === 'dangling-cite').map((i) => i.citekey);
-            const missing = report.issues.filter((i) => i.kind === 'missing-field').map((i) => `${i.citekey}(${i.message})`);
-            const dupes = report.issues.filter((i) => i.kind === 'duplicate').map((i) => i.citekey);
-            const lines = [
-              `参考文献体检：${total} 条 · ${err} 错误 · ${warn} 警告`,
-              dangling.length > 0 ? `悬空引用：${dangling.slice(0, 5).join(', ')}${dangling.length > 5 ? '…' : ''}` : '',
-              missing.length > 0 ? `缺失字段：${missing.slice(0, 3).join('; ')}${missing.length > 3 ? '…' : ''}` : '',
-              dupes.length > 0 ? `疑似重复：${[...new Set(dupes)].slice(0, 5).join(', ')}` : '',
-            ].filter(Boolean);
-            ctx.toast(lines.join(' · '));
+            ctx.toast(
+              localText('bibReport')({
+                total,
+                err,
+                warn,
+                dangling: report.issues.filter((i) => i.kind === 'dangling-cite').map((i) => i.citekey),
+                missing: report.issues
+                  .filter((i) => i.kind === 'missing-field')
+                  .map((i) => `${i.citekey}(${i.message})`),
+                dupes: [...new Set(report.issues.filter((i) => i.kind === 'duplicate').map((i) => i.citekey))],
+              }),
+            );
           }
         });
       },
@@ -236,7 +323,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
         // v7.0.0 修复：路径校验——.. / 绝对路径 / 反斜杠会让 safe_rel 拒绝物化，
         // 编译静默降级为模拟引擎（假成功）
         if (trimmed.includes('..') || trimmed.startsWith('/') || trimmed.includes('\\')) {
-          ctx.toast('文件路径不合法（含 ..、绝对路径或反斜杠）');
+          ctx.toast(localText('pathInvalid'));
           return;
         }
         useWorkspaceStore.getState().createFile(trimmed, '');
@@ -460,13 +547,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => {
         void import('./tts').then(({ ttsSupported, speak, stopTts, latexToSpeakable }) => {
           if (!ttsSupported()) {
-            ctx.toast('当前环境不支持语音合成');
+            ctx.toast(localText('ttsUnsupported'));
             return;
           }
           const ws = useWorkspaceStore.getState();
           const file = ws.activeTab;
           if (!file || !file.endsWith('.tex')) {
-            ctx.toast('先打开一个 .tex 文件');
+            ctx.toast(localText('ttsNoTexFile'));
             return;
           }
           const content = ws.files[file] ?? '';
@@ -498,7 +585,9 @@ export function buildCommands(ctx: CommandContext): Command[] {
           const startLevel = level(lines[start] ?? '');
           let end = lines.length;
           for (let i = start + 1; i < lines.length; i++) {
-            const m = /\\(sub)*section\{|\\chapter\{|\\end\{document\}/.exec(lines[i]!);
+            // v7.8.0 修复：结扫与起扫同为 \*? 变体——此前 `\section*{`（不编号小节）
+            // 不算边界，朗读会越过它把后续小节一起读进来
+            const m = /\\(sub)*section\*?\{|\\chapter\*?\{|\\end\{document\}/.exec(lines[i]!);
             if (m && level(m[0]) <= startLevel) {
               end = i;
               break;
@@ -506,11 +595,11 @@ export function buildCommands(ctx: CommandContext): Command[] {
           }
           const section = latexToSpeakable(lines.slice(start, end).join('\n'));
           if (!section) {
-            ctx.toast('这一节没有可朗读的文本');
+            ctx.toast(localText('ttsEmptySection'));
             return;
           }
           const ok = speak(section, /[一-鿿]/.test(section) ? 'zh' : 'en');
-          ctx.toast(ok ? `朗读中（第 ${start + 1}-${end} 行）——命令面板「停止朗读」可中断` : '朗读启动失败');
+          ctx.toast(ok ? localText('ttsStarted')(`${start + 1}-${end}`) : localText('ttsFailed'));
         });
       },
     },
@@ -522,7 +611,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => {
         void import('./tts').then(({ stopTts }) => {
           stopTts();
-          ctx.toast('已停止朗读');
+          ctx.toast(localText('ttsStopped'));
         });
       },
     },
@@ -598,7 +687,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
             w.snapshotFile(file, '审批采纳前的快照');
             w.updateFile(file, after);
           } else {
-            ctx.toast('文件在审批期间发生了其他修改，本次未应用');
+            ctx.toast(localText('editConflict'));
             return;
           }
         }

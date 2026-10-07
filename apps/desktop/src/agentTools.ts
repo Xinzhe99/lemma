@@ -179,12 +179,43 @@ export function firstDiffLine(before: string, after: string): number | null {
   return null;
 }
 
+/**
+ * diff 的 ---/+++ 文件头是否明确指向了**另一个项目文件**（v7.8.0）。
+ * 返回该文件名表示「改错文件」风险，null 表示可安全应用。
+ * 判定保守：头缺失、占位名（不在工作区里，如「原始/修改后」）、/dev/null 一律放行；
+ * 只要有一个头与目标一致也放行。
+ */
+export function diffTargetMismatch(
+  diff: string,
+  target: string,
+  files: Record<string, string>,
+): string | null {
+  const headers: string[] = [];
+  for (const raw of diff.split('\n')) {
+    const line = raw.trimEnd();
+    if (!line.startsWith('---') && !line.startsWith('+++')) continue;
+    const name = line
+      .slice(3)
+      .split('\t')[0]!
+      .trim()
+      .replace(/^[ab]\//, '')
+      .replace(/^\.\//, '');
+    if (!name || name === '/dev/null') continue;
+    headers.push(name);
+  }
+  if (headers.length === 0 || headers.includes(target)) return null;
+  return headers.find((h) => h in files) ?? null;
+}
+
 /** 创建绑定真实应用数据的工具执行器；写级操作经 approval 阻塞等待人工裁决 */
 export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval): ToolExecutor {
   return createToolExecutor({
     'library.search_fulltext': async (args) => {
       const query = String(args.query ?? '');
-      const k = typeof args.k === 'number' ? args.k : 5;
+      // v7.8.0：注册表声明的是 `limit`（模型照声明传参），此前只读 `args.k`——
+      // 模型传 limit 时被静默忽略、固定返回 5 条。两者都接受，默认 10（与声明一致）。
+      const raw = typeof args.limit === 'number' ? args.limit : typeof args.k === 'number' ? args.k : 10;
+      const k = Math.max(1, Math.min(Math.trunc(raw), 50));
       const hits = await useLibraryStore.getState().searchKnowledge(query, k);
       return {
         hits: hits.map((h) => ({
@@ -309,10 +340,24 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       return { lines: log.slice(-20) };
     },
     'citation.validate': async (args) => {
+      // 注册表同时要求 key 与 claim；claim 在本形态无实现（判断「文献是否支撑主张」
+      // 需要读全文），此前被静默吞掉、只回 {ok, invalid}——模型易把 ok 误当成
+      // 「主张已被文献支撑」（学术诚信风险）。如实标注 claim 未评估。
       const keys =
         Array.isArray(args.keys) ? args.keys.map(String) : typeof args.key === 'string' ? [args.key] : [];
-      const result = validateCitations(keys.map((k) => `[${k}]`).join(' '), validCitationKeys());
-      return { ok: result.ok, invalid: result.invalid };
+      const valid = validCitationKeys();
+      const result = validateCitations(keys.map((k) => `[${k}]`).join(' '), valid);
+      // 直连比对兜底：validateCitations 走 markdown 引用正则（键至少 2 字符），
+      // 1 字符键或非常规字符键会被当成「文中无引用」→ ok:true 的假通过
+      const validSet = new Set(valid);
+      const invalid = [...new Set([...result.invalid, ...keys.filter((k) => k.trim() && !validSet.has(k))])];
+      return {
+        ok: invalid.length === 0,
+        invalid,
+        usedKeys: result.usedKeys,
+        claimChecked: false,
+        note: '本工具只核验 bib 键是否存在于本地文献库/refs.bib；「文献是否支撑 claim」未做判断，请阅读全文后再下结论',
+      };
     },
     'tex.edit': async (args) => {
       const ws = useWorkspaceStore.getState();
@@ -321,6 +366,15 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       if (before === undefined) return { applied: false, reason: `文件不存在：${file || '（未指定）'}` };
       let after: string;
       if (typeof args.diff === 'string' && args.diff.trim()) {
+        // v7.8.0 修复（改错文件）：diff 的 ---/+++ 头若明确指向另一个项目文件，
+        // 而内容又恰好与该文件某段一致时会静默改到别的文件上——直接拒绝并说明
+        const wrongTarget = diffTargetMismatch(args.diff, file, ws.files);
+        if (wrongTarget) {
+          return {
+            applied: false,
+            reason: `diff 的文件头指向「${wrongTarget}」，与本次目标文件「${file}」不一致——为避免改错文件已拒绝；请改为「${file}」或在 diff 中省略 ---/+++ 头`,
+          };
+        }
         const applied = applyUnifiedDiff(before, args.diff);
         if (!applied.ok) return { applied: false, reason: `diff 应用失败：${applied.error}` };
         after = applied.text;
@@ -330,35 +384,58 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         if (!before.includes(args.find)) {
           return { applied: false, reason: 'find 文本在文件中未命中，未做任何修改' };
         }
-        after = before.replace(args.find, typeof args.replace === 'string' ? args.replace : '');
+        // v7.8.0 修复：替换值按字面处理——String.replace 的字符串替换会解释
+        // $&/$`/$'/$1/$$ 等模式（LaTeX 里 `$$…$$`、`$1` 都可能出现），
+        // 此前会把模型给的替换文本静默改写（`$$` 塌缩成 `$`、`` $` `` 注入整段前缀）
+        const replacement = typeof args.replace === 'string' ? args.replace : '';
+        after = before.replace(args.find, () => replacement);
       } else {
         return { applied: false, reason: '需要提供 diff、content（整文件替换）或 find/replace（局部替换）之一' };
       }
       if (after === before) return { applied: false, reason: '修改前后内容相同' };
 
+      // v7.8.0：注册表声明的 summary（本次修改的一句话说明）此前被静默丢弃——
+      // 审批卡标题带上它，用户不必从 diff 猜这次改动的意图
+      const summary = typeof args.summary === 'string' ? args.summary.trim() : '';
       const decision = await approval({
         file,
         before,
         after,
         kind: 'tool-edit',
-        label: 'AI 修改稿件（tex.edit）',
+        label: summary ? `AI 修改稿件：${summary.slice(0, 60)}` : 'AI 修改稿件（tex.edit）',
         via: 'agent 工具调用',
       });
       if (!decision.approved) return { applied: false, reason: decision.note };
-      // v7.0.0 修复（数据丢失）：审批等待期间用户可能已编辑同一文件——
-      // after 基于旧 before 计算，直接覆盖会静默吞掉用户改动。内容不一致时拒绝
+      // v7.8.0 修复（双重落盘 + 谎报取消）：审批卡采纳时先按用户裁决落盘、再回传 token
+      // （AgentPanel onAccept → snapshotFile/updateFile → resolveToolApproval）——v7.0.0 的
+      // 陈旧覆盖防护把「已由审批卡落盘」误判成「审批期间被其他修改」，于是模型收到
+      // 「已取消——请重试本次编辑」并可能重发同一修改；部分采纳还会被整份提案覆盖。
+      // 现在区分：内容已变 = 审批路径已写入（不再二次写入，如实回报）；内容未变 =
+      // 由本执行器落盘（保留「审批期间被他人改动则放弃」的语义）。
       const latest = useWorkspaceStore.getState().files[file];
-      if (latest !== before) {
-        return { applied: false, reason: '文件在审批期间发生了其他修改，为避免覆盖已取消——请重试本次编辑' };
+      // 文件在审批期间被删除 / 工作区已切换（审批卡路径写入要求文件存在，missing 必非本流程）
+      if (latest === undefined) {
+        return { applied: false, reason: '文件在审批期间被删除或工作区已切换，本次修改未应用' };
       }
-      ws.snapshotFile(file, 'AI 工具修改前的快照');
-      useWorkspaceStore.getState().updateFile(file, after);
+      const appliedByApproval = latest !== before;
+      if (!appliedByApproval) {
+        ws.snapshotFile(file, 'AI 工具修改前的快照');
+        useWorkspaceStore.getState().updateFile(file, after);
+      }
       // v5.0.0 所见即所得：记录首个变更行，编译成功后 PDF 自动滚到该处
-      const firstChangedLine = firstDiffLine(before, after);
+      const firstChangedLine = firstDiffLine(before, appliedByApproval ? latest : after);
       if (firstChangedLine !== null) queueSourceGoto(file, firstChangedLine);
       scheduleAutoCommit('修改稿件'); // v5.0.0：AI 改动自动进版本历史
       recordSessionArtifact(file, 'edit'); // v5.9.0：会话产物清单
-      return { applied: true, file, note: decision.note };
+      return {
+        applied: true,
+        file,
+        // 部分采纳（或其他裁决结果）时当前内容与提案不一致——明确告知，别让模型以为已按提案落盘
+        note:
+          appliedByApproval && latest !== after
+            ? `${decision.note}；注意：当前文件内容是用户裁决后的版本，与本次提案不完全一致，请以 project.read_file 读到的内容为准`
+            : decision.note,
+      };
     },
     'citation.add': async (args) => {
       const ws = useWorkspaceStore.getState();
@@ -380,14 +457,26 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         via: 'agent 工具调用',
       });
       if (!decision.approved) return { applied: false, reason: decision.note };
-      // v7.0.0：同 tex.edit 的陈旧覆盖防护
-      if (useWorkspaceStore.getState().files[path] !== before) {
-        return { applied: false, reason: 'bib 文件在审批期间发生了其他修改，为避免覆盖已取消——请重试' };
+      // v7.8.0 修复（首条引用永不落盘 + 空 bib 假成功）：此前用 `files[path] !== before`
+      // 比较，bib 尚不存在时 undefined !== '' 恒成立 → 全新的 refs.bib 被误报
+      // 「bib 文件在审批期间发生了其他修改，为避免覆盖已取消」，首条引用永远加不进去；
+      // 而空 bib（''）通过该比较后走 createFile——已存在的文件 createFile 不覆盖内容，
+      // 于是报 applied:true 却什么都没写。现在按「是否存在」决定 create/update，
+      // 与 tex.edit 同口径地识别「审批卡已落盘」。
+      const latest = useWorkspaceStore.getState().files[path];
+      // 原先有内容的 bib 在审批期间被删除 / 工作区已切换：不凭空重建一份只剩本条目的 bib
+      if (latest === undefined && before !== '') {
+        return { applied: false, reason: 'bib 文件在审批期间被删除或工作区已切换，本次引用未写入' };
       }
-      if (before === '') useWorkspaceStore.getState().createFile(path, after);
-      else useWorkspaceStore.getState().updateFile(path, after);
+      const appliedByApproval = (latest ?? '') !== before;
+      const created = latest === undefined;
+      if (!appliedByApproval) {
+        if (created) useWorkspaceStore.getState().createFile(path, after);
+        else useWorkspaceStore.getState().updateFile(path, after);
+      }
       scheduleAutoCommit(`添加引用 ${citekey}`); // v5.0.0：AI 改动自动进版本历史
-      recordSessionArtifact(path, 'edit'); // v5.9.0：会话产物清单
+      // v5.9.0 会话产物清单：新建 refs.bib 记 create，追加条目记 edit（面板区分展示）
+      recordSessionArtifact(path, created ? 'create' : 'edit');
       return { applied: true, file: path, note: decision.note };
     },
     // v5.2.0：AI 感知修订历史（Prism 式「在完整上下文含历史修订中工作」）——
@@ -509,16 +598,30 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       const query = String(args.query ?? '').trim();
       if (!query) return { error: '未提供搜索文本' };
       const files = useWorkspaceStore.getState().files;
+      const LIMIT = 50;
       const hits: { file: string; line: number; text: string }[] = [];
+      // v7.8.0：命中上限此前静默生效（totalHits 恒等于已返回条数）——模型会把
+      // 「50 条」当成全部命中，据此判断「没有别处引用」。达上限即停并显式标注截断
+      let truncated = false;
       for (const [path, content] of Object.entries(files)) {
         const lines = content.split('\n');
-        for (let i = 0; i < lines.length && hits.length < 50; i++) {
-          if ((lines[i] ?? '').includes(query)) {
-            hits.push({ file: path, line: i + 1, text: (lines[i] ?? '').trim().slice(0, 120) });
+        for (let i = 0; i < lines.length; i++) {
+          if (!(lines[i] ?? '').includes(query)) continue;
+          if (hits.length >= LIMIT) {
+            truncated = true;
+            break;
           }
+          hits.push({ file: path, line: i + 1, text: (lines[i] ?? '').trim().slice(0, 120) });
         }
+        if (truncated) break;
       }
-      return { query, totalHits: hits.length, hits };
+      return {
+        query,
+        totalHits: hits.length,
+        truncated,
+        ...(truncated ? { note: `命中过多，仅返回前 ${LIMIT} 条（可能还有更多），如需完整清单请缩小搜索范围` } : {}),
+        hits,
+      };
     },
     'project.list_files': async () => {
       const files = useWorkspaceStore.getState().files;
@@ -544,7 +647,13 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
         via: 'agent 工具调用',
       });
       if (!decision.approved) return { created: false, reason: decision.note };
+      // v7.8.0：审批期间同名文件可能已被创建（用户手动新建/其他会话写入）——
+      // createFile 对已存在的路径不覆盖内容，此前会谎报 created:true 而实际什么都没写
+      if (useWorkspaceStore.getState().files[path] !== undefined) {
+        return { created: false, reason: `文件在审批期间已存在：${path}（未覆盖，请改用 tex.edit 修改）` };
+      }
       ws.createFile(path, content);
+      recordSessionArtifact(path, 'create'); // v5.9.0：会话产物清单（新建同步登记）
       return { created: true, path, note: decision.note };
     },
     // v7.5.0（UserInteraction）：选项式提问卡阻塞等待用户拍板，答案回传模型。

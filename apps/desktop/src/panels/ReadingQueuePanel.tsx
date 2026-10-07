@@ -21,6 +21,7 @@ const STRINGS = {
     unread: (n: number) => `${n} 篇待读`,
     open: '打开 PDF',
     openLib: '去文献库',
+    more: (n: number) => `还有 ${n} 篇`,
   },
   en: {
     title: 'Reading queue',
@@ -30,6 +31,7 @@ const STRINGS = {
     unread: (n: number) => `${n} to read`,
     open: 'Open PDF',
     openLib: 'Library',
+    more: (n: number) => `+${n} more`,
   },
 } as const;
 
@@ -124,7 +126,7 @@ export function ReadingQueuePanel() {
       </ul>
 
       {items.length > 10 && (
-        <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-2)' }}>+{items.length - 10} more</p>
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-2)' }}>{L.more(items.length - 10)}</p>
       )}
     </div>
   );

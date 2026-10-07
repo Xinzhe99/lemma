@@ -22,7 +22,7 @@ export const conferenceAcmLike: TemplateModule = {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：conference-acm-like
-\documentclass[10pt,twocolumn]
+\documentclass[10pt,twocolumn]{article}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{graphicx}
@@ -41,7 +41,7 @@ export const conferenceAcmLike: TemplateModule = {
 \small {ABSTRACT}
 \end{abstract}
 \section{Introduction}
-Intro with citation~\cite{vaswani2017attention}.
+Intro with citation~\cite{knuth1984literate}.
 \section{Method}
 \section{Experiments}
 \section{Conclusion}

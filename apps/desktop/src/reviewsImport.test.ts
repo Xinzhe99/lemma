@@ -317,6 +317,20 @@ describe('多文件合并与重编号', () => {
     expect(reviewerNumberFromFileName('2024-10-reviews.pdf')).toBeNull();
   });
 
+  it('词中的 r+数字不算审稿人编号（v7.8.0 修复：chapter2 / paper2_comments 曾被当成审稿人 2）', () => {
+    expect(reviewerNumberFromFileName('chapter2.txt')).toBeNull();
+    expect(reviewerNumberFromFileName('paper2_comments.docx')).toBeNull();
+    expect(reviewerNumberFromFileName('author2_response.pdf')).toBeNull();
+    // R1 形式的独立缩写仍识别
+    expect(reviewerNumberFromFileName('R2.pdf')).toBe(2);
+    expect(reviewerNumberFromFileName('referee report 3.docx')).toBeNull(); // 数字未紧跟标识词
+
+    // 端到端：文件名不再把整份意见挂到错误的审稿人名下
+    const out = parseReviewsFiles([{ name: 'chapter2.txt', text: '1. Weak motivation.' }]);
+    expect(out.map((r) => r.reviewer)).toEqual(['Reviewer 1']);
+    expect(out[0]!.items[0]!.id).toBe('R1.1');
+  });
+
   it('一人一文件：单审稿人文件按文件名数字命名并重整条目编号', () => {
     const out = parseReviewsFiles([
       { name: 'reviewer1.txt', text: '1. A1.\n2. A2.' },

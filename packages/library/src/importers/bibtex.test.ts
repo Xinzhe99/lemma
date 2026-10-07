@@ -77,6 +77,26 @@ describe('parseBibtex', () => {
   });
 });
 
+describe('parseBibtex 行注释（%）', () => {
+  it('条目内的 “%” 行注释不会让其后字段被丢弃', () => {
+    const { papers: parsed, errors } = parseBibtex(
+      [
+        '@article{commented,',
+        '  title = {A Title}, % 题注：这是行注释',
+        '  % 整行注释：年份如下',
+        '  year = {2020},',
+        '  journal = {J}',
+        '}',
+      ].join('\n'),
+    );
+    expect(errors).toEqual([]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]!.title).toBe('A Title');
+    expect(parsed[0]!.year).toBe(2020);
+    expect(parsed[0]!.venue?.name).toBe('J');
+  });
+});
+
 describe('parseBibtexAuthors / parsePersonName', () => {
   it('非逗号形式：末词为 family', () => {
     expect(parseBibtexAuthors('Ashish Vaswani and Noam Shazeer')).toEqual([

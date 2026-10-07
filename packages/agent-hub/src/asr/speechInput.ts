@@ -18,15 +18,19 @@ type WorkerEvent =
 let worker: Worker | null = null;
 let pendingResolve: ((text: string) => void) | null = null;
 let pendingReject: ((err: Error) => void) | null = null;
+/** 当前会话的事件回调（v7.8.0）：worker 为单例，回调必须每次更新——
+ *  否则首个调用方的闭包被永久钉住，后续会话的 UI 收不到 loading-model / error 事件 */
+let emit: ((e: SpeechEvent) => void) | null = null;
 
 function ensureWorker(onEvent: (e: SpeechEvent) => void): Worker {
+  emit = onEvent;
   if (worker) return worker;
   worker = new Worker(new URL('./asrWorker.ts', import.meta.url), { type: 'module' });
   worker.onmessage = (e: MessageEvent<WorkerEvent>) => {
     const msg = e.data;
     if (msg.type === 'progress') {
       if (msg.status === 'progress' && typeof msg.progress === 'number') {
-        onEvent({ phase: 'loading-model' });
+        emit?.({ phase: 'loading-model' });
       } else if (msg.status === 'ready' || msg.status === 'done') {
         // 模型就绪：等 transcribe 结果，不改 UI 状态
       }
@@ -39,6 +43,10 @@ function ensureWorker(onEvent: (e: SpeechEvent) => void): Worker {
     }
   };
   worker.onerror = () => {
+    // v7.8.0：模块 worker 加载失败（离线 / 分包取不到）会走这里——必须丢掉单例，
+    // 否则下一个会话复用这个已死的 worker：postMessage 石沉大海、Promise 永不 settle，
+    // UI 永久停在「识别中…」（麦克风按钮同时被禁用，只能重启应用）
+    worker = null;
     pendingReject?.(new Error('语音识别 worker 异常'));
     flush();
   };

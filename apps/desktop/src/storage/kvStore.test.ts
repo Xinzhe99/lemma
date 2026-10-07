@@ -113,6 +113,20 @@ describe('migrateLocalStorageToIdb 分界与搬运', () => {
     expect(localStorage.length).toBe(5);
   });
 
+  it('v7.8.0：其余「模块加载时同步读 localStorage」的属主键同样跳过（不得搬走后读空）', async () => {
+    const guarded = ['sf-workflow-overrides', 'sf-agent-runs', 'sf-custom-dict'];
+    for (const key of guarded) localStorage.setItem(key, bigJson(BIG_DATA_THRESHOLD_BYTES + 10));
+
+    const r = await migrateLocalStorageToIdb();
+
+    expect(r.migrated).toEqual([]);
+    expect(r.skipped.sort()).toEqual([...guarded].sort());
+    for (const key of guarded) {
+      expect(localStorage.getItem(key)).not.toBeNull(); // 属主仍能同步读回
+      expect(await kvGet(key)).toBeUndefined(); // 未被搬入 IndexedDB
+    }
+  });
+
   it('幂等不回退：IndexedDB 已有新值时仅清 localStorage 旧副本，不覆盖', async () => {
     await kvSet('sf-library', [{ id: 'new' }]);
     localStorage.setItem(
@@ -220,5 +234,59 @@ describe('getBigData / setBigData', () => {
     expect(await getBigData('sf-library')).toEqual({ fallback: true });
 
     warn.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v7.8.0：IndexedDB 写失败后的 localStorage 降级副本必须能读回
+// ---------------------------------------------------------------------------
+describe('降级副本（IndexedDB 写失败 → localStorage）的权威标记', () => {
+  it('IndexedDB 里是旧值时，降级副本仍能读回（此前被旧值盖掉）', async () => {
+    await kvSet('sf-library', { papers: [{ id: 'old' }] }); // 库里是旧值
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(kvSet).mockRejectedValueOnce(new Error('idb 写失败'));
+    await setBigData('sf-library', { papers: [{ id: 'new' }] }); // 降级写 localStorage
+    warn.mockRestore();
+
+    __resetKvStoreForTests(); // 模拟重启：清掉读己之写缓存
+
+    expect(await getBigData('sf-library')).toEqual({ papers: [{ id: 'new' }] });
+    expect(await kvGet('sf-library')).toEqual({ papers: [{ id: 'old' }] }); // IndexedDB 未被误改
+  });
+
+  it('迁移不删降级副本（标记存在 → 跳过，原键与内容保留）', async () => {
+    await kvSet('sf-library', [{ id: 'old' }]);
+    localStorage.setItem(
+      'sf-library',
+      JSON.stringify([{ id: 'new', pad: 'a'.repeat(BIG_DATA_THRESHOLD_BYTES) }]),
+    );
+    localStorage.setItem('idbfb:sf-library', '1'); // 等价于 setBigData 降级写后的标记
+
+    const r = await migrateLocalStorageToIdb();
+
+    expect(r.migrated).toEqual([]);
+    expect(r.skipped).toContain('sf-library');
+    expect(localStorage.getItem('sf-library')).not.toBeNull(); // 新数据未被删除
+    expect(await kvGet('sf-library')).toEqual([{ id: 'old' }]); // 也未被旧值覆盖
+    expect(await getBigData<{ id: string }[]>('sf-library')).toEqual([{ id: 'new', pad: 'a'.repeat(BIG_DATA_THRESHOLD_BYTES) }]);
+  });
+
+  it('IndexedDB 写成功即清标记：此后的 localStorage 遗留副本按旧副本清理', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(kvSet).mockRejectedValueOnce(new Error('idb 写失败'));
+    await setBigData('sf-library', {
+      papers: [{ id: 'fallback', pad: 'a'.repeat(BIG_DATA_THRESHOLD_BYTES) }],
+    });
+    warn.mockRestore();
+    expect(localStorage.getItem('idbfb:sf-library')).not.toBeNull();
+
+    await setBigData('sf-library', { papers: [{ id: 'ok' }] }); // IndexedDB 恢复
+    expect(localStorage.getItem('idbfb:sf-library')).toBeNull();
+    __resetKvStoreForTests(); // 模拟重启（清读己之写缓存，迁移才有机会处理该键）
+
+    const r = await migrateLocalStorageToIdb();
+    expect(r.migrated).toContain('sf-library'); // 旧副本清理（IndexedDB 已是新值）
+    expect(localStorage.getItem('sf-library')).toBeNull();
+    expect(await kvGet('sf-library')).toEqual({ papers: [{ id: 'ok' }] });
   });
 });

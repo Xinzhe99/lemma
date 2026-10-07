@@ -311,6 +311,20 @@ describe('TemplateWizard 保存当前项目为模板', () => {
   });
 });
 
+describe('TemplateWizard Esc 关闭', () => {
+  it('Esc 关闭向导（对齐其他对话框的统一交互）', () => {
+    act(() => {
+      useUiStore.setState({ templateWizardOpen: true });
+    });
+    seedWorkspace();
+    renderWizard();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    });
+    expect(useUiStore.getState().templateWizardOpen).toBe(false);
+  });
+});
+
 describe('TemplateWizard zh/en 字典', () => {
   it('en 语言：自定义模板区与保存折叠区文案为英文', () => {
     act(() => {

@@ -292,12 +292,14 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
     set((state) => ({
       sessions: patchSession(state.sessions, sessionId, (s) => {
         const messages = [...s.messages];
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role === 'assistant') {
-            messages[i] = { ...messages[i], toolCalls: [...(messages[i].toolCalls ?? []), call] };
-            return { ...s, messages };
-          }
-          break;
+        // v7.8.0 修复：宿主逐个回填（call→result→call→result…），第二个工具调用时
+        // 末尾是上一条 tool 结果，此前会另起一条空 assistant 气泡——同一轮的工具卡被拆成
+        // 多个空气泡。跳过末尾连续的 tool 结果，挂回发起它们的 assistant 消息。
+        let i = messages.length - 1;
+        while (i >= 0 && messages[i].role === 'tool') i--;
+        if (i >= 0 && messages[i].role === 'assistant') {
+          messages[i] = { ...messages[i], toolCalls: [...(messages[i].toolCalls ?? []), call] };
+          return { ...s, messages };
         }
         return {
           ...s,

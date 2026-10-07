@@ -61,6 +61,19 @@ describe('generateCitekey', () => {
     const noAuthor: Paper = { ...single, authors: [] };
     expect(generateCitekey(noAuthor, 'auth:alpha')).toBe('anon:X15');
   });
+
+  it('shorttitle 去掉 LaTeX 非法字符（\\cite{…} 会编译失败、文件名非法）', () => {
+    // & _ \ " 等字符在 \cite{…} 参数里非法（& 是对齐符、_ 触发数学模式、% 注释整行）
+    const amp: Paper = { ...single, title: 'Q&A: A Study of Retrieval' };
+    expect(generateCitekey(amp)).toBe('kingma:2015:QAStudyRetrieval');
+    const underscore: Paper = { ...single, title: 'Snake_case Tokenization' };
+    expect(generateCitekey(underscore)).toBe('kingma:2015:SnakecaseTokenization');
+    const tex: Paper = { ...single, title: String.raw`Caf\'e na\"ive Models` };
+    expect(generateCitekey(tex)).toBe('kingma:2015:CafeNaiveModels');
+    // 连字符仍保留（LaTeX 与文件名都合法）
+    const hyphen: Paper = { ...single, title: 'State-of-the-Art Results' };
+    expect(generateCitekey(hyphen)).toBe('kingma:2015:State-of-the-ArtResults');
+  });
 });
 
 describe('disambiguateCitekey', () => {

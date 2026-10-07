@@ -544,9 +544,14 @@ export function PdfReader({
       setSearchActiveIdx(0);
       return;
     }
+    // 竞态修复：抽取是异步的，期间可能换查询/换文档（重新编译）——用 cancelled
+    // 丢弃过期结果，否则旧查询或旧文档的命中会盖在新结果上（页码指向错误内容），
+    // 旧文档的逐页文本还会污染共享缓存。
+    let cancelled = false;
     const timer = setTimeout(async () => {
       const texts: Array<{ page: number; text: string }> = [];
       for (let p = 1; p <= doc.numPages; p++) {
+        if (cancelled) return;
         const cached = pageTextsRef.current.get(p);
         if (cached !== undefined) {
           texts.push({ page: p, text: cached });
@@ -555,6 +560,7 @@ export function PdfReader({
         try {
           const page = await doc.getPage(p);
           const content = await page.getTextContent();
+          if (cancelled) return;
           const text = (content.items as Array<{ str?: string }>)
             .map(item => item.str ?? '')
             .join(' ');
@@ -564,10 +570,14 @@ export function PdfReader({
           /* 单页抽取失败跳过 */
         }
       }
+      if (cancelled) return;
       setSearchHits(searchPdfPages(texts, q));
       setSearchActiveIdx(0);
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchQuery, doc]);
 
   // v6.7.0：截取指定页画布为 PNG dataUrl（找不到画布返回 null）

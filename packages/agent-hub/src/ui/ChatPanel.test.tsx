@@ -4,7 +4,7 @@
  * @ 引用菜单 / 复制 / 重新生成 / 编辑重发回调 / ↑ 历史回填 / 基础收发回归。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { ChatPanel } from './ChatPanel';
 import type { AgentSession } from '../store';
 
@@ -161,6 +161,61 @@ describe('语音输入按钮（v5.8.0）', () => {
     const { container } = setup();
     const mic = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('🎤'));
     expect(mic).toBeUndefined();
+  });
+
+  // v7.8.0：录音过短等 error 事件此前被静默丢弃（点停止后毫无反馈）
+  it('录音过短 → 显示错误文案（error 事件不再被吞）', async () => {
+    const g = globalThis as unknown as { MediaRecorder?: unknown; AudioContext?: unknown };
+    class FakeRecorder {
+      static isTypeSupported(): boolean {
+        return true;
+      }
+      state = 'recording';
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      constructor(public stream: unknown) {}
+      start(): void {}
+      stop(): void {
+        this.state = 'inactive';
+        this.onstop?.();
+      }
+    }
+    class FakeAudioContext {
+      decodeAudioData(): Promise<{ sampleRate: number; getChannelData: () => Float32Array }> {
+        // 10 个采样点 < 1600（0.1s）→ startSpeechSession 判定为误触
+        return Promise.resolve({ sampleRate: 16000, getChannelData: () => new Float32Array(10) });
+      }
+      close(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+    g.MediaRecorder = FakeRecorder;
+    g.AudioContext = FakeAudioContext;
+    // jsdom 的 Blob 无 arrayBuffer（真实浏览器有）：补桩以走到「录音太短」判定
+    const blobProto = Blob.prototype as unknown as { arrayBuffer?: () => Promise<ArrayBuffer> };
+    const origArrayBuffer = blobProto.arrayBuffer;
+    blobProto.arrayBuffer = () => Promise.resolve(new ArrayBuffer(0));
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }) },
+      configurable: true,
+    });
+    try {
+      const { container } = setup({ speechLanguage: 'auto' });
+      const mic = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('🎤'))!;
+      // 第一次点击：开始录音；第二次点击：停止 + 转写（得到「录音太短」错误事件）
+      await act(async () => {
+        fireEvent.click(mic);
+      });
+      await act(async () => {
+        fireEvent.click(mic);
+      });
+      expect(container.querySelector('.sf-ah-speech-status')?.textContent).toBe('录音太短');
+    } finally {
+      delete g.MediaRecorder;
+      delete g.AudioContext;
+      if (origArrayBuffer) blobProto.arrayBuffer = origArrayBuffer;
+      else delete blobProto.arrayBuffer;
+    }
   });
 });
 

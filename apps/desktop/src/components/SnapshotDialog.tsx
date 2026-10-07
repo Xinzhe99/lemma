@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DiffView } from '@lemma/editor';
 import { useT } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 
@@ -95,8 +96,15 @@ export function SnapshotDialog({ onClose }: { onClose: () => void }) {
                         <button
                           className="sf-btn"
                           onClick={() => {
-                            restoreSnapshot(path, i);
-                            onClose();
+                            // 恢复会覆盖当前内容且不自动备份 → 先确认（对齐删除/回滚等破坏性操作）
+                            void confirmDialog(
+                              t('snap.restoreConfirmTitle', { path }),
+                              t('snap.restoreConfirm'),
+                            ).then((ok) => {
+                              if (!ok) return;
+                              restoreSnapshot(path, i);
+                              onClose();
+                            });
                           }}
                         >
                           {t('snap.restore')}

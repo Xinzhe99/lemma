@@ -27,6 +27,7 @@ import {
 import { useAgentHubStore } from '@lemma/agent-hub';
 import { useSettingsStore } from './state/settingsStore';
 import { useWorkspaceStore } from './state/workspaceStore';
+import { useLibraryStore } from './state/libraryStore';
 import { useProposalStore } from './state/proposalStore';
 import { planPhase, useAgentPlansStore } from './state/agentPlans';
 
@@ -650,8 +651,187 @@ describe('计划模式 · executePlan（逐步执行）', () => {
     // 唯一一次 fetch 来自规划轮；两次无效 executePlan 均未发起请求
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  // ------------------------------------------------------------------
+  // v7.8.0 审计回归：上下文构建失败不再让计划卡永久卡死
+  // ------------------------------------------------------------------
+
+  it('上下文构建失败（检索抛错）：会话复位 idle、执行态释放，重试可正常跑完', async () => {
+    planForRun();
+    const { calls } = stubPlanFetch((lastUser) =>
+      lastUser.includes('输出执行计划') ? sseOfText(PLAN_REPLY) : sseOfText('步骤产出'),
+    );
+    await runPlannedTask('压缩论文');
+    const msgId = lastAssistant().id;
+
+    // 规划轮之后再让检索抛错（executePlan 里要 buildContextPackMd）
+    const orig = useLibraryStore.getState().searchKnowledge;
+    let boom = true;
+    useLibraryStore.setState({
+      searchKnowledge: (async () => {
+        if (boom) throw new Error('embedding 服务不可用');
+        return [];
+      }) as typeof orig,
+    });
+    try {
+      await executePlan(msgId);
+      // 回归：此前异常带着 executingPlans 里的 msgId + streaming 态逃逸，
+      // 计划卡从此永久卡死（批准/重试被去重挡回），只能重启应用
+      expect(useAgentHubStore.getState().sessions[0]!.status).toBe('idle');
+      expect(lastAssistant().content).toContain('调用异常');
+      expect(useAgentPlansStore.getState().plans[msgId]!.statuses.s1).toBe('pending');
+
+      boom = false;
+      const beforeCalls = calls.length;
+      await executePlan(msgId); // 复位后重试：应真正进入执行
+      expect(calls.length).toBeGreaterThan(beforeCalls);
+      expect(useAgentPlansStore.getState().plans[msgId]!.statuses).toEqual({
+        s1: 'done',
+        s2: 'done',
+        s3: 'done',
+      });
+    } finally {
+      useLibraryStore.setState({ searchKnowledge: orig });
+    }
+  });
+
+  it('abortPlan 结算未决审批与未决提问（否则计划卡干等用户点卡，看起来卡死）', async () => {
+    const { getPendingApprovalToken, requestToolApproval } = await import('./approval');
+    const pending = requestToolApproval({
+      file: 'main.tex',
+      before: 'a',
+      after: 'b',
+      kind: 'tool-edit',
+      label: 'AI 修改稿件（tex.edit）',
+      via: 'agent 工具调用',
+    });
+    expect(getPendingApprovalToken()).toBeTruthy();
+    abortPlan();
+    const decision = await pending;
+    expect(decision.approved).toBe(false);
+    expect(decision.note).toContain('计划已中止');
+    expect(getPendingApprovalToken()).toBeNull();
+
+    const { requestUserAnswer, useUserAskStore } = await import('./userAsk');
+    const ask = requestUserAnswer('目标期刊选哪个？', [{ label: 'A' }, { label: 'B' }]);
+    expect(useUserAskStore.getState().pending).not.toBeNull();
+    abortPlan();
+    expect(await ask).toBeNull();
+    expect(useUserAskStore.getState().pending).toBeNull();
+  });
 });
 
+// ---------------------------------------------------------------------------
+// v7.8.0 审计回归：规划轮历史（隔轮失忆）
+// ---------------------------------------------------------------------------
+
+describe('计划模式 · runPlannedTask 历史（v7.8.0）', () => {
+  afterEach(() => {
+    useSettingsStore.setState({ providers: [], activeProviderId: null, language: 'zh' });
+    useAgentHubStore.setState({ sessions: [], activeSessionId: null });
+    useAgentPlansStore.getState().clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('规划轮携带完整历史：上一轮 user/assistant 不被 slice(0,-2) 丢掉', async () => {
+    seedProject();
+    activateRealProvider();
+    const sid = useAgentHubStore.getState().newSession('host', 'test', '旧会话');
+    useAgentHubStore.setState({
+      sessions: useAgentHubStore.getState().sessions.map((s) =>
+        s.id === sid
+          ? {
+              ...s,
+              messages: [
+                { id: 'm1', role: 'user' as const, content: '上一轮：把引言压缩一段', createdAt: 1 },
+                { id: 'm2', role: 'assistant' as const, content: '上一轮回复：给出三个压缩方案', createdAt: 2 },
+              ],
+            }
+          : s,
+      ),
+    });
+    const { calls } = stubPlanFetch(() => sseOfText(PLAN_REPLY));
+
+    await runPlannedTask('照上面的方案做个计划');
+
+    const planCall = calls.find((c) =>
+      c.body.messages.some((m) => m.content.includes('请为以下任务输出执行计划')),
+    );
+    expect(planCall).toBeDefined();
+    const history = planCall!.body.messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => m.content)
+      .join('\n');
+    expect(history).toContain('上一轮：把引言压缩一段');
+    expect(history).toContain('上一轮回复：给出三个压缩方案');
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// v7.8.0 审计回归：发送前置步骤失败不再「点了发送毫无反应」
+// ---------------------------------------------------------------------------
+
+describe('sendChatMessage 前置降级（v7.8.0）', () => {
+  beforeEach(() => {
+    seedProject();
+    useAgentHubStore.setState({ sessions: [], activeSessionId: null });
+    useSettingsStore.setState({ providers: [], activeProviderId: null, language: 'zh' });
+  });
+  afterEach(() => {
+    useSettingsStore.setState({ providers: [], activeProviderId: null, language: 'zh' });
+    useAgentHubStore.setState({ sessions: [], activeSessionId: null });
+    vi.unstubAllGlobals();
+  });
+
+  it('Context Pack 组装抛错：消息照常发出并在会话内留痕（此前整轮静默失败）', async () => {
+    const orig = useLibraryStore.getState().searchKnowledge;
+    useLibraryStore.setState({
+      searchKnowledge: (async () => {
+        throw new Error('embedding 挂了');
+      }) as typeof orig,
+    });
+    try {
+      const { sendChatMessage } = await import('./aiActions');
+      await sendChatMessage('请润色引言');
+
+      const session = useAgentHubStore.getState().sessions[0]!;
+      const user = session.messages.find((m) => m.role === 'user');
+      expect(user?.content).toContain('请润色引言'); // 用户消息确实入列（此前连插入都到不了）
+      const assistant = session.messages
+        .filter((m) => m.role === 'assistant')
+        .map((m) => m.content)
+        .join('\n');
+      expect(assistant).toContain('上下文组装失败');
+      expect(assistant).toContain('embedding 挂了');
+      expect(session.status).toBe('idle'); // 流正常收尾，不会卡在 streaming
+    } finally {
+      useLibraryStore.setState({ searchKnowledge: orig });
+    }
+  });
+
+  it('规划轮 Context Pack 抛错：计划照常产出并留痕（此前整轮静默失败）', async () => {
+    activateRealProvider();
+    const { calls } = stubPlanFetch(() => sseOfText(PLAN_REPLY));
+    const orig = useLibraryStore.getState().searchKnowledge;
+    useLibraryStore.setState({
+      searchKnowledge: (async () => {
+        throw new Error('检索不可用');
+      }) as typeof orig,
+    });
+    try {
+      await runPlannedTask('帮我规划投稿前检查');
+      expect(calls.length).toBeGreaterThan(0); // 规划请求确实发出
+      const session = useAgentHubStore.getState().sessions[0]!;
+      expect(session.messages.some((m) => m.content.includes('上下文组装失败'))).toBe(true);
+      expect(session.status).toBe('idle');
+      // 计划照常登记，用户看到计划卡
+      expect(Object.keys(useAgentPlansStore.getState().plans)).toHaveLength(1);
+    } finally {
+      useLibraryStore.setState({ searchKnowledge: orig });
+    }
+  });
+});
 
 // ---------------------------------------------------------------------------
 // v1.6.0 ②：paraphraseSelection（选中句子改写器）

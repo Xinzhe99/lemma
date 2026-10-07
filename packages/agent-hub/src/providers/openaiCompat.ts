@@ -182,6 +182,34 @@ export class OpenAICompatibleProvider implements ChatProvider {
     let usage: ChatUsage | undefined;
     let toolsFlushed = false;
 
+    /**
+     * 单帧处理：覆盖 usage、合并 tool_calls 分片，返回该帧的正文增量（无正文返回空串）。
+     * v7.8.0 修复：尾帧（流结束时未以空行终止的最后一帧）此前只取 usage，
+     * 正文与工具分片被静默丢弃——末段文字消失。
+     */
+    const consumeChunk = (chunk: Record<string, any>): string => {
+      const u = chunk.usage;
+      if (u && typeof u === 'object') {
+        usage = {
+          inputTokens: numberOrUndefined(u.prompt_tokens ?? u.input_tokens),
+          outputTokens: numberOrUndefined(u.completion_tokens ?? u.output_tokens),
+        };
+      }
+      const choice = chunk.choices?.[0];
+      if (!choice) return '';
+      const delta = choice.delta ?? {};
+      for (const fragment of delta.tool_calls ?? []) {
+        const index = typeof fragment.index === 'number' ? fragment.index : 0;
+        let acc = toolAcc.get(index);
+        if (!acc) {
+          acc = { index, id: '', name: '', arguments: '' };
+          toolAcc.set(index, acc);
+        }
+        mergeToolCallDelta(acc, fragment);
+      }
+      return typeof delta.content === 'string' ? delta.content : '';
+    };
+
     const flushToolCalls = (): ChatEvent[] => {
       if (toolsFlushed || toolAcc.size === 0) return [];
       toolsFlushed = true;
@@ -230,45 +258,23 @@ export class OpenAICompatibleProvider implements ChatProvider {
           if (ev === '[DONE]') continue; // 统一在流结束后收尾
           if (typeof ev !== 'object' || ev === null) continue;
           const chunk = ev as Record<string, any>;
-          const u = chunk.usage;
-          if (u && typeof u === 'object') {
-            usage = {
-              inputTokens: numberOrUndefined(u.prompt_tokens ?? u.input_tokens),
-              outputTokens: numberOrUndefined(u.completion_tokens ?? u.output_tokens),
-            };
-          }
-          const choice = chunk.choices?.[0];
-          if (!choice) continue;
-          const delta = choice.delta ?? {};
-          if (typeof delta.content === 'string' && delta.content) {
-            yield { type: 'text-delta', delta: delta.content };
-          }
-          for (const fragment of delta.tool_calls ?? []) {
-            const index = typeof fragment.index === 'number' ? fragment.index : 0;
-            let acc = toolAcc.get(index);
-            if (!acc) {
-              acc = { index, id: '', name: '', arguments: '' };
-              toolAcc.set(index, acc);
-            }
-            mergeToolCallDelta(acc, fragment);
+          const text = consumeChunk(chunk);
+          if (text) {
+            yield { type: 'text-delta', delta: text };
           }
           // finish_reason 到达即按序发出已拼装完成的工具调用
-          if (choice.finish_reason) {
+          if (chunk.choices?.[0]?.finish_reason) {
             for (const ev2 of flushToolCalls()) yield ev2;
           }
         }
       }
-      // 流结束：冲刷未终止的尾事件与漏发的工具调用
+      // 流结束：冲刷未终止的尾帧（正文/工具调用/usage 一并收尾）与漏发的工具调用
       const tail = parseSseChunk(buffer + '\n\n');
       for (const ev of tail.events) {
-        if (typeof ev !== 'object' || ev === null) continue;
-        const chunk = ev as Record<string, any>;
-        const u = chunk.usage;
-        if (u && typeof u === 'object') {
-          usage = {
-            inputTokens: numberOrUndefined(u.prompt_tokens ?? u.input_tokens),
-            outputTokens: numberOrUndefined(u.completion_tokens ?? u.output_tokens),
-          };
+        if (ev === '[DONE]' || typeof ev !== 'object' || ev === null) continue;
+        const text = consumeChunk(ev as Record<string, any>);
+        if (text) {
+          yield { type: 'text-delta', delta: text };
         }
       }
       for (const ev2 of flushToolCalls()) yield ev2;

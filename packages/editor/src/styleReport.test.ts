@@ -116,6 +116,15 @@ describe('analyzeStyle（全文集成）', () => {
     expect(r.fkGrade).toBeGreaterThanOrEqual(0);
   });
 
+  it('被动比例按全量命中计算（回归：不再因 12 条展示上限而低估）', () => {
+    // 20 句全被动：清单截断到 12 条，但占比应为 100%
+    const all = Array.from({ length: 20 }, (_, i) => `The result ${i} is computed by our method.`).join(' ');
+    const rep = analyzeStyle(all);
+    expect(rep.sentences).toBe(20);
+    expect(rep.passiveHits).toHaveLength(12); // 展示清单仍截断
+    expect(rep.passivePct).toBe(100);
+  });
+
   it('空文本 / 纯命令文本 → 零报告（sentences=0）不抛错', () => {
     const empty = analyzeStyle('');
     expect(empty.sentences).toBe(0);

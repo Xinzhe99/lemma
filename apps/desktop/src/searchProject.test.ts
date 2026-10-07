@@ -5,7 +5,7 @@
  * 空文件 / >2MB / .synctex 排除规则、trimStart 后原始列位置、同行多命中。
  */
 import { describe, expect, it } from 'vitest';
-import { searchProject, type SearchHit } from './searchProject';
+import { replaceInProject, searchProject, type SearchHit } from './searchProject';
 
 /** 断言某条命中：text.slice(matchStart, matchEnd) 恰为命中原文 */
 function expectSelfConsistent(hit: SearchHit, query: string) {
@@ -200,5 +200,40 @@ describe('截断窗口与 trimStart', () => {
     const { hits } = searchProject({ 'a.tex': 'tail has needle   ' }, 'needle');
     expect(hits[0]!.text).toBe('tail has needle   ');
     expectSelfConsistent(hits[0]!, 'needle');
+  });
+});
+
+describe('replaceInProject（v7.8.0 回归：字面量替换 + 与搜索同一匹配语义）', () => {
+  it('替换文本按字面量写入：$$…$$ 不被 String.replace 展开成 $…$', () => {
+    const r = replaceInProject({ 'a.tex': 'FORMULA here' }, 'FORMULA', '$$E=mc^2$$');
+    expect(r.newFiles['a.tex']).toBe('$$E=mc^2$$ here');
+    expect(r.replacementCount).toBe(1);
+  });
+
+  it('替换文本中的 $& / $1 保持字面量（不注入命中原文、不当作捕获组）', () => {
+    expect(replaceInProject({ 'a.tex': 'x=1' }, 'x', '$&').newFiles['a.tex']).toBe('$&=1');
+    expect(replaceInProject({ 'a.tex': 'abc' }, 'b', '$1').newFiles['a.tex']).toBe('a$1c');
+  });
+
+  it('整词模式 CJK 与 searchProject 命中一致（\\b 对汉字不成立 → 此前一处都替换不了）', () => {
+    const files = { 'a.tex': '这是 网络 模型\n神经网络模型' };
+    const hits = searchProject(files, '网络', { wholeWord: true });
+    const r = replaceInProject(files, '网络', '网络化', { wholeWord: true });
+    expect(hits.hits).toHaveLength(1);
+    expect(r.replacementCount).toBe(1);
+    expect(r.changedFiles).toEqual(['a.tex']);
+    expect(r.newFiles['a.tex']).toBe('这是 网络化 模型\n神经网络模型');
+  });
+
+  it('重叠命中按不重叠语义替换（查询 "aa" 命中 "aaa" 只替换首处）', () => {
+    const r = replaceInProject({ 'a.tex': 'aaa' }, 'aa', 'X');
+    expect(r.replacementCount).toBe(1);
+    expect(r.newFiles['a.tex']).toBe('Xa');
+  });
+
+  it('替换文本等于查询词时不算改动（不误标脏文件）', () => {
+    const r = replaceInProject({ 'a.tex': 'keep me' }, 'keep', 'keep');
+    expect(r.replacementCount).toBe(0);
+    expect(r.changedFiles).toEqual([]);
   });
 });

@@ -86,7 +86,15 @@ export function buildProjectZip(
     entries[path] = strToU8(content);
   }
   for (const [path, bytes] of Object.entries(binaryFiles ?? {})) {
-    if (entries[path] === undefined) entries[path] = bytes;
+    // v7.8.0 修复：workspace 文件表里 figures/* 是「图片在磁盘」的空串占位，
+    // 此前非 undefined 即跳过二进制 → 投稿包/导出 zip 里图片变成 0 字节。
+    // 规则：真实字节优先于空占位；非空文本条目仍优先（避免同名文本被二进制覆盖）。
+    const text = entries[path];
+    if (text === undefined || text.length === 0) entries[path] = bytes;
   }
-  return { name: `${projectName.replace(/[^\w-]+/g, '_') || 'project'}.zip`, bytes: zipSync(entries) };
+  // 文件名清洗：非 \w 字符替换为下划线；整名不含 ASCII 字母数字时（中文项目名
+  // 「我的论文」→「_____」）回退为 project，避免下载出无意义的下划线文件名。
+  const safe = projectName.replace(/[^\w-]+/g, '_');
+  const base = /[A-Za-z0-9]/.test(safe) ? safe : 'project';
+  return { name: `${base}.zip`, bytes: zipSync(entries) };
 }

@@ -128,6 +128,25 @@ interface PersistedSettings {
   livePreview: boolean;
 }
 
+/**
+ * 单条服务配置的宽容校验（v7.8.0）：非对象 / 无 id 的条目丢弃，缺失字段补安全默认值——
+ * 此前 providers 只校验「是数组」，手改 localStorage 或半截写入产生的脏条目会一路进
+ * chooseEmbedder 的 cfg.baseUrl.trim()，把 initLibrary（整库载入）一起带崩。
+ */
+function coerceProvider(v: unknown): ProviderConfig | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.id !== 'string' || !o.id.trim()) return null;
+  return {
+    id: o.id,
+    label: typeof o.label === 'string' && o.label.trim() ? o.label : o.id,
+    baseUrl: typeof o.baseUrl === 'string' ? o.baseUrl : '',
+    apiKey: typeof o.apiKey === 'string' ? o.apiKey : '',
+    model: typeof o.model === 'string' ? o.model : '',
+    tier: o.tier === 'flagship' ? 'flagship' : 'cheap',
+  };
+}
+
 function readPersisted(): PersistedSettings | null {
   try {
     const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(SETTINGS_STORAGE_KEY);
@@ -135,7 +154,9 @@ function readPersisted(): PersistedSettings | null {
     const v = JSON.parse(raw) as Partial<PersistedSettings>;
     if (!v || !Array.isArray(v.providers)) return null;
     return {
-      providers: v.providers,
+      providers: v.providers
+        .map(coerceProvider)
+        .filter((p): p is ProviderConfig => p !== null),
       activeProviderId: typeof v.activeProviderId === 'string' ? v.activeProviderId : null,
       embeddingModel: typeof v.embeddingModel === 'string' ? v.embeddingModel : '',
       speechLanguage: v.speechLanguage === 'auto' || v.speechLanguage === 'zh' || v.speechLanguage === 'en' ? v.speechLanguage : undefined,

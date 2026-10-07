@@ -6,9 +6,13 @@
  *  3. 已引用但 .bib 缺失（悬空引用）
  *  4. .bib 有但从未引用（孤儿条目——提示级，非错误）
  *  5. 格式不一致（year 非 4 位数字 / venue 缩写混用提示）
+ *
+ * 报告文案双语（v7.8.0）：message 会经命令面板 toast 直接呈现给用户，
+ * 调用方以 lang 参数（缺省 zh）取当前界面语言，避免英文界面下混排中文。
  */
 
 import { parseBibtex } from '@lemma/library';
+import type { Language } from './state/settingsStore';
 
 export type BibIssueSeverity = 'error' | 'warning' | 'info';
 
@@ -29,8 +33,27 @@ export interface BibHealthReport {
 
 const REQUIRED_FIELDS = ['title', 'author', 'year'] as const;
 
-export function checkBibHealth(files: Record<string, string>): BibHealthReport {
+/** 体检报告文案（zh 为原文口径，en 为对应翻译） */
+const MESSAGES = {
+  zh: {
+    missingField: (field: string) => `缺少 ${field} 字段`,
+    yearFormat: (year: string) => `year「${year}」不是 4 位数字`,
+    duplicate: (others: string, title: string) => `与 ${others} 疑似同文（title: ${title}…）`,
+    dangling: '稿件中引用但 .bib 中不存在——编译会产生 [?]',
+    orphan: '.bib 中存在但稿件从未引用',
+  },
+  en: {
+    missingField: (field: string) => `Missing the "${field}" field`,
+    yearFormat: (year: string) => `year "${year}" is not a 4-digit number`,
+    duplicate: (others: string, title: string) => `Possibly the same work as ${others} (title: ${title}…)`,
+    dangling: 'Cited in the manuscript but missing from the .bib — the compile will print [?]',
+    orphan: 'Present in the .bib but never cited in the manuscript',
+  },
+} as const;
+
+export function checkBibHealth(files: Record<string, string>, lang: Language = 'zh'): BibHealthReport {
   const issues: BibIssue[] = [];
+  const msg = MESSAGES[lang];
 
   // 收集全部 bib 条目
   const allEntries: Array<Record<string, unknown> & { citekey: string; sourceFile: string }> = [];
@@ -42,11 +65,11 @@ export function checkBibHealth(files: Record<string, string>): BibHealthReport {
     }
   }
 
-  // 收集全部 \cite / \citep / \citet 使用
+  // 收集全部 \cite / \citep / \citet 使用（可选参数可重复：\citep[see][p. 3]{key}）
   const citedKeys = new Set<string>();
   for (const [path, content] of Object.entries(files)) {
     if (!path.endsWith('.tex')) continue;
-    for (const m of content.matchAll(/\\cite[pt]?\*?\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/g)) {
+    for (const m of content.matchAll(/\\cite[pt]?\*?\s*(?:\[[^\]]*\]\s*)*\{([^}]*)\}/g)) {
       for (const key of m[1]!.split(',').map((k) => k.trim()).filter(Boolean)) {
         citedKeys.add(key);
       }
@@ -64,7 +87,7 @@ export function checkBibHealth(files: Record<string, string>): BibHealthReport {
           citekey: entry.citekey,
           severity: 'warning',
           kind: 'missing-field',
-          message: `缺少 ${field} 字段`,
+          message: msg.missingField(field),
         });
       }
     }
@@ -76,7 +99,7 @@ export function checkBibHealth(files: Record<string, string>): BibHealthReport {
           citekey: entry.citekey,
           severity: 'info',
           kind: 'format',
-          message: `year「${String(year)}」不是 4 位数字`,
+          message: msg.yearFormat(String(year)),
         });
       }
     }
@@ -98,7 +121,7 @@ export function checkBibHealth(files: Record<string, string>): BibHealthReport {
           citekey: key,
           severity: 'warning',
           kind: 'duplicate',
-          message: `与 ${keys.filter((k) => k !== key).join(', ')} 疑似同文（title: ${title.slice(0, 50)}…）`,
+          message: msg.duplicate(keys.filter((k) => k !== key).join(', '), title.slice(0, 50)),
         });
       }
     }
@@ -111,7 +134,7 @@ export function checkBibHealth(files: Record<string, string>): BibHealthReport {
         citekey: key,
         severity: 'error',
         kind: 'dangling-cite',
-        message: '稿件中引用但 .bib 中不存在——编译会产生 [?]',
+        message: msg.dangling,
       });
     }
   }
@@ -123,7 +146,7 @@ export function checkBibHealth(files: Record<string, string>): BibHealthReport {
         citekey: key,
         severity: 'info',
         kind: 'orphan',
-        message: '.bib 中存在但稿件从未引用',
+        message: msg.orphan,
       });
     }
   }

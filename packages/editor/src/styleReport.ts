@@ -250,7 +250,10 @@ export function analyzeStyle(tex: string): StyleReport {
     .slice(0, 12)
     .map((s) => ({ ...s, line: findSentenceLine(tex, s.text) }));
 
-  const passiveHits = findPassiveHits(sentenceTexts)
+  // 被动比例按全量命中算，展示清单另作 12 条截断（v7.8.0：此前比例取自截断后的
+  // 清单，被动句超过 12 句时百分比被系统性低估）
+  const passiveAll = findPassiveHits(sentenceTexts);
+  const passiveHits = passiveAll
     .slice(0, 12)
     .map((h) => ({ ...h, line: findSentenceLine(tex, h.text) }));
 
@@ -280,7 +283,7 @@ export function analyzeStyle(tex: string): StyleReport {
     longSentences,
     passiveHits,
     passivePct:
-      sents.length > 0 ? Math.round((passiveHits.length / sents.length) * 1000) / 10 : 0,
+      sents.length > 0 ? Math.round((passiveAll.length / sents.length) * 1000) / 10 : 0,
     firstPersonCount,
     weaselCounts: countWeasels(allWords, prepared),
     paragraphs: paraStats.length,

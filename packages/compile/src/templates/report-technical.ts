@@ -22,7 +22,7 @@ export const reportTechnical: TemplateModule = {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：report-technical
-\documentclass[11pt]
+\documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}

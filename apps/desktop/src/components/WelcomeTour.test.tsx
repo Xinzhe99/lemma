@@ -119,7 +119,7 @@ describe('WelcomeTour · 3 页 carousel', () => {
     expect(query('.sf-tour-skip')?.textContent).toBe('跳过引导');
   });
 
-  it('「下一步」逐页推进：页 2 写作与编译（outline.png）、页 3 AI 深度参与（reviewer-sim.png）', () => {
+  it('「下一步」逐页推进：页 2 写作与编译（tour-ai.png）、页 3 三步上手（无截图）', () => {
     mount();
     click(query('.sf-tour-next')!);
     expect(query('.sf-tour-title')?.textContent).toBe('写作与编译');

@@ -79,6 +79,7 @@ function buildTopics(lang: Language): HelpTopic[] {
         'Ctrl+P: Quick open file',
         'Ctrl+B / Ctrl+I: Bold / Italic',
         'Ctrl+/: Toggle comment',
+        'Ctrl+/ (hold Ctrl, tap /): full shortcut list',
       ],
     },
     {

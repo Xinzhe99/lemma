@@ -548,7 +548,9 @@ export function ChatPanel(props: ChatPanelProps) {
     speechStartingRef.current = true;
     try {
       speechSessionRef.current = await startSpeechSession(speechLanguage ?? 'auto', (e) => {
-        if (e.phase === 'loading-model') setSpeechPhase('loading-model');
+        // v7.8.0：error 事件（如「录音太短」）此前被静默丢弃——用户点了停止却没有任何反馈
+        if (e.phase === 'error') setSpeechError(e.message);
+        else if (e.phase === 'loading-model') setSpeechPhase('loading-model');
       });
       setSpeechPhase('recording');
     } catch (err) {

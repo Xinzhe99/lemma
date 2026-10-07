@@ -366,11 +366,17 @@ export function renumberReviews(reviews: ParsedReview[]): ParsedReview[] {
   }));
 }
 
-/** 文件名中的审稿人编号：reviewer2.txt / R3.pdf / 审稿人_4.docx → 2 / 3 / 4 */
+/**
+ * 文件名中的审稿人编号：reviewer2.txt / R3.pdf / 审稿人_4.docx → 2 / 3 / 4。
+ * 裸 `r` 缩写必须落在词首或非字母数字之后（v7.8.0 修复：此前 `paper2_comments.docx`
+ * / `chapter2.txt` 里的 "r2" 也被当成审稿人 2，导入时把整份意见挂到错误的审稿人名下）。
+ */
 export function reviewerNumberFromFileName(name: string): number | null {
   const base = name.replace(/\.[^.]+$/, '');
-  const m = /(?:reviewer|referee|审稿人|r)[\s_.-]*(\d{1,2})\b/i.exec(base);
-  return m ? Number(m[1]) : null;
+  const m = /(?:reviewer|referee|审稿人)[\s_.-]*(\d{1,2})\b|(?:^|[^a-z0-9])r[\s_.-]*(\d{1,2})\b/i.exec(base);
+  if (!m) return null;
+  const num = m[1] ?? m[2];
+  return num ? Number(num) : null;
 }
 
 /**

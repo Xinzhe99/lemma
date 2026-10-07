@@ -160,8 +160,16 @@ export function connectMcp(transport: McpTransport): McpSession {
         isError?: boolean;
         content?: Array<{ type: string; text?: string }>;
       };
-      const text = result?.content?.[0]?.text;
-      const payload: unknown = typeof text === 'string' ? tryParseJson(text) ?? text : result;
+      // v7.8.0 修复：此前只取 content[0].text——多块结果（分块文本/文本+资源）被静默截断
+      const textBlocks = (result?.content ?? [])
+        .filter((b) => typeof b?.text === 'string')
+        .map((b) => b.text as string);
+      const payload: unknown =
+        textBlocks.length === 1
+          ? (tryParseJson(textBlocks[0]) ?? textBlocks[0])
+          : textBlocks.length > 1
+            ? textBlocks.join('\n')
+            : result;
       if (result?.isError) {
         throw new Error(`工具 ${name} 执行失败：${stringifyPayload(payload)}`);
       }

@@ -5,8 +5,11 @@ Lemma 的 Tauri 2 壳天然跨平台——Windows 与 macOS 共用同一 Rust �
 | 平台 | 产物 | 构建机 |
 |---|---|---|
 | Windows x64 | `Lemma_x.y.z_x64-setup.exe`（NSIS） | `windows-latest` |
-| macOS Apple Silicon | `Lemma_aarch64.dmg` | `macos-latest` |
-| macOS Intel | `Lemma_x64.dmg` | `macos-latest` |
+| macOS Apple Silicon | `Lemma_aarch64.dmg`（+ `.app.tar.gz` 更新包） | `macos-latest` |
+| macOS Intel | `Lemma_x64.dmg`（+ `.app.tar.gz` 更新包） | `macos-latest` |
+
+> macOS 的 updater 资产只能由 `app` 目标产出（`dmg` 不算），因此 release workflow 用
+> `--bundles app,dmg`——否则 `latest.json` 永远没有 darwin 条目，macOS 端收不到应用内更新（v7.8.0 修复）。
 
 ## 在 macOS 本机构建
 
@@ -35,7 +38,6 @@ updater 插件要求更新包签名。发布前一次性生成密钥对：
 npm run tauri signer generate -w ~/.tauri/lemma.key
 ```
 
-- **公钥**（`.pub` 内容）填入 `tauri.conf.json` → `plugins.updater.pubkey`（当前为空 = 构建产物不带签名，updater 会报"未配置签名"——发布前必须完成）
 - **公钥已配置**（`tauri.conf.json` → `plugins.updater.pubkey`，v0.10.0 起生效）
 - **私钥**放仓库 Secrets（API 令牌无 secrets 写权限，需手动一次）：仓库 **Settings → Secrets and variables → Actions → New repository secret**，名称 `TAURI_SIGNING_PRIVATE_KEY`，值为 `~/.tauri/lemma.key` 文件全文（本机已生成）。密钥无密码，无需 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
 

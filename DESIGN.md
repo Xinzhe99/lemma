@@ -374,24 +374,28 @@
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.3 论文域工具集（内置 MCP Server 暴露的工具）
+### 5.3 论文域工具集（进程内工具注册表 `packages/agent-hub/src/tools/registry.ts`）
+
+> 说明：工具目前以**进程内注册表**（`PAPER_TOOLS`，22 个）暴露给 agent，其中 19 个在本形态接通
+> （见 `apps/desktop/src/agentTools.ts` 的 `ENABLED_TOOL_NAMES`）；对外 MCP Server 仍为路线图（见 §路线图 P1）。
 
 | 工具 | 说明 | 权限级 |
 |---|---|---|
-| `library.search(query, filters)` | 检索库内题录 | 只读 |
-| `library.search_fulltext(query)` | BM25+向量混合全文检索，返回段落+页码 | 只读 |
-| `paper.read(id, pages?)` | 读取解析后的 PDF 结构化文本（GROBID 输出） | 只读 |
-| `paper.citations(id, direction)` | 上下位引文 | 只读 |
-| `web.search_scholar(query)` | 聚合学术检索（4.1 的 D-1） | 只读·联网 |
+| `library.search_fulltext(query, limit?)` | BM25+向量混合全文检索，返回段落+页码 | 只读 |
+| `paper.read(id, pages?)` | 读取解析后的 PDF 结构化文本 | 只读 |
+| `paper.citations(id, direction)` | 上下位引文（注册表已定义，本形态未接通） | 只读 |
+| `web.search_scholar(query, limit?)` | 学术检索（arXiv + Crossref） | 只读·联网 |
 | `tex.compile()` / `tex.last_errors()` | 触发增量编译 / 获取结构化错误 | 执行 |
-| `tex.edit(file, diff)` | 修改源文件（产生 diff 卡，待审批） | 写·审批 |
-| `figure.render(code, engine)` | TikZ/matplotlib 渲染并自检 | 执行 |
+| `tex.edit(file, find/replace 或 diff)` / `tex.create_file` | 修改源文件（产生 diff 卡，待审批） | 写·审批 |
+| `figure.render(code, engine)` | TikZ 渲染并自检（注册表已定义，本形态未接通） | 执行 |
 | `citation.validate(key, claim)` | 引用与主张匹配核查（4.4） | 只读 |
 | `citation.add(entry)` | 添加 bib 条目（查重后） | 写·审批 |
-| `project.context()` | 获取 Context Pack | 只读 |
-| `memory.write/read` | Project Memory 读写 | 写 |
+| `project.context()` / `project.read_file` / `project.find_in_files` / `project.list_files` | 项目上下文与文件读取 | 只读 |
+| `memory.write(...)` | Project Memory 读写 | 写 |
+| `git.log` / `git.show` | 让 agent 读懂自己的改动历史 | 只读 |
 | `snapshot.create(label)` | 强制快照（写操作前自动调用） | 执行 |
 | `submission.checklist(journal)` | 期刊要求结构化查询 | 只读 |
+| `user.ask(question, options?)` | 必须由人拍板时的一次结构化提问（阻塞等待） | 交互 |
 
 **权限模型**（类 ZCode/Codex 的 permission mode）：
 - `read`（默认放行）→ `execute`（编译/渲染，首次确认）→ `write`（改文件，逐 diff 审批）→ `export`（任何内容离开本机：外发网络、生成投稿包，显式确认）。

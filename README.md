@@ -16,7 +16,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
-[![Tests](https://img.shields.io/badge/tests-2038%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2350%20passing-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [![Stargazers over time](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
@@ -31,7 +31,7 @@
 
 | Writing & Live Preview | AI Session |
 |:---:|:---:|
-| ![Main layout](docs/layout-v6.png) | ![AI chat](docs/screenshots/tour-ai.png) |
+| ![Main layout](docs/screenshots/tour-main.png) | ![AI chat](docs/screenshots/tour-ai.png) |
 
 ## 🎯 Why Lemma
 
@@ -45,7 +45,7 @@ Lemma is **Codex, rebuilt for LaTeX papers**:
 | Chat in the middle, code on the right | Editor + **live PDF** side by side, chat on the right |
 | AI edits code → diff approval | AI edits the manuscript → diff approval, hunk-by-hunk |
 | Built-in git, roll back anytime | Built-in git: every AI change auto-commits, one-click restore |
-| Agent calls tools | Agent calls **18 paper-domain tools** (read PDFs, search the web, compile, cite…) |
+| Agent calls tools | Agent calls **19 paper-domain tools** (read PDFs, search the web, compile, cite…) |
 | Idle-update, restart-safe | Same update UX; sessions & projects restored on restart |
 
 No pomodoro timers, no dashboards — just writing, compiling, literature, and AI.
@@ -62,7 +62,7 @@ No pomodoro timers, no dashboards — just writing, compiling, literature, and A
 
 ### 🤖 AI (the point of Lemma)
 
-The agent can call **18 tools** across up to 50 autonomous rounds:
+The agent can call **19 tools** across up to 50 autonomous rounds:
 
 | Category | Tools |
 |---|---|
@@ -71,9 +71,11 @@ The agent can call **18 tools** across up to 50 autonomous rounds:
 | Edit | `tex.edit` / `tex.create_file` — always through diff approval |
 | Cite | `citation.add` / `citation.validate` — hallucinated `\cite` keys are flagged automatically |
 | Compile | `tex.compile` / `tex.last_errors` |
-| Project | `project.context` / `read_file` / `find_in_files` / `list_files` |
-| Memory | `memory.write` — the agent remembers your conventions across sessions |
-| History | `git.log` / `git.show` — the agent can read its own change history |
+| Project | `project.context` / `project.read_file` / `project.find_in_files` / `project.list_files` |
+| Memory & history | `memory.write` — the agent remembers your conventions across sessions; `git.log` / `git.show` — it can read its own change history |
+| Submit & safety | `submission.checklist` (journal requirements), `snapshot.create` (snapshot before writes), `user.ask` (one blocking question when only a human can decide) |
+
+Three further tools exist in the registry but are not wired up in this build (`library.search`, `paper.citations`, `figure.render`); calling one returns an explicit "not connected" notice.
 
 **Input channels**: text, 🎤 voice (Whisper, fully local), 📎 images (multimodal), **any file** (drag in PDFs, Word, CSV — content is extracted and injected). **Output**: manuscript edits (approved), TikZ figures with compiled preview, layout review via page screenshots (✦ AI check this page), read-aloud proofreading (TTS).
 
@@ -137,14 +139,15 @@ packages/agent-hub      Agent core (streaming · tools · blocking approvals · 
 packages/knowledge      RAG · Context Pack · citation guardrails
 ```
 
-**Engineering**: 2,038 tests (178 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
+**Engineering**: 2,350 tests (205 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
 
 ## 🗺 Roadmap
 
-- [x] v1–v4: editor/compile/library/workflows foundation
+- [x] v1–v4: editor/compile/library/workflows foundation; v4.2: main bundle 2006 KB → 1375 KB (−31%)
 - [x] v5: **Codex-style redesign** — sessions, live PDF, built-in git, feature purge
-- [x] v6: images/voice/files in, visual review & TTS out, performance (-31% startup)
+- [x] v6: images/voice/files in, visual review & TTS out
 - [x] v7: multi-agent deep review — 22 confirmed bugs fixed
+- [x] v7.8: full-surface audit (7 parallel reviewers) — 90+ defects fixed, incl. data-loss races and 11 of the 20 templates (9 of which could not compile at all)
 - [ ] Real-time collaboration (needs a signaling server)
 - [ ] AI figure generation (photosci-style)
 

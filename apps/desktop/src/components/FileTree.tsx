@@ -204,7 +204,8 @@ export function FileTree() {
           </span>
           <button
             className="sf-tree-menu-btn"
-            title={t('tree.newFile')}
+            title={t('tree.moreActions')}
+            aria-label={t('tree.moreActions')}
             onClick={(e) => {
               e.stopPropagation();
               setMenuFor(menuOpen ? null : node.path);

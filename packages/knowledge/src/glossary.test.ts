@@ -89,4 +89,16 @@ describe('checkConsistency', () => {
     );
     expect(clean).toEqual([]);
   });
+
+  it('巨型「全称」（连续大写词长串）不抛错（v7.8.0：此前 RegExp 编译直接崩）', () => {
+    // 首字母序列 a,a,…,a,m 可拼出缩写 AM → 该定义被 findDefinitions 接受为超长全称
+    const giant = `${Array.from({ length: 4000 }, () => 'Alpha').join(' ')} Machine`;
+    const text = `${giant} (AM) is used widely. ${giant} (AM) again.`;
+    expect(() => checkConsistency(text, [])).not.toThrow();
+    expect(Array.isArray(checkConsistency(text, []))).toBe(true);
+    // 超长全称不再产生「再次以全称出现」提示（该提示对非术语无意义）
+    expect(checkConsistency(text, []).some((i) => i.message.includes('再次以全称出现'))).toBe(false);
+    // 同一文本的抽取仍按首定义去重，正常返回
+    expect(extractGlossary(text)).toHaveLength(1);
+  });
 });

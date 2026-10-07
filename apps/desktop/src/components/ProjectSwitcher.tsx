@@ -29,6 +29,7 @@ const STRINGS = {
     cancel: '取消',
     close: '关闭',
     empty: '暂无已保存项目——先在上方保存当前项目。',
+    untitled: '未命名项目',
     confirmRemove: (name: string) => `确定删除项目「${name}」？该操作不可撤销。`,
     filesUnit: (n: number) => `${n} 个文件`,
   },
@@ -48,6 +49,7 @@ const STRINGS = {
     cancel: 'Cancel',
     close: 'Close',
     empty: 'No saved projects yet — save the current project above.',
+    untitled: 'Untitled project',
     confirmRemove: (name: string) => `Delete project "${name}"? This cannot be undone.`,
     filesUnit: (n: number) => `${n} files`,
   },
@@ -135,7 +137,7 @@ export function ProjectSwitcher({ onClose }: { onClose: () => void }) {
   };
 
   const newBlank = () => {
-    useWorkspaceStore.getState().loadProject('未命名项目', 'main.tex', { 'main.tex': BLANK_MAIN_TEX });
+    useWorkspaceStore.getState().loadProject(L.untitled, 'main.tex', { 'main.tex': BLANK_MAIN_TEX });
     onClose();
   };
 

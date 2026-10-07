@@ -16,10 +16,12 @@ jobs:
         include:
           - platform: windows-latest
             args: '--bundles nsis'
+          # v7.8.0：dmg 不是 updater 资产目标——createUpdaterArtifacts=true 时必须同时产出
+          # 「app」（macOS .app.tar.gz），否则 latest.json 永远没有 darwin 条目、macOS 收不到更新
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --bundles dmg'
+            args: '--target aarch64-apple-darwin --bundles app,dmg'
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin --bundles dmg'
+            args: '--target x86_64-apple-darwin --bundles app,dmg'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +30,26 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      # 版本一致性闸门：tag（vX.Y.Z）必须与四处版本号一致——此前打错 tag 也能构建出
+      # 版本号自相矛盾的安装包
+      - name: Verify version consistency
+        shell: bash
+        run: |
+          node -e "
+          const fs = require('fs');
+          const pkg = require('./package.json').version;
+          const app = require('./apps/desktop/package.json').version;
+          const conf = require('./apps/desktop/src-tauri/tauri.conf.json').version;
+          const cargo = fs.readFileSync('apps/desktop/src-tauri/Cargo.toml','utf8').match(/^version = \"(.*)\"\$/m)[1];
+          const tag = (process.env.GITHUB_REF_NAME || '').replace(/^v/, '');
+          const all = [pkg, app, conf, cargo];
+          if (new Set(all).size !== 1 || (tag && all[0] !== tag)) {
+            console.error('版本号不一致：package.json=%s apps/desktop=%s tauri.conf=%s Cargo.toml=%s tag=%s', pkg, app, conf, cargo, tag);
+            process.exit(1);
+          }
+          console.log('版本一致：' + pkg);
+          "
 
       - uses: dtolnay/rust-toolchain@stable
         with:

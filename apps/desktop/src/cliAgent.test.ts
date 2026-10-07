@@ -102,6 +102,16 @@ describe('CliAgentProvider', () => {
     const events = await collect(p.complete({ ...req([{ id: 'u', role: 'user', content: 'q', createdAt: 1 }]), signal: ctrl.signal }));
     expect(events[0]).toMatchObject({ type: 'error' });
   });
+
+  // v7.8.0 审计回归：模板缺 {prompt} 的回落路径同样要吃引号
+  it('缺 {prompt} 的模板：提示词追加在末尾，且带空格的引号值不被拆散', async () => {
+    const seen: string[][] = [];
+    const noPlaceholder = { ...cfg, argsTemplate: 'exec --model "gpt x" --quiet' };
+    const p = new CliAgentProvider(noPlaceholder, fakeRunner({ code: 0, stdout: 'ok', stderr: '' }, seen));
+    await collect(p.complete(req([{ id: 'u', role: 'user', content: '问', createdAt: 1 }])));
+    // 回归：旧实现按空白切分 → ['exec','--model','"gpt','x"','--quiet', prompt]
+    expect(seen[0]).toEqual(['codex', 'exec', '--model', 'gpt x', '--quiet', expect.stringContaining('问')]);
+  });
 });
 
 describe('settings：cliAgent / agentEngine 持久化', () => {

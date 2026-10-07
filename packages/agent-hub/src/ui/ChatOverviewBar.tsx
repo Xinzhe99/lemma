@@ -21,6 +21,16 @@ export function viewportBand(scrollTop: number, clientHeight: number, scrollHeig
   return { top: Math.max(0, Math.min(barHeight - height, top)), height };
 }
 
+/**
+ * 行在滚动内容中的偏移（纯函数，供测试）：行 rect.top − 滚动容器 rect.top + 已滚动距离。
+ * v7.8.0 修复：此前直接用 row.offsetTop——它的原点是最近的「定位祖先」，
+ * 而滚动容器 .sf-ah-msgs 未定位（CSS 无 position），故刻度与视口块（scrollTop/scrollHeight）
+ * 不同源：容器上方只要有任何内容（标题栏等），刻度整体下移并被压缩。
+ */
+export function rowContentTop(rowTop: number, scrollerTop: number, scrollTop: number): number {
+  return Math.max(0, rowTop - scrollerTop + scrollTop);
+}
+
 function roleColor(role: AgentMessage['role'], content: string): string {
   if (role === 'user') return 'var(--accent)';
   if (role === 'tool') return 'var(--border-strong)';
@@ -63,6 +73,7 @@ function OverviewBarInner({ messages }: { messages: AgentMessage[] }) {
     const height = el.clientHeight;
     if (height <= 0) return;
     const rows = el.querySelectorAll<HTMLElement>('.sf-ah-msg-row');
+    const scrollerTop = el.getBoundingClientRect().top; // 刻度与视口块同源（见 rowContentTop）
     const markers: Array<{ top: number; color: string; title: string }> = [];
     rows.forEach((row) => {
       const cls = row.className;
@@ -73,7 +84,11 @@ function OverviewBarInner({ messages }: { messages: AgentMessage[] }) {
           : 'assistant';
       const text = row.textContent?.trim().slice(0, 40) ?? '';
       markers.push({
-        top: markerTop(row.offsetTop, el.scrollHeight, height),
+        top: markerTop(
+          rowContentTop(row.getBoundingClientRect().top, scrollerTop, el.scrollTop),
+          el.scrollHeight,
+          height,
+        ),
         color: roleColor(role, text),
         title: text,
       });

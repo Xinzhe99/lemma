@@ -25,6 +25,9 @@ const UNGROUPED_LABEL_KEY = 'sessions.ungrouped';
 
 export function SessionsPanel() {
   const t = useT();
+  // v7.8.0：语言进依赖——此前分组标签只在 sessions/projects 变化时重算，
+  // 设置里切到英文后「未分组」仍是中文（要等会话变动才刷新）
+  const language = useSettingsStore((s) => s.language);
   const sessions = useAgentHubStore((s) => s.sessions);
   const activeSessionId = useAgentHubStore((s) => s.activeSessionId);
   const projects = useProjectsStore((s) => s.projects);
@@ -66,7 +69,7 @@ export function SessionsPanel() {
             (a.messages[a.messages.length - 1]?.createdAt ?? 0),
         ),
     }));
-  }, [sessions, projects, projectName]);
+  }, [sessions, projects, projectName, language]); // language：t 的取值随语言变化（见上）
 
   const toggle = (key: string) =>
     setCollapsed((prev) => {
@@ -119,8 +122,8 @@ export function SessionsPanel() {
   const onDeleteProject = async (key: string, recordId?: string) => {
     if (
       !(await confirmDialog(
-        t('sessions.deleteProjectTitle'),
-        t('sessions.deleteProjectDesc'),
+        t('sessions.deleteProjectConfirmTitle', { name: key }),
+        t('sessions.delete'),
       ))
     ) {
       return;
@@ -144,7 +147,7 @@ export function SessionsPanel() {
   };
 
   const onDeleteSession = async (id: string) => {
-    if (!(await confirmDialog(t('sessions.deleteSessionTitle'), t('sessions.deleteSessionDesc')))) return;
+    if (!(await confirmDialog(t('sessions.deleteSessionConfirmTitle'), t('sessions.delete')))) return;
     setBusy(true);
     try {
       useAgentHubStore.getState().deleteSession(id);
@@ -197,7 +200,7 @@ export function SessionsPanel() {
   return (
     <div className="sf-sessions">
       <div className="sf-sessions-actions">
-        <button type="button" className="sf-pill-btn" onClick={onCreateSession} title="在当前项目下新建会话">
+        <button type="button" className="sf-pill-btn" onClick={onCreateSession} title={t('sessions.newSessionHint')}>
           <FilePlus2 size={13} /> {t('sessions.newSession')}
         </button>
         <button type="button" className="sf-pill-btn" onClick={() => void onCreateProject()} disabled={busy} title={t('sessions.newProject')}>

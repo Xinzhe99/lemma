@@ -47,19 +47,22 @@ export function toLatexTabular(rows: string[][], options?: { caption?: string; l
   const align = 'c'.repeat(cols);
   const [header, ...data] = rows;
 
+  // 分隔线用 \hline 而非 booktabs 的 \toprule/\midrule/\bottomrule：
+  // 片段会被插入任意用户文档，而 booktabs 并非默认加载（应用自建项目的
+  // 导言区只有 amsmath/graphicx/hyperref），用三线表命令会直接编译失败。
   const lines: string[] = [];
   lines.push('\\begin{table}[htbp]');
   lines.push('  \\centering');
   if (options?.caption) lines.push(`  \\caption{${texEscape(options.caption)}}`);
   if (options?.label) lines.push(`  \\label{${options.label}}`);
   lines.push('  \\begin{tabular}{' + align + '}');
-  lines.push('    \\toprule');
+  lines.push('    \\hline');
   lines.push('    ' + header!.map((c) => `\\textbf{${texEscape(c)}}`).join(' & ') + ' \\\\');
-  lines.push('    \\midrule');
+  lines.push('    \\hline');
   for (const row of data) {
     lines.push('    ' + row.map(texEscape).join(' & ') + ' \\\\');
   }
-  lines.push('    \\bottomrule');
+  lines.push('    \\hline');
   lines.push('  \\end{tabular}');
   lines.push('\\end{table}');
 

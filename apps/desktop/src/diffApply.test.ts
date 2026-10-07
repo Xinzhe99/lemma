@@ -57,4 +57,38 @@ describe('applyUnifiedDiff', () => {
     expect(applyUnifiedDiff(BEFORE, '--- a\n+++ b').ok).toBe(false);
     expect(applyUnifiedDiff(BEFORE, '@@ -1,1 +1,1 @@\ngarbage line').ok).toBe(false);
   });
+
+  // v7.8.0 审计回归
+  it('纯插入 hunk（旧行数为 0）：插在第 N 行之后，不是之前', () => {
+    // @@ -2,0 +3,1 @@ = 在第 2 行之后插入
+    const mid = applyUnifiedDiff(BEFORE, ['@@ -2,0 +3,1 @@', '+INSERTED'].join('\n'));
+    expect(mid.ok && mid.text.split('\n')).toEqual(['line1', 'line2', 'INSERTED', 'line3', 'line4', 'line5']);
+
+    // 头部插入（-0,0）语义不变
+    const top = applyUnifiedDiff(BEFORE, ['@@ -0,0 +1,1 @@', '+HEAD'].join('\n'));
+    expect(top.ok && top.text.split('\n')).toEqual(['HEAD', 'line1', 'line2', 'line3', 'line4', 'line5']);
+
+    // 末尾追加（-5,0）
+    const tail = applyUnifiedDiff(BEFORE, ['@@ -5,0 +6,1 @@', '+TAIL'].join('\n'));
+    expect(tail.ok && tail.text.split('\n')).toEqual(['line1', 'line2', 'line3', 'line4', 'line5', 'TAIL']);
+
+    // 与上下文行混排时，两种写法结果一致
+    const withCtx = applyUnifiedDiff(BEFORE, ['@@ -2,1 +2,2 @@', ' line2', '+INSERTED'].join('\n'));
+    expect(withCtx.ok && withCtx.text).toBe(mid.ok ? mid.text : '');
+  });
+
+  it('容忍尾部/ hunk 之间的空行（模型常在 diff 末尾多带一个换行）', () => {
+    const trailing = applyUnifiedDiff(BEFORE, ['@@ -1,1 +1,1 @@', '-line1', '+NEW1', '', ''].join('\n'));
+    expect(trailing.ok).toBe(true);
+    if (trailing.ok) expect(trailing.text.split('\n')[0]).toBe('NEW1');
+
+    const between = applyUnifiedDiff(
+      BEFORE,
+      ['@@ -1,1 +1,1 @@', '-line1', '+NEW1', '', '@@ -5,1 +5,1 @@', '-line5', '+NEW5'].join('\n'),
+    );
+    expect(between.ok).toBe(true);
+    if (between.ok) {
+      expect(between.text.split('\n')).toEqual(['NEW1', 'line2', 'line3', 'line4', 'NEW5']);
+    }
+  });
 });

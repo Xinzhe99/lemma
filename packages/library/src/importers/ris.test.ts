@@ -59,4 +59,55 @@ describe('parseRis', () => {
     expect(flushed).toHaveLength(1);
     expect(flushed[0]!.title).toBe('Truncated Record');
   });
+
+  it('缺少 ER 的记录由下一个 TY 收尾，不静默丢条目', () => {
+    const { papers: flushed, errors } = parseRis(
+      [
+        'TY  - JOUR',
+        'TI  - First record',
+        'ER  - ',
+        'TY  - JOUR',
+        'TI  - Second record without ER',
+        'TY  - JOUR',
+        'TI  - Third record',
+        'ER  - ',
+      ].join('\n'),
+    );
+    expect(flushed.map(p => p.title)).toEqual([
+      'First record',
+      'Second record without ER',
+      'Third record',
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it('无标签续行接在上一个标签之后（长标题/摘要折行不丢内容）', () => {
+    const { papers: parsed } = parseRis(
+      [
+        'TY  - JOUR',
+        'TI  - A very long title that continues',
+        '      onto the next line',
+        'AU  - Smith, John',
+        'AB  - First line of abstract.',
+        '      Second line of the same abstract.',
+        'PY  - 2020',
+        'ER  - ',
+      ].join('\n'),
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]!.title).toBe('A very long title that continues onto the next line');
+    expect(parsed[0]!.abstract).toBe(
+      'First line of abstract. Second line of the same abstract.',
+    );
+    expect(parsed[0]!.authors).toEqual([{ family: 'Smith', given: 'John' }]);
+  });
+
+  it('标签首行为空的字段由续行补齐；ER 之后的散行不进任何字段', () => {
+    const { papers: parsed } = parseRis(
+      ['TY  - JOUR', 'TI  - ', '      Indented title', 'ER  - ', '      trailing junk'].join('\n'),
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]!.title).toBe('Indented title');
+    expect(parsed[0]!.abstract).toBeUndefined();
+  });
 });

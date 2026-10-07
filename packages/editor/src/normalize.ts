@@ -31,7 +31,9 @@ function splitByCodeEnv(text: string): { code: boolean; segment: string }[] {
     // 当前段的代码状态在遇到 begin/end 时切换
     segments.push({ code: inCode, segment: current });
     current = '';
-    lastIndex = m.index + m[0].length;
+    // 标记文本本身留给下一段（v7.8.0 修复：此前 lastIndex 直接跳过标记，
+    // \begin{verbatim} / \end{verbatim} 会被整段吞掉——产物丢失环境标记）
+    lastIndex = m.index;
     if (isBegin && !inCode) inCode = true;
     else if (!isBegin && inCode) inCode = false;
   }

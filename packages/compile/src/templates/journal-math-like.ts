@@ -22,7 +22,7 @@ export const journalMathLike: TemplateModule = {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：journal-math-like
-\documentclass[11pt]
+\documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{graphicx}

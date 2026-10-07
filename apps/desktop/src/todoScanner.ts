@@ -34,7 +34,10 @@ const TODONOTES_RE = /\\todo\s*(?:\[[^\]]*\])?\s*\{([^{}]*)\}/i;
 
 function scanFile(file: string, content: string, out: TodoItem[]): void {
   const lines = content.split('\n');
-  for (let i = 0; i < lines.length && out.length < PER_FILE_LIMIT; i++) {
+  // 单文件上限以「本文件新增条数」计（v7.8.0 修复）：此前直接用 out.length（全局累计），
+  // 首个 TODO 密集文件打满 PER_FILE_LIMIT 后，后续所有文件一行都不再扫描（待办整批丢失）
+  const base = out.length;
+  for (let i = 0; i < lines.length && out.length - base < PER_FILE_LIMIT; i++) {
     const raw = lines[i] ?? '';
     const cm = COMMENT_TODO_RE.exec(raw);
     if (cm) {

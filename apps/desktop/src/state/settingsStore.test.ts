@@ -97,3 +97,45 @@ describe('settingsStore localStorage 持久化', () => {
     expect(raw.providers[0].apiKey).toBe('sk-x');
   });
 });
+
+// ---------------------------------------------------------------------------
+// v7.8.0：脏 providers 数据（手改 localStorage / 半截写入）防御
+// ---------------------------------------------------------------------------
+describe('v7.8.0 脏 providers 读档防御', () => {
+  it('非对象 / 无 id 的条目丢弃，缺失字段补齐为安全默认值', async () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        providers: [
+          { id: 'x' },
+          null,
+          42,
+          'junk',
+          { label: '无 id 的服务' },
+          { id: 'y', label: 'Y', baseUrl: 'https://y.test/v1', apiKey: 'k', model: 'm', tier: 'flagship' },
+        ],
+        activeProviderId: 'x',
+        embeddingModel: 'emb',
+      }),
+    );
+    vi.resetModules();
+    const mod = await import('./settingsStore');
+
+    const providers = mod.useSettingsStore.getState().providers;
+    expect(providers.map((p) => p.id)).toEqual(['x', 'y']);
+    expect(providers[0]).toEqual({ id: 'x', label: 'x', baseUrl: '', apiKey: '', model: '', tier: 'cheap' });
+    expect(providers[1]!.tier).toBe('flagship');
+  });
+
+  it('脏条目缺 baseUrl 时 initLibrary 不崩（库照常载入，不因设置脏数据整库不可用）', async () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ providers: [{ id: 'x' }], activeProviderId: 'x', embeddingModel: 'emb' }),
+    );
+    vi.resetModules();
+    const lib = await import('./libraryStore');
+
+    await expect(lib.initLibrary()).resolves.toBeUndefined();
+    expect(lib.useLibraryStore.getState().indexReady).toBe(true);
+  });
+});

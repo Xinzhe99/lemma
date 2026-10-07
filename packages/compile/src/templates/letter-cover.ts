@@ -34,7 +34,7 @@ Affiliation\
 \bigskip
 \noindent Dear Editors,
 \medskip
-We submit our manuscript entitled 	extbf{	extquotedblleft {TITLE}	extquotedblright} for consideration in your journal.
+We submit our manuscript entitled \textbf{\textquotedblleft {TITLE}\textquotedblright} for consideration in your journal.
 \medskip
 \noindent Our main contributions are:
 \begin{itemize}

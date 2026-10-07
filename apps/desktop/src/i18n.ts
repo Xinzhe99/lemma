@@ -61,6 +61,7 @@ const dict: MessageDict = {
 
   // 文件树
   'tree.newFile': { zh: '新建文件', en: 'New file' },
+  'tree.moreActions': { zh: '更多操作（新建 / 重命名 / 删除）', en: 'More actions (new / rename / delete)' },
   'tree.rename': { zh: '重命名', en: 'Rename' },
   'tree.delete': { zh: '删除', en: 'Delete' },
   'tree.newFilePrompt': { zh: '新建文件路径（如 sections/notes.tex）', en: 'New file path (e.g. sections/notes.tex)' },
@@ -116,6 +117,10 @@ const dict: MessageDict = {
   'cmd.readAloud': { zh: '朗读这一节（校对：读出声听问题）', en: 'Read this section aloud (proofreading)' },
   // v7.1.0 新面板/对话框 i18n
   'sessions.newSession': { zh: '新会话', en: 'New session' },
+  'sessions.newSessionHint': {
+    zh: '在当前项目下新建会话',
+    en: 'Start a new session in the current project',
+  },
   'sessions.newProject': { zh: '新建项目', en: 'New project' },
   'sessions.ungrouped': { zh: '未分组', en: 'Ungrouped' },
   'sessions.noSessions': { zh: '还没有会话——点「新会话」开始与 AI 协作。', en: 'No sessions yet — click "New session" to start.' },
@@ -137,6 +142,8 @@ const dict: MessageDict = {
   'sessions.deleteProject': { zh: '删除项目', en: 'Delete project' },
   'sessions.deleteProjectTitle': { zh: '删除项目', en: 'Delete project' },
   'sessions.deleteProjectDesc': { zh: '只删除项目分组（项目文件记录一并移除），其下会话将移入「未分组」，不会丢失。', en: 'Removes the project group only; its sessions move to "Ungrouped" and are not lost.' },
+  'sessions.deleteProjectConfirmTitle': { zh: '删除项目「{name}」？只删除项目分组（项目文件记录一并移除），其下会话将移入「未分组」，不会丢失。', en: 'Delete project "{name}"? Removes the project group only; its sessions move to "Ungrouped" and are not lost.' },
+  'sessions.deleteSessionConfirmTitle': { zh: '删除该会话？会话消息将一并删除，不可恢复。', en: 'Delete this session? All messages will be deleted permanently.' },
   'sessions.openProject': { zh: '打开此项目', en: 'Open this project' },
   'git.commit': { zh: '提交当前进度', en: 'Commit progress' },
   'git.browserOnly': { zh: '版本管理在桌面应用中可用（浏览器形态无本地 git）。', en: 'Version control is desktop-only.' },
@@ -156,6 +163,20 @@ const dict: MessageDict = {
   'git.changesPdf': { zh: '对照 PDF', en: 'Changes PDF' },
   'git.restore': { zh: '恢复', en: 'Restore' },
   'git.restoreTitle': { zh: '恢复到此版本', en: 'Restore to this version' },
+  // v7.8.0：版本面板此前整块硬编码中文；确认文案合并进标题（confirmText 是按钮文案，不是说明）
+  'git.resetToHead': { zh: '回滚到上次提交', en: 'Roll back to last commit' },
+  'git.resetToHeadTitle': { zh: '丢弃所有未提交改动，回到上次提交状态', en: 'Discard all uncommitted changes and return to the last commit' },
+  'git.resetConfirmTitle': { zh: '回滚到上次提交？所有未提交的修改（含 AI 刚做的改动）将被丢弃，此操作不可撤销。', en: 'Roll back to the last commit? All uncommitted edits (including recent AI changes) are discarded — this cannot be undone.' },
+  'git.unlinkConfirmTitle': { zh: '解除远端关联？将移除 origin（{remote}），本地历史保留。', en: 'Unlink the remote? origin ({remote}) is removed; local history is kept.' },
+  'git.committed': { zh: '已提交：{subject}', en: 'Committed: {subject}' },
+  'git.nothingToCommit': { zh: '没有可提交的变更', en: 'Nothing to commit' },
+  'git.changesPdfBuilding': { zh: '生成对照 PDF（{subject}…）…', en: 'Building changes PDF ({subject}…)…' },
+  'git.changesPdfDone': { zh: '对照 PDF 已生成：{files} 个文件 / {lines} 行变更（右侧预览）', en: 'Changes PDF ready: {files} files / {lines} changed lines (preview on the right)' },
+  'git.remoteLinked': { zh: '已关联远端', en: 'Remote linked' },
+  'git.remoteUnlinked': { zh: '已解除（重启应用后生效）', en: 'Unlinked (takes effect after restart)' },
+  'git.rolledBack': { zh: '已回滚到上次提交（{n} 个文件同步）', en: 'Rolled back to the last commit ({n} files synced)' },
+  'git.restoreConfirmTitle': { zh: '恢复到「{subject}」？当前源文件将被该提交的版本覆盖（此操作本身也会产生新变更，可再提交）。', en: 'Restore to "{subject}"? Current sources will be overwritten by that commit (this itself creates new changes you can commit again).' },
+  'git.restored': { zh: '已恢复 {n} 个文件到「{subject}」', en: 'Restored {n} files to "{subject}"' },
   'tikz.title': { zh: '✏️ AI 画图（TikZ）', en: '✏️ AI Figure (TikZ)' },
   'tikz.desc': { zh: '描述想要的图（流程图/架构图/示意/几何图），AI 生成 TikZ；桌面端可编译预览，插入走 diff 审批。', en: 'Describe the figure; AI generates TikZ. Desktop compiles a live preview; insert goes through diff approval.' },
   'tikz.placeholder': { zh: '例：三阶段 pipeline：输入 → 特征提取（CNN） → 融合与输出，横向排布，箭头标注数据流', en: 'e.g. 3-stage pipeline: input → CNN features → fusion, horizontal, arrows labeled' },
@@ -178,6 +199,21 @@ const dict: MessageDict = {
   'img2tex.result': { zh: '转换结果（可编辑）：', en: 'Result (editable):' },
   'img2tex.insert': { zh: '插入到稿件（走审批）', en: 'Insert (via approval)' },
   'img2tex.noTexFile': { zh: '没有打开的 .tex 文件——请先在右侧「编辑器」模式打开目标文件', en: 'No .tex file open.' },
+  'img2tex.dialogLabel': { zh: '图像转 LaTeX', en: 'Image to LaTeX' },
+  'img2tex.previewAlt': { zh: '待转换截图', en: 'Screenshot to convert' },
+  'img2tex.insertLabel': { zh: '图像转 LaTeX（截图 → 公式/表格）', en: 'Image to LaTeX (screenshot → formula/table)' },
+  'img2tex.pasteFailed': { zh: '读取剪贴板图片失败', en: 'Failed to read the pasted image' },
+  'img2tex.readFailed': { zh: '读取图片失败', en: 'Failed to read the image' },
+  'img2tex.convertFailed': { zh: '转换失败', en: 'Conversion failed' },
+  // TikZ 画图对话框（错误提示与审批标签）
+  'tikz.dialogLabel': { zh: 'AI 画图', en: 'AI figure' },
+  'tikz.demoMode': { zh: '演示模式不支持画图——请先在设置中配置模型服务', en: 'Figure generation needs a model — configure a provider in Settings first' },
+  'tikz.noTikz': { zh: '生成结果不含 tikzpicture——换个更具体的描述试试', en: 'The result has no tikzpicture — try a more specific description' },
+  'tikz.previewFailed': { zh: '预览编译失败——检查 TikZ 代码（常见：缺少 tikzlibrary）', en: 'Preview compile failed — check the TikZ code (often a missing tikzlibrary)' },
+  'tikz.defaultCaption': { zh: '示意图', en: 'Illustration' },
+  'tikz.insertLabel': { zh: 'AI 画图（TikZ）插入', en: 'AI figure (TikZ) insert' },
+  // 通用对话框动作（多个弹窗共用的取消键）
+  'dlg.cancel': { zh: '取消', en: 'Cancel' },
   'cmd.stopReadAloud': { zh: '停止朗读', en: 'Stop reading aloud' },
   'console.pending': { zh: '尚未编译 —— Ctrl+Enter 或命令面板运行编译（浏览器形态为模拟引擎）', en: 'Not compiled yet — Ctrl+Enter or command palette (mock engine in browser)' },
 
@@ -197,6 +233,14 @@ const dict: MessageDict = {
   'tab.polishTitle': { zh: 'AI 润色当前文件（diff 审批后落盘）', en: 'AI polish current file (applied after diff approval)' },
   'tab.history': { zh: '历史', en: 'History' },
   'tab.historyTitle': { zh: '快照历史（AI 修改自动创建，可恢复）', en: 'Snapshot history (auto-created on AI edits, restorable)' },
+  // 编辑器分屏（v7.2.1 F2）与懒加载浮层
+  'editor.splitOpen': { zh: '分屏编辑（同时查看两个文件）', en: 'Split editor (view two files at once)' },
+  'editor.splitClose': { zh: '关闭分屏', en: 'Close split' },
+  'editor.splitFile': { zh: '分屏文件', en: 'Split file' },
+  'dlg.loading': { zh: '加载中…', en: 'Loading…' },
+  'dlg.loadFailed': { zh: '组件加载失败（{file}）—— 请确认对应工作流已合入。', en: 'Failed to load component ({file}) — check that its module is bundled.' },
+  'toast.noAnnotations': { zh: '没有未处理的批注——先在 PDF 中标注，或经「审阅导入」导入导师批注', en: 'No open annotations — annotate in the PDF first, or import reviewer comments via Reviews import' },
+  'pdf.quoteLabel': { zh: '引述：{citekey}（PDF 选中 → 稿件）', en: 'Quote: {citekey} (PDF selection → manuscript)' },
 
   // 设置对话框
   'settings.title': { zh: '设置', en: 'Settings' },
@@ -442,6 +486,8 @@ const dict: MessageDict = {
     en: 'No snapshots yet. They are created automatically when AI edits are accepted (all AI edits are reversible by design).',
   },
   'snap.restore': { zh: '恢复此版本', en: 'Restore' },
+  'snap.restoreConfirm': { zh: '恢复', en: 'Restore' },
+  'snap.restoreConfirmTitle': { zh: '恢复「{path}」到此版本？当前内容将被该快照覆盖，且不会自动备份（不可撤销）。', en: 'Restore "{path}" to this snapshot? Current content is overwritten and is not backed up automatically (cannot be undone).' },
   'snap.close': { zh: '关闭', en: 'Close' },
   'snap.currentFile': { zh: '当前文件', en: 'current file' },
 

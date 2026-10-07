@@ -99,6 +99,8 @@ const STRINGS = {
     goalChipTitle: '今日写作字数/目标（命令面板可改目标）',
     pagesUnit: '页',
     pagesChipTitle: '最近一次编译页数 / 目标 venue 页数上限（超限变红）',
+    updateReady: (v: string) => `v${v} 已就绪 — 点击安装并重启`,
+    updateInstalled: (v: string) => `v${v} 已安装 — 点击重启完成`,
   },
   en: {
     words: 'Words',
@@ -118,6 +120,8 @@ const STRINGS = {
     goalChipTitle: "Today's words / goal (adjust the goal from the command palette)",
     pagesUnit: 'pages',
     pagesChipTitle: 'Pages of the last compile / venue page limit (red when over)',
+    updateReady: (v: string) => `v${v} ready — click to install and restart`,
+    updateInstalled: (v: string) => `v${v} installed — click to restart`,
   },
 } as const;
 
@@ -187,7 +191,7 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
       return;
     }
     if (!jumpSourceToPdf(activeTab, cursor.line)) {
-      useWorkspaceStore.getState().appendCompileLog(`⚠ ${L.syncNoHit}：${activeTab}`);
+      useWorkspaceStore.getState().appendCompileLog(`⚠ ${L.syncNoHit} ${activeTab}`);
     }
   };
 
@@ -241,7 +245,7 @@ export function StatusBar({ cursor = { line: 1, col: 1 } }: StatusBarProps) {
           type="button"
           className="sf-statusbar-item"
           style={{ color: 'var(--accent-dim)', cursor: 'pointer' }}
-          title={updateAutoInstalled ? 'v' + updateVersion + ' 已安装 — 点击重启完成' : 'v' + updateVersion + ' 已就绪 — 点击安装并重启'}
+          title={updateAutoInstalled ? L.updateInstalled(updateVersion ?? '') : L.updateReady(updateVersion ?? '')}
           onClick={() => void applyUpdate()}
         >
           ⟳ v{updateVersion}

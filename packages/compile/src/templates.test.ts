@@ -115,3 +115,70 @@ describe('scaffoldProject', () => {
     expect(() => scaffoldProject('nope', { title: 'T', authors: 'A' })).toThrow(/未找到模板/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 模板可编译性回归（v7.8.0）：此前 9 个模板的 \documentclass 漏写类名，
+// 生成的工程连第一行都过不去（\documentclass[11pt] 会把 \usepackage 当类名）。
+// ---------------------------------------------------------------------------
+
+/** A0 横向（118.9cm × 84.1cm）扣掉 geometry margin=1.2cm 后的版心 */
+const A0_LANDSCAPE_TEXT_WIDTH_CM = 118.9 - 2 * 1.2;
+
+describe('模板可编译性回归', () => {
+  it('每个模板入口都有合法的 \\documentclass{类名}', () => {
+    for (const t of listTemplates()) {
+      const main = scaffoldProject(t.id, { title: 'T', authors: 'A' })[t.entry] as string;
+      const line = main.split('\n').find((l) => l.includes('\\documentclass')) ?? '';
+      // 漏写类名（\documentclass[11pt] 后直接换行）不匹配；类名必须紧跟可选参数
+      expect(line, `${t.id} 的 \\documentclass 缺少类名`).toMatch(
+        /^\\documentclass(\[[^\]]*\])?\{[A-Za-z]+\}\s*$/,
+      );
+    }
+  });
+
+  it('模板不使用单反斜杠 \\[ 当作换行（会打开行间数学模式）', () => {
+    for (const t of listTemplates()) {
+      const main = scaffoldProject(t.id, { title: 'T', authors: 'A' })[t.entry] as string;
+      expect(main, `${t.id} 含 \\[<长度>] 形式的伪换行`).not.toMatch(/(?<!\\)\\\[\d+pt\]/);
+    }
+  });
+
+  it('模板产物不含制表符（回归：letter-cover 曾把 \\t 写成真实制表符，\\textbf 退化成 extbf）', () => {
+    for (const t of listTemplates()) {
+      const files = scaffoldProject(t.id, { title: 'T', authors: 'A' });
+      for (const [path, content] of Object.entries(files)) {
+        if (typeof content !== 'string') continue;
+        expect(content.includes('\t'), `${t.id}/${path} 含制表符`).toBe(false);
+      }
+    }
+  });
+
+  it('poster-a0：标题与三栏宽度不超过 A0 横向版心', () => {
+    const main = scaffoldProject('poster-a0', { title: 'T', authors: 'A' })['main.tex'] as string;
+    const widths = [...main.matchAll(/text width=(\d+(?:\.\d+)?)cm/g)].map((m) => Number(m[1]));
+    expect(widths).toHaveLength(4); // 标题 + 三栏
+    expect(widths[0]).toBeLessThanOrEqual(A0_LANDSCAPE_TEXT_WIDTH_CM);
+    const columns = widths.slice(1).reduce((a, b) => a + b, 0) + 2 * 0.8; // 栏间距 8mm ×2
+    expect(columns).toBeLessThanOrEqual(A0_LANDSCAPE_TEXT_WIDTH_CM);
+    const heights = [...main.matchAll(/minimum height=(\d+(?:\.\d+)?)cm/g)].map((m) => Number(m[1]));
+    expect(heights[0]! + 0.8 + heights[1]!).toBeLessThanOrEqual(84.1 - 2 * 1.2); // 标题 + 间距 + 栏高
+  });
+
+  it('模板中 \\cite 的键都能在 refs.bib 或 thebibliography 中找到', () => {
+    for (const t of listTemplates()) {
+      const files = scaffoldProject(t.id, { title: 'T', authors: 'A' });
+      const main = files[t.entry] as string;
+      const cited = [...main.matchAll(/\\cite[a-zA-Z]*\*?\s*(?:\[[^\]]*\]\s*)*\{([^}]*)\}/g)]
+        .flatMap((m) => m[1]!.split(',').map((k) => k.trim()))
+        .filter(Boolean);
+      const defined = new Set([
+        ...[...Object.values(files).filter((c): c is string => typeof c === 'string')].flatMap((c) =>
+          [...c.matchAll(/^@\w+\{([^,\s]+),/gm)].map((m) => m[1]!),
+        ),
+        ...[...main.matchAll(/\\bibitem(?:\[[^\]]*\])?\{([^}]*)\}/g)].map((m) => m[1]!.trim()),
+      ]);
+      for (const key of cited) expect(defined.has(key), `${t.id} 引用了不存在的键 ${key}`).toBe(true);
+    }
+  });
+});
+

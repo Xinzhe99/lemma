@@ -42,6 +42,7 @@ export function resolveToolApproval(token: string, approved: boolean, note?: str
   if (!pending || pending.token !== token) return false;
   const settle = pending;
   pending = null;
+  withdrawCard(token);
   settle.resolve({
     approved,
     note: note ?? (approved ? '用户已采纳修改' : '用户拒绝了修改'),
@@ -54,6 +55,18 @@ export function rejectPendingApproval(note: string): boolean {
   if (!pending) return false;
   const settle = pending;
   pending = null;
+  withdrawCard(settle.token);
   settle.resolve({ approved: false, note });
   return true;
+}
+
+/**
+ * v7.8.0：结算未决审批时撤下它对应的审批卡。此前卡留在面板上（还标着「等待裁决」），
+ * 但 token 已失效——用户再点「采纳」只会写盘、回执却传不回任何模型（会话已结束），
+ * 界面却提示「已回传给模型」，模型侧收到的却是「已取消」。只撤本次结算的卡，
+ * 不碰无 token 的普通提案（润色/起草等）。
+ */
+function withdrawCard(token: string): void {
+  const store = useProposalStore.getState();
+  if (store.proposal?.token === token) store.clearProposal();
 }

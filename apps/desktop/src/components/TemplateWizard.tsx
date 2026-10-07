@@ -8,7 +8,7 @@
  * 新增文案为组件内 zh/en 字典；既有文案仍走全局 i18n。
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { listTemplates, scaffoldProject } from '@lemma/compile';
 import { templateName, templateDescription } from '../templateI18n';
 import { useT } from '../i18n';
@@ -108,6 +108,18 @@ export function TemplateWizard({ onDone }: { onDone: (message: string) => void }
   const [saveName, setSaveName] = useState('');
   const [saveDesc, setSaveDesc] = useState('');
   const [saveMsg, setSaveMsg] = useState<SaveMsg | null>(null);
+
+  // Escape 关闭（对齐 Settings/QuickCite 等对话框的统一交互）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setTemplateWizardOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setTemplateWizardOpen]);
 
   const selected = templates.find((tpl) => tpl.id === templateId);
   const selectedUser = userTemplates.find((t) => t.id === userTplId);

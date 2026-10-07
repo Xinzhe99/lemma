@@ -204,6 +204,27 @@ describe('materializeProjectFiles（编译前物化项目文件）', () => {
     expect(written).toEqual(['main.tex']);
   });
 
+  it('figures/ 空串占位（图片在磁盘的标记）不落盘：写空串会把真实图片覆盖成 0 字节', async () => {
+    const written: [string, string][] = [];
+    const n = await materializeProjectFiles(
+      { 'main.tex': 'A', 'figures/plot.png': '' },
+      async (p, c) => {
+        written.push([p, c]);
+      },
+    );
+    expect(n).toBe(1);
+    expect(written).toEqual([['main.tex', 'A']]);
+  });
+
+  it('figures/ 之外的空文件仍照常物化（占位规则不误伤用户空文件）', async () => {
+    const written: string[] = [];
+    const n = await materializeProjectFiles({ 'sections/empty.tex': '' }, async (p) => {
+      written.push(p);
+    });
+    expect(n).toBe(1);
+    expect(written).toEqual(['sections/empty.tex']);
+  });
+
   it('写盘失败时异常上抛（由编排层降级回退）', async () => {
     await expect(
       materializeProjectFiles({ 'main.tex': 'A' }, async () => {

@@ -43,6 +43,7 @@ vi.mock('zustand', async () => {
 });
 
 import { ShortcutsDialog, isShortcutsTrigger } from './ShortcutsDialog';
+import { useSettingsStore } from '../state/settingsStore';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -100,6 +101,22 @@ describe('ShortcutsDialog', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('en 列表无中文残留，且与 zh 逐组条目数一致（Ctrl+S 行不再只出现在 en）', () => {
+    const zhRows = [...container!.querySelectorAll('.sf-shortcuts-desc')].map((d) => d.textContent!);
+    act(() => {
+      useSettingsStore.setState({ language: 'en' });
+    });
+    const enGroups = [...container!.querySelectorAll('.sf-shortcuts-group')].map((g) => g.textContent);
+    expect(enGroups).toEqual(['Global', 'Editor', 'Workflow', 'Compile']);
+
+    const enRows = [...container!.querySelectorAll('.sf-shortcuts-desc')].map((d) => d.textContent!);
+    expect(enRows.length).toBe(zhRows.length);
+    // en 列表里不能出现中文（历史缺陷：Global 组残留「立即编译（保存并编译）」）
+    expect(enRows.filter((d) => /[\u4e00-\u9fff]/.test(d))).toEqual([]);
+    expect(enRows).toContain('Save & compile');
+    expect(zhRows).toContain('保存并编译');
   });
 
   it('点击关闭按钮与遮罩均可关闭', () => {

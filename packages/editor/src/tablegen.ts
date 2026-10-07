@@ -93,8 +93,40 @@ function findMatchingBrace(text: string, start: number): number {
 }
 
 /**
+ * 把一行内出现的多个行终止符 `\\` 拆成多行（v7.8.0）：同一行书写的表格
+ * （`\begin{tabular}{cc}a & b \\ c & d\end{tabular}`）此前整行只按一个数据行解析，
+ * `b \\ c` 被并进同一个单元格。`\\[2pt]` 与 `\\*` 变体连同其后可选参数一起保留。
+ */
+function splitRowTerminators(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch !== '\\') {
+      cur += ch;
+      continue;
+    }
+    if (line[i + 1] !== '\\') {
+      cur += line.slice(i, i + 2); // 转义/命令整体保留（\% \& \hline …）
+      i++;
+      continue;
+    }
+    let j = i + 2;
+    if (line[j] === '*') j++;
+    const opt = /^\[[^\]]*\]/.exec(line.slice(j));
+    if (opt) j += opt[0].length;
+    out.push(cur + line.slice(i, j));
+    cur = '';
+    i = j - 1;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+/**
  * 解析第一个 \begin{tabular}{colspec} 块。
- * - 单元格分隔 &（\& 为转义不切列）、行尾 \\（容忍末行缺省与 \\* / \\[2pt] 变体）；
+ * - 单元格分隔 &（\& 为转义不切列）、行终止符 \\（容忍末行缺省、\\* / \\[2pt] 变体，
+ *   以及同一行内写多个终止符的情况）；
  * - 容忍行尾空格、空行与 % 注释行/行尾注释（\% 转义不视为注释）；
  * - \hline 出现在首行数据后（独立行或行尾跟随）→ hasHeader=true，头尾惯例的线不影响判定；
  * - 嵌套环境（array/minipage 等）、缺失 \end、缺失列规格 → { error }（中文）。
@@ -115,11 +147,13 @@ export function parseTabular(code: string): TabularParseResult {
   const endIdx = code.indexOf(END, bodyStart);
   if (endIdx < 0) return { error: `缺少 ${END}：tabular 环境未闭合` };
 
-  // 逐行去注释（正确处理 \% 转义）并修剪，空行丢弃
+  // 逐行去注释（正确处理 \% 转义）并修剪，空行丢弃；行内多个 \\ 再拆成多行
   const cleaned = code
     .slice(bodyStart, endIdx)
     .split('\n')
     .map((line) => stripLineComment(line).trim())
+    .flatMap(splitRowTerminators)
+    .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
   if (cleaned.some((line) => line.includes('\\begin{'))) {

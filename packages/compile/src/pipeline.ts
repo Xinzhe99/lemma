@@ -67,7 +67,15 @@ export async function runFullCompile(
     passes++;
   }
 
-  return { ...last, durationMs: Date.now() - startedAt, diagnostics: merged, passes };
+  // 收敛（最后一趟日志不再提示重跑）后，丢弃中间趟遗留的「重跑提示类」警告：
+  // 典型场景是 bibtex 之前那趟的 Citation/Reference undefined，解决后仍留在
+  // merged 里，编辑器沟槽会一直显示早已不成立的告警。
+  // 最终日志仍提示重跑时不过滤（此时这些警告确实存在）。
+  const diagnostics = needsRerun(last.log ?? '')
+    ? merged
+    : merged.filter((d) => !RERUN_HINTS.some((re) => re.test(d.message)));
+
+  return { ...last, durationMs: Date.now() - startedAt, diagnostics, passes };
 }
 
 /** 由入口推算 bibtex 要处理的 .aux 路径（简化：假定 entry 位于项目根，outDir 优先） */

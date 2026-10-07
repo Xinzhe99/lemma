@@ -343,6 +343,12 @@ export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
 
 let lastPersisted = '';
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * 启动恢复进行中（v7.8.0）。此窗口内 store 还是**未水合的空工作区**：
+ * 一旦落盘就会把用户已保存的项目覆盖成空项目（真正的数据丢失）。
+ * 因此恢复期间不排新的写盘任务，恢复结束时丢弃此前排队的陈旧快照。
+ */
+let hydrationInFlight = false;
 
 function snapshot(s: WorkspaceState): WorkspaceSnapshot {
   return {
@@ -356,47 +362,113 @@ function snapshot(s: WorkspaceState): WorkspaceSnapshot {
   };
 }
 
-// 30 秒定时强制保存安全网（v2.7.0 ②）：即使无变更触发（防抖窗口外的场景），
-// dirty 状态下每 30s 强制写盘一次。崩溃时最多丢 30 秒工作，而非整个防抖周期。
-setInterval(() => {
-  const st = useWorkspaceStore.getState();
-  if (!st.dirty) return;
-  const json = JSON.stringify(snapshot(st));
-  if (json === lastPersisted) return;
-  getPlatform()
-    .fs.writeFile(WORKSPACE_FILE, json)
-    .then(() => {
-      // v7.0.0 修复：写盘成功才标记 lastPersisted——此前先标记后写盘，
-      // 一次瞬时写失败后该版本内容永久无法落盘（30s 安全网因相等比较跳过）
-      lastPersisted = json;
-      useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
-    })
-    .catch(() => undefined);
-}, 30_000);
-
-useWorkspaceStore.subscribe((s) => {
+/** 防抖排程落盘（hydrationInFlight 期间跳过；同内容不重复写）。 */
+function schedulePersist(s: WorkspaceState): void {
+  if (hydrationInFlight) return;
   const json = JSON.stringify(snapshot(s));
   if (json === lastPersisted) return;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
-    getPlatform()
-      .fs.writeFile(WORKSPACE_FILE, json)
-      .then(() => {
-        // v7.0.0：写盘成功才标记 lastPersisted（与 30s 安全网同修复——
-        // 先标记后写盘会让一次失败后该版本永不重试）
-        lastPersisted = json;
-        // 写盘成功：仅当期间没有新改动（当前快照与写盘内容一致）时标记已保存，
-        // 避免写盘进行中的编辑被误标为 "✓ 已保存"。
-        if (JSON.stringify(snapshot(useWorkspaceStore.getState())) === json) {
-          useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
-        }
-      })
-      .catch((e) => {
-        // 持久化失败不打断 UI（dirty 保持 true），但记录日志便于诊断
-        console.warn('[workspace] 持久化写盘失败（dirty 保持 true）：', e);
-      });
+    try {
+      getPlatform()
+        .fs.writeFile(WORKSPACE_FILE, json)
+        .then(() => {
+          // v7.0.0：写盘成功才标记 lastPersisted（与 30s 安全网同修复——
+          // 先标记后写盘会让一次失败后该版本永不重试）
+          lastPersisted = json;
+          // 写盘成功：仅当期间没有新改动（当前快照与写盘内容一致）时标记已保存，
+          // 避免写盘进行中的编辑被误标为 "✓ 已保存"。
+          if (JSON.stringify(snapshot(useWorkspaceStore.getState())) === json) {
+            useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
+          }
+        })
+        .catch((e) => {
+          // 持久化失败不打断 UI（dirty 保持 true），但记录日志便于诊断
+          console.warn('[workspace] 持久化写盘失败（dirty 保持 true）：', e);
+        });
+    } catch (e) {
+      // v7.8.0：平台桥不可用时同步抛错会变成未捕获异常
+      console.warn('[workspace] 持久化写盘跳过：', e);
+    }
   }, PERSIST_DEBOUNCE_MS);
-});
+}
+
+/** 启动恢复结束：丢弃未水合期间排队的陈旧快照，并按水合结果重新排程。 */
+function finishHydration(): void {
+  hydrationInFlight = false;
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  // 水合期间的 setState 不会触发订阅排程（被 hydrationInFlight 挡下），
+  // 这里补一次：水合结果与磁盘内容不一致（如补入 figures/ 元数据）时才落盘。
+  schedulePersist(useWorkspaceStore.getState());
+}
+
+let safetyTimer: ReturnType<typeof setInterval> | null = null;
+let unsubscribePersist: (() => void) | null = null;
+
+/**
+ * Node 环境下让定时器不阻止进程退出（浏览器无 unref，静默跳过）。
+ * 测试进程里这个 30s 安全网此前会一直吊住事件循环，并在环境销毁后触发。
+ */
+function unrefTimer(t: unknown): void {
+  const maybe = t as { unref?: () => void } | null;
+  if (maybe && typeof maybe.unref === 'function') maybe.unref();
+}
+
+/**
+ * 启动持久化副作用（30s 安全网 + store 订阅）。
+ * 模块加载时自动调用；测试或需要彻底停机的场景可先 stopWorkspacePersistence()。
+ */
+export function startWorkspacePersistence(): void {
+  if (safetyTimer) return;
+  // 30 秒定时强制保存安全网（v2.7.0 ②）：即使无变更触发（防抖窗口外的场景），
+  // dirty 状态下每 30s 强制写盘一次。崩溃时最多丢 30 秒工作，而非整个防抖周期。
+  safetyTimer = setInterval(() => {
+    try {
+      if (hydrationInFlight) return; // 启动恢复期间不写盘（防空快照覆盖用户项目）
+      const st = useWorkspaceStore.getState();
+      if (!st.dirty) return;
+      const json = JSON.stringify(snapshot(st));
+      if (json === lastPersisted) return;
+      getPlatform()
+        .fs.writeFile(WORKSPACE_FILE, json)
+        .then(() => {
+          // v7.0.0 修复：写盘成功才标记 lastPersisted——此前先标记后写盘，
+          // 一次瞬时写失败后该版本内容永久无法落盘（30s 安全网因相等比较跳过）
+          lastPersisted = json;
+          useWorkspaceStore.setState({ dirty: false, lastSavedAt: Date.now() });
+        })
+        .catch(() => undefined);
+    } catch (e) {
+      // v7.8.0：平台桥不可用时（模块 mock 未就绪 / bridge 缺失）同步抛错会变成
+      // 未捕获异常——定时器回调里必须是「静默跳过 + 日志」，绝不能让安全网自己炸掉。
+      console.warn('[workspace] 30s 安全网写盘跳过：', e);
+    }
+  }, 30_000);
+  unrefTimer(safetyTimer);
+
+  unsubscribePersist = useWorkspaceStore.subscribe((s) => schedulePersist(s));
+}
+
+/** 停机：清理定时器与订阅（测试收尾 / 卸载用；重复调用安全）。 */
+export function stopWorkspacePersistence(): void {
+  if (safetyTimer) {
+    clearInterval(safetyTimer);
+    safetyTimer = null;
+  }
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  if (unsubscribePersist) {
+    unsubscribePersist();
+    unsubscribePersist = null;
+  }
+}
+
+startWorkspacePersistence();
 
 /**
  * 启动恢复：读取 workspace.json 还原当前项目；缺失或损坏时保持空工作区——
@@ -404,11 +476,23 @@ useWorkspaceStore.subscribe((s) => {
  * 演示入口保留在编辑器空态引导卡与命令面板）。
  */
 export async function initWorkspace(): Promise<void> {
+  hydrationInFlight = true;
+  try {
+    await loadWorkspaceSnapshot();
+  } finally {
+    // 无论成功/损坏/异常，恢复流程到此结束——此后才允许落盘
+    finishHydration();
+  }
+}
+
+/** 恢复主体：任何分支都不会抛出（失败即保持空工作区，由首启引导卡接手）。 */
+async function loadWorkspaceSnapshot(): Promise<void> {
   let raw: string | Uint8Array;
   try {
     raw = await getPlatform().fs.readFile(WORKSPACE_FILE);
   } catch {
-    return; // 全新安装（无快照）：空工作区 + 首启引导，不塞演示项目
+    // 全新安装（无快照）：空工作区 + 首启引导，不塞演示项目
+    return;
   }
   try {
     const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);

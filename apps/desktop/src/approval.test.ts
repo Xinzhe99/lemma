@@ -65,4 +65,37 @@ describe('阻塞式审批桥', () => {
     expect((await p).note).toBe('会话已中止');
     expect(rejectPendingApproval('x')).toBe(false);
   });
+
+  // v7.8.0 审计回归：结算后审批卡不能留在面板上「点了也没用」
+  it('自动拒绝（会话中止）时撤下审批卡，不留失效的悬空卡', async () => {
+    const p = requestToolApproval(sampleProposal());
+    const token = getPendingApprovalToken()!;
+    expect(useProposalStore.getState().proposal?.token).toBe(token);
+    rejectPendingApproval('会话已中止或结束，本次修改未生效');
+    await p;
+    expect(useProposalStore.getState().proposal).toBeNull();
+  });
+
+  it('裁决后撤卡；只撤本次结算的卡，无 token 的普通提案不受影响', async () => {
+    const p = requestToolApproval(sampleProposal());
+    const token = getPendingApprovalToken()!;
+    // 结算前用户又触发了另一张（非 agent）提案卡
+    useProposalStore.getState().setProposal({
+      file: 'main.tex',
+      before: 'a',
+      after: 'b',
+      kind: 'polish',
+      label: 'AI 润色',
+      via: '规则润色（离线）',
+    });
+    resolveToolApproval(token, true);
+    await p;
+    expect(useProposalStore.getState().proposal?.label).toBe('AI 润色'); // 未被误清
+
+    const p2 = requestToolApproval(sampleProposal());
+    useProposalStore.getState().setProposal({ ...sampleProposal(), label: '本次', token: getPendingApprovalToken()! });
+    resolveToolApproval(getPendingApprovalToken()!, false);
+    await p2;
+    expect(useProposalStore.getState().proposal).toBeNull(); // 本次的卡已撤下
+  });
 });

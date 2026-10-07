@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CommandPalette } from './commandPalette';
 import { buildCommands } from './commands';
+import { isModalOverlayOpen } from './dialogs';
 import { useT } from './i18n';
 import { applyTheme } from './theme';
 import { initWorkspace, useWorkspaceStore } from './state/workspaceStore';
@@ -45,6 +46,7 @@ import { AgentPanel } from './panels/AgentPanel';
 import { SessionsPanel } from './panels/SessionsPanel';
 import { GitPanel } from './panels/GitPanel';
 import { detectGitAvailability } from './git/gitService';
+import { isMacOSPlatform } from './updater/relaunch';
 import { hydrateAgentSessions, attachAgentSessionPersist } from './state/agentSessionPersist';
 import { attachAutoCompile } from './compileAction';
 import { parseProjectZip } from '@lemma/compile';
@@ -196,12 +198,16 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // v7.8.0：已有模态浮层时不再叠加打开新浮层——命令面板/快速打开 z-index（100/150）
+      // 低于对话框（200），叠开会被对话框遮住却仍抢走键盘输入。判定见 dialogs.isModalOverlayOpen。
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        if (isModalOverlayOpen(false)) return;
         e.preventDefault();
         setPaletteOpen((v) => !v);
         return;
       }
       if (isQuickOpenTrigger(e)) {
+        if (isModalOverlayOpen()) return;
         e.preventDefault();
         setQuickOpenOpen(true);
         return;
@@ -250,29 +256,37 @@ export function App() {
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'h') {
+        // v7.8.0：编辑器/输入区内不拦截——macOS 下 Ctrl+H 是 CodeMirror 的
+        // deleteCharBackward（退格删字符），全局抢键会让 Mac 用户在编辑器里删不掉字
+        const el = e.target instanceof HTMLElement ? e.target : null;
+        if (el?.closest('.cm-content, input, textarea, [contenteditable="true"]')) return;
+        if (isModalOverlayOpen()) return;
         e.preventDefault();
         useUiStore.getState().setHistoryOpen(true);
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        if (isModalOverlayOpen()) return;
         e.preventDefault();
         setSettingsOpen(true);
         return;
       }
       if (e.key === 'Escape' && useUiStore.getState().focusMode) {
-        // D9：Esc 退出专注模式（有任意浮层打开时不抢 Esc）
-        if (!document.querySelector('.sf-dialog-overlay, .palette-overlay')) {
+        // D9：Esc 退出专注模式（有任意浮层打开时不抢 Esc：对话框/命令面板/快速打开/快捷键）
+        if (!document.querySelector('.sf-dialog-overlay, .palette-overlay, .sf-quickopen-overlay, .sf-shortcuts-overlay')) {
           useUiStore.getState().setFocusMode(false);
         }
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        if (isModalOverlayOpen()) return;
         e.preventDefault();
         useUiStore.getState().setSearchPanelOpen(true);
         return;
       }
       // v7.2.0 F1：Ctrl+Shift+H = 搜索替换（打开搜索面板并进入替换模式）
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+        if (isModalOverlayOpen()) return;
         e.preventDefault();
         useUiStore.getState().setSearchPanelOpen(true);
         // SearchPanel 挂载后自动切到替换模式（经 URL hash 传递标记）
@@ -280,6 +294,7 @@ export function App() {
         return;
       }
       if (isShortcutsTrigger(e, e.target)) {
+        if (isModalOverlayOpen()) return;
         e.preventDefault();
         setShortcutsOpen(true);
       }
@@ -448,7 +463,7 @@ export function App() {
       before,
       after,
       kind: 'draft-section',
-      label: `引述：${citekey}（PDF 选中 → 稿件）`,
+      label: t('pdf.quoteLabel', { citekey }),
       via: 'PDF quote',
     });
     // 审批卡渲染在中央 AI 会话区（v5.0.0 布局），无需切换视图
@@ -475,8 +490,8 @@ export function App() {
                 className="tab-action"
                 title={
                   splitEditorTab
-                    ? '关闭分屏'
-                    : '分屏编辑（同时查看两个文件）'
+                    ? t('editor.splitClose')
+                    : t('editor.splitOpen')
                 }
                 onClick={() => {
                   if (splitEditorTab) setSplitEditorTab(null);
@@ -514,7 +529,7 @@ export function App() {
               <select
                 value={splitEditorTab}
                 onChange={(e) => setSplitEditorTab(e.target.value)}
-                aria-label="分屏文件"
+                aria-label={t('editor.splitFile')}
                 style={{ fontSize: 11, padding: '2px 6px', flex: 1, border: '1px solid var(--border)', borderRadius: 4 }}
               >
                 {splitCandidates.map((f) => (
@@ -525,7 +540,7 @@ export function App() {
               </select>
               <button
                 className="sf-link-btn"
-                title="关闭分屏"
+                title={t('editor.splitClose')}
                 onClick={() => setSplitEditorTab(null)}
               >
                 ×
@@ -579,7 +594,7 @@ export function App() {
                 }
               }
               if (all.length === 0) {
-                showToast('没有未处理的批注——先在 PDF 中标注，或经「审阅导入」导入导师批注');
+                showToast(t('toast.noAnnotations'));
                 return;
               }
               const items = all
@@ -682,10 +697,10 @@ export function App() {
           title={t('cmd.manageProjects')}
           onClick={() => useUiStore.getState().setProjectSwitcherOpen(true)}
         >
-          {projectName || '未命名项目'}
+          {projectName || t('tree.untitledProject')}
         </button>
         <button className="palette-trigger" onClick={() => setPaletteOpen(true)}>
-          {t('palette.trigger')} <kbd>⌘K</kbd>
+          {t('palette.trigger')} <kbd>{isMacOSPlatform() ? '⌘K' : 'Ctrl+K'}</kbd>
         </button>
         <div className="topbar-right">
           <span
@@ -843,6 +858,7 @@ function LazyFeatureDialog({
     | 'TikzFigureDialog';
   onClose: () => void;
 }) {
+  const t = useT();
   const modules = import.meta.glob<Record<string, unknown>>(
     './components/{TableEditor,ProjectSwitcher,NewProjectDialog,SearchPanel,ImageWizard,TextDialog,CitationPicker,BackupDialog,StatsDialog,ReviewsImportDialog,ExternalDiffDialog,UsagePanel,PromptLibraryDialog,CollabMergeDialog,CitationSuggest,QuickCiteDialog,HelpPanelDialog,ImageToLatexDialog,TikzFigureDialog}.tsx',
   );
@@ -873,12 +889,12 @@ function LazyFeatureDialog({
       <div className="sf-dialog-overlay" onMouseDown={onClose}>
         <div className="sf-dialog" onMouseDown={(e) => e.stopPropagation()}>
           <div className="sf-dialog-body">
-            <p className="placeholder">组件加载失败（{file}）—— 请确认对应工作流已合入。</p>
+            <p className="placeholder">{t('dlg.loadFailed', { file })}</p>
           </div>
         </div>
       </div>
     );
   }
-  if (!Comp) return <p className="placeholder" style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 200 }}>加载中…</p>;
+  if (!Comp) return <p className="placeholder" style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 200 }}>{t('dlg.loading')}</p>;
   return <Comp onClose={onClose} />;
 }

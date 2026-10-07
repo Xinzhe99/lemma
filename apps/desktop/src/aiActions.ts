@@ -533,6 +533,18 @@ export function abortChat(): void {
   rejectPendingUserAnswer();
 }
 
+/**
+ * 把外部长任务（并行研究等）的 AbortController 接到 chatAbort 上（v7.8.0）：
+ * 这类任务同样把会话置为 streaming，界面上有停止按钮——不接的话按钮点了没反应。
+ * 返回注销函数（任务结束时调用，避免误中止之后的对话）。
+ */
+export function bindChatAbort(ctrl: AbortController): () => void {
+  chatAbort = ctrl;
+  return () => {
+    if (chatAbort === ctrl) chatAbort = null;
+  };
+}
+
 /** v7.0.0 修复（重入）：同步占位——store 的 streaming 要到 sendMessage 才置位，
  * 中间隔着多个 await（上下文构建/附件提取），双发会双流交错且 chatAbort 被覆盖 */
 let sendInFlight = false;
@@ -602,8 +614,19 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
     history = smartTruncateHistory(rawHistory);
   }
   // v7.5.0（RuntimeContext）：注入当前时间/上下文规模/预算用量（有界投影）
+  // v7.8.0 修复（无声失败）：Context Pack 组装要经检索/embedding，可能抛错——
+  // 此前异常直接冒泡成 unhandled rejection（调用方是 void sendChatMessage），
+  // 用户点了发送却什么都不发生、连消息都没有。改为降级：本轮不带 Context Pack
+  // 继续，并在会话里留痕（可行动提示）。
+  let contextMd = '';
+  let preflightNote = '';
+  try {
+    contextMd = await buildContextPackMd(text);
+  } catch (e) {
+    preflightNote = `\n\n> ⚠️ 上下文组装失败（${e instanceof Error ? e.message : String(e)}）：本轮未带项目 Context Pack，仅按基础指令与你当前消息作答。\n`;
+  }
   const system =
-    (await buildContextPackMd(text)) +
+    contextMd +
     CITATION_RULE +
     persona.systemAddendum +
     buildRuntimeContextBlock({
@@ -618,9 +641,14 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
   let attachmentBlocks: string[] = [];
   let attachmentNotes: string[] = [];
   if (files && files.length > 0) {
-    const extracted = await extractAttachmentBlocks(files);
-    attachmentBlocks = extracted.blocks;
-    attachmentNotes = extracted.notes;
+    try {
+      const extracted = await extractAttachmentBlocks(files);
+      attachmentBlocks = extracted.blocks;
+      attachmentNotes = extracted.notes;
+    } catch (e) {
+      // 同上：附件提取整体异常不再吞掉整轮对话，退化为「仅文字 + 提示」
+      attachmentNotes = [`附件提取失败（${e instanceof Error ? e.message : String(e)}），本轮未附带附件内容`];
+    }
   }
   const fileMark = files && files.length > 0 ? `
 [附件：${files.map((f) => f.name).join('、')}]` : '';
@@ -636,6 +664,7 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
 [图片 ×${images.length}]` : ''}${fileMark}`,
     images,
   );
+  if (preflightNote) store().appendDelta(sessionId, preflightNote); // 上下文降级留痕（v7.8.0）
   if (images && images.length > 0 && !resolveProvider().real) {
     store().appendDelta(sessionId, '⚠️ 演示模式不支持图片——请在「设置 → 模型服务」配置多模态模型（如 GLM-4V / gpt-4o / Qwen-VL）后重试。');
     store().finishSession(sessionId, 'idle');
@@ -1192,6 +1221,10 @@ let planAbort: AbortController | null = null;
 export function abortPlan(): void {
   planAbort?.abort();
   planAbort = null;
+  // v7.8.0：与 abortChat 对齐——计划轮里的写级工具正阻塞在审批/提问上时，
+  // 只 abort 信号不会结算它们，PlanCard 会一直转圈到用户手动点卡（看起来像卡死）
+  rejectPendingApproval('计划已中止，本次修改未生效');
+  rejectPendingUserAnswer();
 }
 
 /** 挂起中的 executePlan（按 msgId 去重：批准/重试连点不会并发驱动同一计划） */
@@ -1218,15 +1251,26 @@ export async function runPlannedTask(userRequest: string): Promise<void> {
   if (!sessionId) sessionId = store().newSession('host', useWorkspaceStore.getState().projectName || undefined, t('sessions.newSession', useSettingsStore.getState().language));
   if (store().sessions.find((s) => s.id === sessionId)?.status === 'streaming') return;
 
-  const contextMd = await buildContextPackMd(userRequest);
+  // v7.8.0 修复（无声失败）：同 sendChatMessage——上下文组装抛错时此前整轮规划
+  // 直接冒泡（调用方是 void），用户点「计划模式」后什么都没发生。降级为空上下文继续。
+  let contextMd = '';
+  let preflightNote = '';
+  try {
+    contextMd = await buildContextPackMd(userRequest);
+  } catch (e) {
+    preflightNote = `\n\n> ⚠️ 上下文组装失败（${e instanceof Error ? e.message : String(e)}）：本次规划未带项目 Context Pack。\n`;
+  }
   const system = contextMd + CITATION_RULE;
-  // 与 sendChatMessage 一致：历史取除最近一轮外的 user/assistant 消息
+  // v7.8.0：历史快照必须取「乐观插入之前」的**全部**历史——当前 user 消息尚未入列，
+  // 再 slice(0, -2) 会把上一轮的 user+assistant 一并丢掉（模型隔轮失忆；
+  // sendChatMessageInner 的 v7.0.0 修复即为此，计划轮此前漏改）
   const history = smartTruncateHistory(
-    (store().sessions.find((s) => s.id === sessionId)?.messages ?? [])
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(0, -2),
+    (store().sessions.find((s) => s.id === sessionId)?.messages ?? []).filter(
+      (m) => m.role === 'user' || m.role === 'assistant',
+    ),
   );
   store().sendMessage(sessionId, userRequest.trim());
+  if (preflightNote) store().appendDelta(sessionId, preflightNote); // 上下文降级留痕（v7.8.0）
 
   const { provider, model } = resolveProvider();
   const abort = new AbortController();
@@ -1302,7 +1346,6 @@ export async function executePlan(msgId: string): Promise<void> {
   const store = () => useAgentHubStore.getState();
   store().finishSession(sessionId, 'streaming');
 
-  const system = (await buildContextPackMd(execution.plan.goal)) + CITATION_RULE;
   const { provider, model, real } = resolveProvider();
   const abort = new AbortController();
   planAbort = abort;
@@ -1310,7 +1353,19 @@ export async function executePlan(msgId: string): Promise<void> {
 
   let stopped = false; // 失败/中止后停轮（区别于正常完结）
   let aborted = false;
+  let system = '';
   try {
+    // v7.8.0 修复（计划卡永久卡死）：上下文构建必须在 try 内——它要调 embedding
+    // 检索，可能抛错（模型服务未配/网络失败）；此前它在 try 之外，异常会带着
+    // executingPlans 里的 msgId 与会话 streaming 态逃逸，此后批准/重试全被去重
+    // 挡回、会话永远转圈，只能重启应用。
+    try {
+      system = (await buildContextPackMd(execution.plan.goal)) + CITATION_RULE;
+    } catch (e) {
+      store().appendDelta(sessionId, `\n\n[调用异常] ${friendlyProviderError(e)}（计划未开始执行，可修正后重试）`);
+      store().finishSession(sessionId, 'idle');
+      return;
+    }
     for (;;) {
       const exec = useAgentPlansStore.getState().plans[msgId];
       if (!exec) break; // 计划被清理（新会话等）

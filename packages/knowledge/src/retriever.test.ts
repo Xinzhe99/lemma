@@ -66,4 +66,13 @@ describe('HybridRetriever', () => {
     const hits = r.search({ queryText: 'entanglement experiments' });
     expect(hits[0].id).toBe('c0');
   });
+
+  it('超大索引（15 万块）不因展开参数超限崩溃（v7.8.0）', () => {
+    const r = new HybridRetriever();
+    for (let i = 0; i < 150_000; i++) r.addChunk(chunk(i, 'attention mechanism token sequence'));
+    expect(r.size).toBe(150_000);
+    const hits = r.search({ queryText: 'attention mechanism', k: 3 });
+    expect(hits).toHaveLength(3);
+    expect(hits[0].score).toBeGreaterThan(0);
+  });
 });

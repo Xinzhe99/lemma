@@ -4,13 +4,18 @@ import { useWorkspaceStore, initWorkspace } from './workspaceStore';
 // 持久化写盘改为可控挂起：手动放行以确定性验证 dirty 生命周期（成功回调）。
 // readFile 可控（readState.next）：验证 initWorkspace 的启动恢复语义。
 const pendingWrites = vi.hoisted(() => [] as (() => void)[]);
-const readState = vi.hoisted(() => ({ next: undefined as string | undefined }));
+const readState = vi.hoisted(() => ({
+  next: undefined as string | undefined,
+  /** 置位后 readFile 挂起，直到测试显式放行（模拟慢磁盘/冷 IndexedDB 的启动窗口） */
+  gate: undefined as Promise<void> | undefined,
+}));
 const writeCalls = vi.hoisted(() => [] as Array<{ path: string; content: string }>);
 vi.mock('../platform/types', () => ({
   getPlatform: () => ({
     kind: 'browser' as const,
     fs: {
       async readFile() {
+        if (readState.gate) await readState.gate;
         if (readState.next === undefined) throw new Error('测试环境无快照');
         return readState.next;
       },
@@ -36,6 +41,7 @@ vi.mock('../platform/types', () => ({
 
 function reset() {
   readState.next = undefined;
+  readState.gate = undefined;
   useWorkspaceStore.setState({
     projectName: '',
     entry: '',
@@ -53,6 +59,15 @@ function reset() {
 
 /** 等待防抖（300ms）定时器与微任务链：写盘发起 → 成功回调入队执行 */
 const afterDebounce = () => new Promise((r) => setTimeout(r, 350));
+
+/** 可手动放行的挂起闸门（模拟慢启动读取） */
+function deferred() {
+  let release!: () => void;
+  const promise = new Promise<void>((r) => {
+    release = r;
+  });
+  return { promise, release };
+}
 
 function flushWrites() {
   pendingWrites.splice(0).forEach((resolve) => resolve());
@@ -301,5 +316,82 @@ describe('initWorkspace 启动语义（无 demo fallback）', () => {
     });
     await initWorkspace();
     expect(useWorkspaceStore.getState().projectDir).toBe('D:\\papers\\b');
+  });
+});
+
+describe('启动窗口内的落盘保护（v7.8.0：空快照不得覆盖用户项目）', () => {
+  beforeEach(reset);
+
+  const realSnapshot = () =>
+    JSON.stringify({
+      projectName: '论文A',
+      entry: 'main.tex',
+      files: { 'main.tex': 'user content' },
+      openTabs: ['main.tex'],
+      activeTab: 'main.tex',
+      snapshots: {},
+    });
+
+  it('恢复进行中：用户操作（如 Ctrl+Enter 编译）不触发落盘（否则空项目覆盖磁盘快照）', async () => {
+    readState.next = realSnapshot();
+    await afterDebounce(); // 先让 beforeEach/reset 引发的排程跑完，避免串扰
+    const gate = deferred();
+    readState.gate = gate.promise;
+    writeCalls.length = 0;
+
+    const init = initWorkspace(); // 挂起在 readFile 上（慢磁盘 / 冷 IndexedDB 的真实情形）
+    // 恢复尚未完成时用户按下编译（全局快捷键）→ store 变化
+    useWorkspaceStore.getState().setCompileStatus('running');
+    useWorkspaceStore.getState().appendCompileLog('▶ 编译中');
+
+    await afterDebounce();
+    expect(writeCalls.filter((c) => c.path === 'workspace.json')).toHaveLength(0);
+
+    gate.release();
+    await init;
+    flushWrites();
+    await afterDebounce();
+
+    // 恢复完成后磁盘内容要么没被改写，要么是真实项目——绝不出现空项目
+    for (const w of writeCalls.filter((c) => c.path === 'workspace.json')) {
+      expect(JSON.parse(w.content).projectName).toBe('论文A');
+    }
+  });
+
+  it('恢复完成前排队、完成时已陈旧的写盘任务会被丢弃', async () => {
+    readState.next = realSnapshot();
+    await afterDebounce(); // 同上：清掉 reset 引发的排程
+    const gate = deferred();
+    readState.gate = gate.promise;
+    writeCalls.length = 0;
+
+    const init = initWorkspace();
+    // 恢复前先制造一次变化（排在恢复之前，携带未水合的空快照）
+    useWorkspaceStore.getState().loadDemoProject();
+    await afterDebounce();
+    gate.release();
+    await init;
+
+    await afterDebounce(); // 若陈旧任务未被丢弃，此刻会写盘
+    const staleWrites = writeCalls.filter(
+      (c) => c.path === 'workspace.json' && JSON.parse(c.content).projectName === 'demo-paper',
+    );
+    expect(staleWrites).toHaveLength(0);
+    expect(useWorkspaceStore.getState().projectName).toBe('论文A');
+  });
+
+  it('恢复完成后的正常编辑仍然照常落盘（保护不误伤持久化）', async () => {
+    readState.next = realSnapshot();
+    writeCalls.length = 0;
+    await initWorkspace();
+
+    useWorkspaceStore.getState().updateFile('main.tex', 'edited after hydration');
+    await afterDebounce();
+    flushWrites();
+    await afterDebounce();
+
+    const ws = writeCalls.filter((c) => c.path === 'workspace.json');
+    expect(ws.length).toBeGreaterThan(0);
+    expect(JSON.parse(ws[ws.length - 1]!.content).files['main.tex']).toBe('edited after hydration');
   });
 });

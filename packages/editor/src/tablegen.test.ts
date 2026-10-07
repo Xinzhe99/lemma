@@ -113,6 +113,24 @@ describe('parseTabular', () => {
     ].join('\n');
     expect(parseTabular(code)).toMatchObject({ colspec: 'c', rows: [['first']] });
   });
+
+  it('同一行内写多个 \\\\ 也按多行解析（回归：此前整行并成一个单元格）', () => {
+    expect(parseTabular('\\begin{tabular}{cc}a & b \\\\ c & d\\end{tabular}')).toMatchObject({
+      colspec: 'cc',
+      rows: [
+        ['a', 'b'],
+        ['c', 'd'],
+      ],
+    });
+    // \\[2pt] / \\* 变体同样作为行终止符
+    expect(parseTabular('\\begin{tabular}{c}x \\\\[2pt] y \\\\* z\\end{tabular}')).toMatchObject({
+      rows: [['x'], ['y'], ['z']],
+    });
+    // 单元格内的转义 \% 不误判为终止符
+    expect(parseTabular('\\begin{tabular}{c}50\\% \\\\ a\\_b\\end{tabular}')).toMatchObject({
+      rows: [['50%'], ['a_b']],
+    });
+  });
 });
 
 describe('escapeCell', () => {

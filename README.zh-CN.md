@@ -16,7 +16,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
-[![Tests](https://img.shields.io/badge/tests-2038%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2350%20passing-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [![Star 趋势](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
@@ -31,7 +31,7 @@
 
 | 写作与实时预览 | AI 会话 |
 |:---:|:---:|
-| ![主界面](docs/layout-v6.png) | ![AI 对话](docs/screenshots/tour-ai.png) |
+| ![主界面](docs/screenshots/tour-main.png) | ![AI 对话](docs/screenshots/tour-ai.png) |
 
 ## 🎯 为什么做 Lemma
 
@@ -45,7 +45,7 @@ Lemma 是**为 LaTeX 论文重建的 Codex**：
 | 中间对话、右侧代码 | 编辑器 + **实时 PDF** 并排，右侧 AI 会话 |
 | AI 改代码 → diff 审批 | AI 改稿件 → diff 审批、逐块采纳 |
 | 内置 git 随时回滚 | 内置 git：AI 每次改动自动提交、一键恢复 |
-| agent 调工具 | agent 调 **18 个论文域工具**（读 PDF、联网检索、编译、引用…） |
+| agent 调工具 | agent 调 **19 个论文域工具**（读 PDF、联网检索、编译、引用…） |
 | 闲时更新、重启恢复 | 同款更新体验；重启后会话与项目原地恢复 |
 
 没有番茄钟、没有打卡面板——只有写作、编译、文献和 AI。
@@ -62,7 +62,7 @@ Lemma 是**为 LaTeX 论文重建的 Codex**：
 
 ### 🤖 AI（Lemma 的核心）
 
-agent 可调用 **18 个工具**，最多 50 轮自主执行：
+agent 可调用 **19 个工具**，最多 50 轮自主执行：
 
 | 类别 | 工具 |
 |---|---|
@@ -71,9 +71,11 @@ agent 可调用 **18 个工具**，最多 50 轮自主执行：
 | 改稿 | `tex.edit` / `tex.create_file`——一律走 diff 审批 |
 | 引用 | `citation.add` / `citation.validate`——幻觉 `\cite` 自动标红拦截 |
 | 编译 | `tex.compile` / `tex.last_errors` |
-| 项目 | `project.context` / `read_file` / `find_in_files` / `list_files` |
-| 记忆 | `memory.write`——AI 记住你的写作约定，跨会话生效 |
-| 历史 | `git.log` / `git.show`——AI 能读懂自己的改动历史 |
+| 项目 | `project.context` / `project.read_file` / `project.find_in_files` / `project.list_files` |
+| 记忆与历史 | `memory.write`——AI 记住你的写作约定，跨会话生效；`git.log` / `git.show`——AI 能读懂自己的改动历史 |
+| 投稿与安全 | `submission.checklist`（期刊要求）、`snapshot.create`（写前快照）、`user.ask`（必须由人拍板时的一次结构化提问） |
+
+另有 3 个工具已在注册表中但本形态未接通（`library.search`、`paper.citations`、`figure.render`），调用会返回明确的「未接通」说明。
 
 **输入通道**：文字、🎤 语音（Whisper 纯本地）、📎 图片（多模态）、**任意文件**（拖入 PDF / Word / CSV，内容自动提取注入）。**输出**：稿件修改（走审批）、TikZ 图表（编译预览）、排版视觉检查（✦ AI 查此页）、朗读校对（TTS）。
 
@@ -137,14 +139,15 @@ packages/agent-hub      Agent 中枢（流式 · 工具 · 阻塞审批 · 工�
 packages/knowledge      RAG · Context Pack · 引用护栏
 ```
 
-**工程数据**：2,038 个单元测试（178 文件）· GitHub Actions CI · 中英双语 · 本地优先（IndexedDB，API Key 永不离开本机）。
+**工程数据**：2,350 个单元测试（205 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API Key 永不离开本机）。
 
 ## 🗺 路线图
 
-- [x] v1–v4：编辑器/编译/文献/工作流打底
+- [x] v1–v4：编辑器/编译/文献/工作流打底；v4.2：主 bundle 2006KB → 1375KB（-31%）
 - [x] v5：**Codex 式重构**——会话中心、实时 PDF、内置 git、功能删减
-- [x] v6：图片/语音/文件三通道输入，视觉检查与 TTS 输出，性能优化（启动 -31%）
+- [x] v6：图片/语音/文件三通道输入，视觉检查与 TTS 输出
 - [x] v7：多 agent 深度评审——22 个确认 bug 全修复
+- [x] v7.8：全量缺陷审查（7 路并行）——修复 90+ 项，含数据丢失竞态与 20 个模板中的 11 个（其中 9 个根本无法编译）
 - [ ] 实时多人协同（需要信令服务器）
 - [ ] AI 科研绘图生成
 

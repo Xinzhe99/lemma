@@ -22,7 +22,7 @@ export const thesisPhdLike: TemplateModule = {
     'refs.bib': standardRefsBib,
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：thesis-phd-like
-\documentclass[11pt,oneside]
+\documentclass[11pt,oneside]{book}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}

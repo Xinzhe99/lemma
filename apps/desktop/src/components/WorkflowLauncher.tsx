@@ -115,6 +115,18 @@ export function WorkflowLauncher({ def, presetVars = {}, onSubmit, onCancel }: W
   const language = useSettingsStore((s) => s.language);
   const t = STRINGS[language];
 
+  // Escape 关闭（对齐 Settings/QuickCite 等对话框的统一交互）：等同于「取消」，不启动工作流
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   /** 需要用户填写的变量：preset 中已有非空值的跳过 */
   const missing = useMemo(
     () => def.inputs.filter((k) => presetVars[k] === undefined || presetVars[k] === ''),

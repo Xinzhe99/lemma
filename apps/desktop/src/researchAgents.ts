@@ -16,7 +16,7 @@
  */
 
 import { useAgentHubStore } from '@lemma/agent-hub';
-import { resolveProvider, type ProviderChoice } from './aiActions';
+import { bindChatAbort, resolveProvider, type ProviderChoice } from './aiActions';
 import { buildContextPackMd, runAgentTurn } from './agentTools';
 import { t } from './i18n';
 import { useSettingsStore } from './state/settingsStore';
@@ -144,7 +144,7 @@ export interface ResearchAgentsOptions {
   /** 测试注入：替换 resolveProvider 的结果（生产不传） */
   providerChoice?: ProviderChoice;
   /** 测试注入：替换单题生成函数（生产不传；缺省 = 演示文本 或 runAgentTurn 无工具） */
-  runTurn?: (prompt: string) => Promise<string>;
+  runTurn?: (prompt: string, signal: AbortSignal) => Promise<string>;
 }
 
 /** 失败子任务的中文输出前缀（汇总与结果一致，UI/测试可识别） */
@@ -188,6 +188,11 @@ export async function runResearchAgents(
     }）。\n`,
   );
 
+  // v7.8.0：把中止入口交给停止按钮（chatAbort）——并行研究同样把会话置为
+  // streaming，此前停止按钮点了不生效，长任务只能干等
+  const abort = new AbortController();
+  const unbindAbort = bindChatAbort(abort);
+
   // 共享上下文只组一次（真实模式才需要；组装失败不阻塞研究，回退为空）
   let sharedContext = '';
   if (choice.real) {
@@ -203,7 +208,7 @@ export async function runResearchAgents(
     const startedAt = Date.now();
     // 单题生成：真实模式 runAgentTurn（无工具）；演示模式每题一份预制演示文本
     const output = opts.runTurn
-      ? await opts.runTurn(prompt)
+      ? await opts.runTurn(prompt, abort.signal)
       : choice.real
         ? await runAgentTurn({
             provider: choice.provider,
@@ -212,6 +217,7 @@ export async function runResearchAgents(
             history: [],
             user: prompt,
             tools: [], // 研究子代理无工具：纯检索式问答，避免写级审批阻塞并行
+            signal: abort.signal, // v7.8.0：停止按钮可中止
           })
         : buildDemoResearchOutput(topic); // 失败不抛（同步生成）；真实模式的异常由下方统一处理
     const latencyMs = Date.now() - startedAt;
@@ -241,6 +247,9 @@ export async function runResearchAgents(
     choice.real ? '' : '> 以上为演示模式的内置示例数据；配置模型服务后重跑即为真实并行生成。\n',
   ].join('\n');
   store().appendDelta(sessionId, summary);
+  // v7.8.0：用户中止过则如实标注（未完成的子任务以失败说明列出）
+  if (abort.signal.aborted) store().appendDelta(sessionId, '\n⏹️ 并行研究已中止（已完成的子任务产出见上方汇总）。\n');
   store().finishSession(sessionId, 'idle');
+  unbindAbort();
   return results;
 }

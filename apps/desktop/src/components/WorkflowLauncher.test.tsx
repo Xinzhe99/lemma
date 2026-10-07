@@ -141,6 +141,15 @@ afterEach(() => {
 });
 
 describe('WorkflowLauncher · 流程与提示词区块', () => {
+  it('Esc 等同取消：回调 onCancel，不提交', async () => {
+    await mount();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('默认折叠；展开后每步展示序号/id/modelTier/checkpoint/dependsOn 与原文 prompt', async () => {
     await mount();
     const details = query('details[data-wf-steps]') as HTMLDetailsElement;

@@ -35,6 +35,18 @@ interface IndexedChunk {
   len: number;
 }
 
+/**
+ * 归一化用的 BM25 最大值（下限 0）。
+ * 不用 Math.max(...scores)：十万级块的大库会因展开参数超过引擎上限抛 RangeError（整次检索崩）。
+ */
+function maxScore(scores: number[]): number {
+  let max = 0;
+  for (const s of scores) {
+    if (s > max) max = s;
+  }
+  return max;
+}
+
 export interface SearchParams {
   queryVector?: number[];
   queryText: string;
@@ -66,7 +78,7 @@ export class HybridRetriever {
     if (!hasVectorSide && !hasTextSide) return [];
 
     const bm25Raw = hasTextSide ? this.bm25Scores(queryTokens) : null;
-    const bm25Max = bm25Raw ? Math.max(...bm25Raw.filter((s) => s > 0), 0) : 0;
+    const bm25Max = bm25Raw ? maxScore(bm25Raw) : 0;
 
     const scored = this.docs.map((d, i) => {
       let score = 0;

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineMessages, getDict, t } from './i18n';
 
 /** 允许只有 zh 的例外：语言自称（简体中文）与故意验证回退的产品代号 */
@@ -80,5 +83,38 @@ describe('i18n', () => {
     expect(local['notes.testKey']!.zh).toBe('测试笔记');
     expect(t('notes.testKey', 'en')).toBe('Test note');
     expect(t('nav.files', 'en')).toBe('Files'); // 壳内字典优先，未被覆盖
+  });
+
+  it('源码中 t(\'key\') 字面量必须存在于字典（防拼错键名渲染成原始 key）', () => {
+    const srcDir = dirname(fileURLToPath(import.meta.url));
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) files.push(p);
+      }
+    };
+    for (const sub of ['components', 'panels']) {
+      const dir = join(srcDir, sub);
+      if (existsSync(dir)) walk(dir);
+    }
+    for (const f of ['App.tsx', 'commandPalette.tsx']) {
+      const p = join(srcDir, f);
+      if (existsSync(p)) files.push(p);
+    }
+    expect(files.length).toBeGreaterThan(20);
+
+    const dict = getDict();
+    const missing: string[] = [];
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8');
+      src.split(/\r?\n/).forEach((line, i) => {
+        for (const m of line.matchAll(/\b(?:t|tr)\(\s*'([^']+)'/g)) {
+          if (!dict[m[1]!]) missing.push(`${relative(srcDir, file)}:${i + 1} → ${m[1]}`);
+        }
+      });
+    }
+    expect(missing).toEqual([]);
   });
 });

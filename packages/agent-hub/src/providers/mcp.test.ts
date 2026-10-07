@@ -96,6 +96,19 @@ function makeMockServer() {
       if (params.name === 'demo.raw') {
         return { jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: '纯文本结果' }] } };
       }
+      if (params.name === 'demo.multi') {
+        // 多块文本结果（v7.8.0：此前只返回第一块）
+        return {
+          jsonrpc: '2.0',
+          id: m.id,
+          result: {
+            content: [
+              { type: 'text', text: '第一块' },
+              { type: 'text', text: '第二块' },
+            ],
+          },
+        };
+      }
       return { jsonrpc: '2.0', id: m.id, error: { code: -32602, message: `未知工具 ${params.name}` } };
     }
     return { jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'method not found' } };
@@ -129,6 +142,8 @@ describe('connectMcp 握手与工具调用', () => {
     await expect(session.callTool('demo.echo', { x: '1' })).resolves.toEqual({ echo: { x: '1' } });
     // 非 JSON 文本结果保持字符串
     await expect(session.callTool('demo.raw', {})).resolves.toBe('纯文本结果');
+    // 多块文本结果合并返回（v7.8.0：此前静默丢弃第一块之后的内容）
+    await expect(session.callTool('demo.multi', {})).resolves.toBe('第一块\n第二块');
     // 服务端错误 → reject
     await expect(session.callTool('demo.missing', {})).rejects.toThrow(/MCP 错误 -32602/);
 

@@ -1,9 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildCommands, type CommandContext } from './commands';
 import { PALETTE_GROUP_ORDER } from './commandPalette';
 import { t } from './i18n';
+import { useSettingsStore } from './state/settingsStore';
 import { useUiStore } from './state/uiStore';
 import { useWorkspaceStore } from './state/workspaceStore';
+
+/** TTS 桥替身：朗读文本可直接断言（latexToSpeakable 取原文，便于检查小节边界） */
+const tts = vi.hoisted(() => ({
+  speak: vi.fn((_text: string, _lang?: 'zh' | 'en') => true),
+  stop: vi.fn(),
+}));
+vi.mock('./tts', () => ({
+  ttsSupported: () => true,
+  speak: tts.speak,
+  stopTts: tts.stop,
+  latexToSpeakable: (s: string) => s,
+}));
 
 const ctx: CommandContext = {
   t: (key, vars) => t(key, 'en', vars),
@@ -117,6 +130,69 @@ describe('buildCommands', () => {
     expect(useWorkspaceStore.getState().files['sections/notes-new.tex']).toBe('');
     expect(toasts.some((m) => m.includes('sections/notes-new.tex'))).toBe(true);
     useUiStore.getState().closeTextDialog();
+  });
+
+  it('bib.healthCheck 的报告 toast 跟随界面语言（v7.8.0：此前整段写死中文）', async () => {
+    const prevLang = useSettingsStore.getState().language;
+    const prevFiles = useWorkspaceStore.getState().files;
+    useSettingsStore.setState({ language: 'en' });
+    useWorkspaceStore.setState({
+      files: {
+        'main.tex': 'We cite \\cite{ghost2024}.',
+        'refs.bib': '@misc{real, title={T}, author={A}, year={2020}}',
+      },
+    });
+    try {
+      const toasts: string[] = [];
+      const cmd = buildCommands({ ...ctx, toast: (m) => toasts.push(m) }).find(
+        (c) => c.id === 'bib.healthCheck',
+      )!;
+      cmd.run?.();
+      await vi.waitFor(() => expect(toasts).toHaveLength(1));
+      expect(toasts[0]).toContain('Dangling citations');
+      expect(toasts[0]).toContain('ghost2024');
+      expect(toasts[0]).not.toMatch(/[\u4e00-\u9fff]/); // 英文界面下无中文残留
+    } finally {
+      useSettingsStore.setState({ language: prevLang });
+      useWorkspaceStore.setState({ files: prevFiles });
+    }
+  });
+
+  it('edit.readAloud 的小节边界含星号标题（v7.8.0：\\section* 曾不被当作边界，越过小节朗读）', async () => {
+    const prevLang = useSettingsStore.getState().language;
+    const prevState = useWorkspaceStore.getState();
+    useSettingsStore.setState({ language: 'zh' });
+    useWorkspaceStore.setState({
+      files: {
+        'main.tex': [
+          '\\section{Alpha}', // 1（光标默认在第 1 行 → 起始小节）
+          'alpha text', // 2
+          '\\section*{Notes}', // 3 ← 边界（不编号小节）
+          'notes text', // 4
+          '\\section{Beta}', // 5
+          'beta text', // 6
+        ].join('\n'),
+      },
+      activeTab: 'main.tex',
+      openTabs: ['main.tex'],
+    });
+    tts.speak.mockClear();
+    try {
+      const toasts: string[] = [];
+      const cmd = buildCommands({ ...ctx, toast: (m) => toasts.push(m) }).find(
+        (c) => c.id === 'edit.readAloud',
+      )!;
+      cmd.run?.();
+      await vi.waitFor(() => expect(toasts).toHaveLength(1));
+      expect(toasts[0]).toContain('第 1-2 行'); // 读到 \section*{Notes} 之前
+      const spoken = String(tts.speak.mock.calls[0]?.[0] ?? '');
+      expect(spoken).toContain('alpha text');
+      expect(spoken).not.toContain('notes text');
+      expect(spoken).not.toContain('beta text');
+    } finally {
+      useSettingsStore.setState({ language: prevLang });
+      useWorkspaceStore.setState({ files: prevState.files, activeTab: prevState.activeTab });
+    }
   });
 });
 

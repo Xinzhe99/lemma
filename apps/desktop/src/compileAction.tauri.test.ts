@@ -357,4 +357,32 @@ describe('Tauri 编译：日志标签与实际启动的引擎一致', () => {
     expect(log).toContain('编译中止');
     expect(log).not.toContain('模拟引擎');
   });
+
+  it('偏好引擎不可用的回落提示跟随界面语言（en 下不再写死中文；v7.8.0 修复）', async () => {
+    useSettingsStore.setState({ enginePreference: 'xelatex', language: 'en' });
+    const ranCmds: string[] = [];
+    installSingleEngineBridge('pdflatex', ranCmds);
+    seedProject();
+    try {
+      const result = await runCompile();
+      expect(result.ok).toBe(true);
+      const log = useWorkspaceStore.getState().compileLog.join('\n');
+      expect(log).toContain('Preferred engine xelatex is unavailable');
+      expect(log).not.toContain('偏好引擎');
+    } finally {
+      useSettingsStore.setState({ language: 'zh' });
+    }
+  });
+
+  it('zh 界面下回落提示为中文原文', async () => {
+    useSettingsStore.setState({ enginePreference: 'xelatex', language: 'zh' });
+    const ranCmds: string[] = [];
+    installSingleEngineBridge('pdflatex', ranCmds);
+    seedProject();
+    const result = await runCompile();
+    expect(result.ok).toBe(true);
+    const log = useWorkspaceStore.getState().compileLog.join('\n');
+    expect(log).toContain('偏好引擎 xelatex 不可用');
+    expect(log).toContain('pdfLaTeX');
+  });
 });

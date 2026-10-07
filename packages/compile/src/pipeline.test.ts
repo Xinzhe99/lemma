@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommandRunner, CompileInput } from './engine';
-import { MockEngine } from './engine';
+import { LatexmkEngine, MockEngine } from './engine';
 import { runFullCompile } from './pipeline';
 
 const RERUN_LOG = 'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.';
@@ -98,5 +98,46 @@ describe('runFullCompile', () => {
     const res = await runFullCompile(noBibInput, engine, makeRunner().runner);
     expect(res.passes).toBe(2);
     expect(res.diagnostics).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 真实日志驱动（诊断来自 log 解析而非引擎注入）：验证收敛后的陈旧警告清理
+// ---------------------------------------------------------------------------
+
+/** 依次返回给定日志的 runner（超出后重复最后一项） */
+function logRunner(logs: string[]) {
+  let i = 0;
+  const runner: CommandRunner = {
+    async run() {
+      return { code: 0, stdout: logs[Math.min(i++, logs.length - 1)] ?? '', stderr: '' };
+    },
+  };
+  return runner;
+}
+
+describe('runFullCompile：收敛后的陈旧重跑提示（v7.8.0）', () => {
+  it('bibtex 前那趟的 Citation undefined 不再残留（最终日志已收敛）', async () => {
+    const engine = new LatexmkEngine();
+    const res = await runFullCompile(noBibInput, engine, logRunner([CITATION_LOG, '']));
+    expect(res.passes).toBe(2);
+    expect(res.success).toBe(true);
+    expect(res.diagnostics).toEqual([]);
+  });
+
+  it('最终日志仍提示重跑时保留这些警告（不误删）', async () => {
+    const engine = new LatexmkEngine();
+    const res = await runFullCompile(noBibInput, engine, logRunner([CITATION_LOG]));
+    expect(res.passes).toBe(4);
+    expect(res.diagnostics).toHaveLength(1); // 去重后仅一条
+    expect(res.diagnostics[0]!.message).toContain('knuth84');
+  });
+
+  it('非重跑类诊断（Overfull）不受过滤影响', async () => {
+    const overfull = 'Overfull \\hbox (28.45pt too wide) in paragraph at lines 34--40';
+    const engine = new LatexmkEngine();
+    const res = await runFullCompile(noBibInput, engine, logRunner([`${overfull}\n${CITATION_LOG}`, overfull]));
+    expect(res.passes).toBe(2);
+    expect(res.diagnostics.map((d) => d.message)).toEqual([overfull]);
   });
 });

@@ -44,8 +44,11 @@ export function envAutoCloseExtension(): Extension {
 
         const env = m[1]!;
         if (SKIP_ENVS.has(env)) return false;
-        // 只在首个未闭合的同名环境时触发（嵌套场景让用户手控）
-        if (openCount(before, env) !== 1) return false;
+        // 只在首个未闭合的同名环境时触发（嵌套场景让用户手控）。
+        // 注意 before 里当前这个 \begin{env 尚未带 `}`，不计入 openCount：
+        // 计数为 0 才是「首次」。v7.8.0 修复：此前写作 !== 1，导致
+        // 常规场景（计数 0）永不触发、嵌套场景（计数 1）反而误插 \end。
+        if (openCount(before, env) !== 0) return false;
 
         // `}` 闭合 begin，空行放内容，\end 自动补，光标在空行上
         view.dispatch({

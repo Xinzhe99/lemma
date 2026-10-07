@@ -59,6 +59,15 @@ describe('scanTodos', () => {
     expect(countTodos(multi)).toBe(scanTodos(multi).length);
   });
 
+  it('前一个文件打满单文件上限后，后续文件仍被扫描（v7.8.0 修复：此前整批丢失）', () => {
+    const many = Array.from({ length: PER_FILE_LIMIT + 5 }, (_, i) => `% TODO: t${i}`).join('\n');
+    const out = scanTodos({ 'a.tex': many, 'z.tex': '% TODO: 最后一份文件的待办也要收进来' });
+    expect(out.filter((t) => t.file === 'a.tex')).toHaveLength(PER_FILE_LIMIT);
+    expect(out.filter((t) => t.file === 'z.tex')).toEqual([
+      { file: 'z.tex', line: 1, kind: 'todo', text: '最后一份文件的待办也要收进来' },
+    ]);
+  });
+
   it('空工程 → 空列表', () => {
     expect(scanTodos({})).toEqual([]);
   });

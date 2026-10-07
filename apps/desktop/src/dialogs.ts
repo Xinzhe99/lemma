@@ -28,3 +28,16 @@ export function confirmDialog(title: string, confirmText?: string): Promise<bool
 export function promptDialog(title: string, initial?: string): Promise<string | null> {
   return askText({ title, mode: 'prompt', initial });
 }
+
+/** 模态浮层选择器（styles.css 的 z-index 分层）：对话框 200 / 快捷键 210 / 快速打开 150 / 命令面板 100 */
+export const MODAL_OVERLAY_SELECTOR = '.sf-dialog-overlay, .sf-quickopen-overlay, .sf-shortcuts-overlay';
+
+/**
+ * 是否已有模态浮层打开。命令面板（100）与快速打开（150）层级低于对话框（200）：
+ * 叠开会被对话框遮住，却仍会抢走键盘输入（用户以为「没反应」，实际输入落进看不见的浮层，
+ * Enter 还可能执行命令）。故打开新浮层前先判定。
+ * includePalette=false 用于命令面板自身的开关：面板开着时仍可再按一次关闭。
+ */
+export function isModalOverlayOpen(includePalette = true, root: ParentNode = document): boolean {
+  return root.querySelector(`${MODAL_OVERLAY_SELECTOR}${includePalette ? ', .palette-overlay' : ''}`) !== null;
+}

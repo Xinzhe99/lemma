@@ -8,7 +8,7 @@
  * 入口：编辑器工具条「引用建议」按钮（EditorArea actions 或 selbar）。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useLibraryStore, type CitedRetrievedChunk } from '../state/libraryStore';
@@ -31,6 +31,7 @@ const STRINGS = {
     desc: '基于当前段落内容，从你的文献库检索相关文献：',
     empty: '没有找到相关文献（库为空或当前段落太短）',
     insert: (key: string) => `插入 \\cite{${key}}`,
+    insertLabel: (key: string) => `插入引用建议：${key}`,
     busy: '检索中…',
     score: (s: number) => `相关度 ${(s * 100).toFixed(0)}%`,
     needTex: '请先在编辑器打开一个 .tex 文件',
@@ -41,6 +42,7 @@ const STRINGS = {
     desc: 'Based on the current paragraph, from your library:',
     empty: 'No relevant papers found (empty library or paragraph too short)',
     insert: (key: string) => `Insert \\cite{${key}}`,
+    insertLabel: (key: string) => `Insert citation suggestion: ${key}`,
     busy: 'Searching…',
     score: (s: number) => `Relevance ${(s * 100).toFixed(0)}%`,
     needTex: 'Open a .tex file in the editor first',
@@ -78,6 +80,18 @@ export function CitationSuggest({ onClose }: { onClose: () => void }) {
   const papers = useLibraryStore((s) => s.papers);
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestedPaper[] | null>(null);
+
+  // Escape 关闭（对齐 Settings/QuickCite 等对话框的统一交互）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const runSuggest = async (): Promise<void> => {
     const ws = useWorkspaceStore.getState();
@@ -119,8 +133,8 @@ export function CitationSuggest({ onClose }: { onClose: () => void }) {
       before,
       after,
       kind: 'add-citation',
-      label: `插入引用建议：${citekey}`,
-      via: 'TF-IDF 检索',
+      label: L.insertLabel(citekey),
+      via: 'TF-IDF',
     });
     onClose();
   };
