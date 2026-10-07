@@ -16,7 +16,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
-[![Tests](https://img.shields.io/badge/tests-2350%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2354%20passing-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [![Star 趋势](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)

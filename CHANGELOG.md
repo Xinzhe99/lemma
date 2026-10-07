@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [7.9.5] - 2026-10-08
+
+### Fixed（点击 PDF 凭空创建空的 main.tex——用户实测报告）
+
+- **SyncTeX 反查路径与工作区键不一致**：桌面版真实编译在物化目录执行，synctex 记录的输入文件是**绝对路径**（或带 `./` 前缀/反斜杠）；点击 PDF 反查返回该路径后直接 `openFile`，与工作区键（项目相对路径）不匹配 → 开出一个内容为空的同名新标签（标签名截断后恰好叫 main.tex，用户看到「凭空多出空的 main.tex」）
+- 修复：`synctexBridge.jumpPdfToSource` 先经 `resolveToWorkspaceFile` 解析回工作区键（精确 → 归一化反斜杠与 `./` → 相对后缀唯一匹配 → basename 唯一匹配）；**解析不到（不属于当前项目的历史索引）就不跳转**，绝不开空标签
+- 新增 `editorJump.resolveToWorkspaceFile` 纯函数；editorJump/synctexBridge 测试补 4 项（绝对路径反斜杠与正斜杠 / 陌生路径不跳 / 解析矩阵）
+
 ## [7.9.4] - 2026-10-08
 
 ### Removed（功能下线：提示词库）
