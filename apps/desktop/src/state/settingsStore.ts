@@ -69,6 +69,8 @@ export interface SettingsState {
   embeddingModel: string;
   /** v5.8.0 语音输入：undefined=关闭；'auto'/'zh'/'en' */
   speechLanguage?: 'auto' | 'zh' | 'en';
+  /** v7.4.0 C：单会话 token 预算（0 = 不限） */
+  sessionBudgetTokens: number;
   theme: Theme;
   language: Language;
   addProvider(input: ProviderInput): void;
@@ -105,6 +107,7 @@ interface PersistedSettings {
   activeProviderId: string | null;
   embeddingModel: string;
   speechLanguage?: 'auto' | 'zh' | 'en';
+  sessionBudgetTokens?: number;
   theme: Theme;
   language: Language;
   agentEngine: AgentEngine;
@@ -127,6 +130,7 @@ function readPersisted(): PersistedSettings | null {
       activeProviderId: typeof v.activeProviderId === 'string' ? v.activeProviderId : null,
       embeddingModel: typeof v.embeddingModel === 'string' ? v.embeddingModel : '',
       speechLanguage: v.speechLanguage === 'auto' || v.speechLanguage === 'zh' || v.speechLanguage === 'en' ? v.speechLanguage : undefined,
+      sessionBudgetTokens: typeof v.sessionBudgetTokens === 'number' && v.sessionBudgetTokens >= 0 ? v.sessionBudgetTokens : 0,
       // 亮色为默认主题；仅显式持久化过 'dark' 才回落暗色
       theme: v.theme === 'dark' ? 'dark' : 'light',
       language: v.language === 'en' ? 'en' : 'zh',
@@ -157,6 +161,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   embeddingModel: initial?.embeddingModel ?? '',
     // v7.0.0 修复：消费 persisted 值（此前硬编码 auto，语言偏好永不跨重启）
     speechLanguage: initial?.speechLanguage ?? 'auto',
+    sessionBudgetTokens: initial?.sessionBudgetTokens ?? 0,
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',
@@ -247,6 +252,7 @@ useSettingsStore.subscribe((s) => {
         livePreview: s.livePreview,
         // v7.0.0 修复：写侧此前遗漏该字段
         speechLanguage: s.speechLanguage,
+        sessionBudgetTokens: s.sessionBudgetTokens,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }

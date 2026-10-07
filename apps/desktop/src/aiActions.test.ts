@@ -529,7 +529,7 @@ describe('计划模式 · executePlan（逐步执行）', () => {
         if (lastUser.includes('（s1）')) {
           return new Response(new TextEncoder().encode(sseOfText('检索完成')), { status: 200 });
         }
-        return new Response('server error', { status: 500 }); // s2 起接口 500
+        return new Response('server error', { status: 401 }); // 401（永久）不触发 v7.4.0 自动重试
       }) as unknown as typeof fetch,
     );
 
@@ -560,7 +560,7 @@ describe('计划模式 · executePlan（逐步执行）', () => {
         if (lastUser.includes('（s1）')) {
           return new Response(new TextEncoder().encode(sseOfText('检索完成')), { status: 200 });
         }
-        if (lastUser.includes('（s2）')) return new Response('err', { status: 500 });
+        if (lastUser.includes('（s2）')) return new Response('err', { status: 401 }); // 401（永久错误）不触发 v7.4.0 自动重试
         return new Response(new TextEncoder().encode(sseOfText('编译通过 8.9 页')), { status: 200 });
       }) as unknown as typeof fetch,
     );
@@ -595,7 +595,7 @@ describe('计划模式 · executePlan（逐步执行）', () => {
         if (lastUser.includes('（s2）')) {
           if (s2Fails) {
             s2Fails = false;
-            return new Response('err', { status: 500 });
+            return new Response('err', { status: 401 }); // 401（永久错误）不触发 v7.4.0 自动重试
           }
           return new Response(new TextEncoder().encode(sseOfText('重试成功，diff 生成')), { status: 200 });
         }

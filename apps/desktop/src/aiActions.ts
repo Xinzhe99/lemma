@@ -453,6 +453,23 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
   const session = store().sessions.find((s) => s.id === sessionId);
   if (session?.status === 'streaming') return;
 
+  // v7.4.0 C：会话 token 预算检查（0 = 不限）
+  const budget = useSettingsStore.getState().sessionBudgetTokens;
+  if (budget > 0 && session) {
+    const used = session.messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 2), 0);
+    if (used >= budget) {
+      store().sendMessage(sessionId, text);
+      store().appendDelta(
+        sessionId,
+        `
+
+⚠️ **会话预算已用完**：本会话已消耗约 ${used} token（上限 ${budget}）。请新建会话继续，或在设置中调高「会话 token 预算」。`,
+      );
+      store().finishSession(sessionId, 'idle');
+      return;
+    }
+  }
+
   // v3.9.0 A：AI 角色注入——不同角色有不同的行为方式
   const persona = getPersona(useSettingsStore.getState().aiPersona);
   const system = (await buildContextPackMd(text)) + CITATION_RULE + persona.systemAddendum;

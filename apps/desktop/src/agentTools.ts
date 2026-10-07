@@ -28,6 +28,7 @@ import { requestToolApproval, type ApprovalFn } from './approval';
 import { resolveCompileEntry, runCompile } from './compileAction';
 import { queueSourceGoto } from './synctexBridge';
 import { scheduleAutoCommit } from './git/gitService';
+import { withTransientRetry, isTransientError } from './retryPolicy';
 import { applyUnifiedDiff } from './diffApply';
 import { findVenueProfile, listVenueNames } from './submission/venues';
 
@@ -575,6 +576,10 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
   const maxToolRounds = opts.maxToolRounds ?? 50;
   const executor = createAppToolExecutor(opts.approval);
 
+  // v7.4.0：瞬态重试计数（跨轮保持——连续失败共享预算）
+  let transientRetryCount = 0;
+  const MAX_TRANSIENT_RETRIES = 3;
+
   const messages: AgentMessage[] = [
     { id: 'sys', role: 'system', content: system, createdAt: Date.now() },
     ...history,
@@ -597,15 +602,57 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
     if (signal?.aborted) {
       return finalText || '（已停止）';
     }
-    for await (const ev of provider.complete({ messages, model, tools, signal })) {
-      if (ev.type === 'text-delta') {
-        roundText += ev.delta;
-        opts.onDelta?.(ev.delta);
-      } else if (ev.type === 'tool-call') {
-        toolCalls.push(ev.call);
-      } else if (ev.type === 'error') {
-        throw new Error(ev.message);
+    // v7.4.0 A：瞬态错误自动重试（1s→2s→4s 退避，最多 3 次；永久错误不重试）
+    // 流式 iterator 不可直接 retry（部分 delta 已消费），改为整轮 provider.complete 重试
+    let streamError: Error | null = null;
+    if (transientRetryCount < MAX_TRANSIENT_RETRIES) {
+      try {
+        for await (const ev of provider.complete({ messages, model, tools, signal })) {
+          if (ev.type === 'text-delta') {
+            roundText += ev.delta;
+            opts.onDelta?.(ev.delta);
+          } else if (ev.type === 'tool-call') {
+            toolCalls.push(ev.call);
+          } else if (ev.type === 'error') {
+            throw new Error(ev.message);
+          }
+        }
+        streamError = null;
+      } catch (e) {
+        if (signal?.aborted) throw e;
+        if (isTransientError(e) && transientRetryCount < MAX_TRANSIENT_RETRIES) {
+          transientRetryCount++;
+          const delay = Math.min(1000 * Math.pow(2, transientRetryCount - 1), 8000);
+          roundText = ''; // 丢弃部分 delta，整轮重试
+          toolCalls.length = 0;
+          await new Promise<void>((r) => setTimeout(r, delay));
+          round--; // 重试本轮（外层 for 会 round++）
+          continue; // 跳过本轮后续（工具执行等）
+        }
+        streamError = e instanceof Error ? e : new Error(String(e));
       }
+    } else {
+      // 重试预算已耗尽：直接消费流（错误自然抛出）
+      for await (const ev of provider.complete({ messages, model, tools, signal })) {
+        if (ev.type === 'text-delta') {
+          roundText += ev.delta;
+          opts.onDelta?.(ev.delta);
+        } else if (ev.type === 'tool-call') {
+          toolCalls.push(ev.call);
+        } else if (ev.type === 'error') {
+          throw new Error(ev.message);
+        }
+      }
+    }
+    if (streamError) {
+      // v7.4.0 B：工具调用中断恢复——仅在本轮已有工具调用时注入恢复说明
+      // （模型可能已看到部分工具执行，重启后需检查状态再决策）；纯模型失败透传原始错误
+      if (streamError instanceof Error && signal?.aborted !== true && messages.some((m) => m.role === 'tool')) {
+        throw new Error(
+          `模型请求中断（${streamError.message}）。已执行的工具可能已部分或全部完成，请检查当前文件状态后再决定是否重试。`,
+        );
+      }
+      throw streamError;
     }
 
     finalText = roundText || finalText;
