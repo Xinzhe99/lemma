@@ -2,7 +2,7 @@
 /**
  * LibraryPanel「RIS 导入入口」测试。测试环境说明同 ProjectSwitcher.test.tsx：
  * mock zustand 为仅依赖本包 react@18 的等价实现。覆盖验收路径：
- *  - 条目模式工具栏出现「RIS」按钮（BibTeX 旁），点击打开粘贴对话框；
+ *  - 「RIS」入口收进「导入文献」对话框（粘贴导入区，BibTeX 旁），点击打开粘贴对话框；
  *  - 粘贴合法 RIS → 导入 → 入库（空 citekey 补 key：generateCitekey 消歧）并显示「导入 N 条 / 错误 M 条」；
  *  - RIS 内 ID 标签提供的 citekey 原样保留；与库内重复的条目计为错误；
  *  - 坏 RIS（缺 TY / 缺 TI）→ 导入 0 条并显示错误计数；关闭对话框不回归。
@@ -96,6 +96,8 @@ function typeInto(textarea: HTMLTextAreaElement, value: string) {
 }
 
 function openRisDialog(): HTMLTextAreaElement {
+  // v7.6.0：RIS 入口收进「导入文献」对话框（粘贴导入区），先开容器再点 RIS
+  click(btn('导入文献'));
   click(btn('RIS'));
   const textarea = container!.querySelector<HTMLTextAreaElement>('.sf-lib-textarea');
   if (!textarea) throw new Error('RIS textarea not found');
@@ -125,13 +127,23 @@ afterEach(() => {
 });
 
 describe('LibraryPanel · RIS 导入入口', () => {
-  it('条目模式工具栏在 BibTeX 旁渲染「RIS」按钮，点击打开与 BibTeX 同款粘贴对话框', () => {
+  it('条目模式工具栏收进「导入文献」，RIS 入口在粘贴导入区，点击打开与 BibTeX 同款粘贴对话框', () => {
     const buttons = [...container!.querySelectorAll<HTMLButtonElement>('.sf-lib-toolbar button')].map(
       (b) => b.textContent?.trim(),
     );
-    expect(buttons).toContain('BibTeX');
-    expect(buttons!.indexOf('RIS')).toBeGreaterThan(0);
-    expect(buttons!.indexOf('RIS')).toBeLessThan(buttons!.indexOf('DOI/arXiv'));
+    // 工具栏只留高频操作：搜索 + 筛选 + 导入文献，RIS/BibTeX 不再直接出现在工具栏
+    expect(buttons).toContain('导入文献');
+    expect(buttons).not.toContain('RIS');
+    expect(buttons).not.toContain('BibTeX');
+
+    click(btn('导入文献'));
+    const hub = container!.querySelector('.sf-lib-import');
+    expect(hub).toBeTruthy();
+    const hubButtons = [...hub!.querySelectorAll<HTMLButtonElement>('button')].map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(hubButtons).toContain('BibTeX');
+    expect(hubButtons!.indexOf('RIS')).toBeGreaterThan(hubButtons!.indexOf('BibTeX'));
 
     click(btn('RIS'));
     expect(container!.querySelector('.sf-lib-dialog')).toBeTruthy();

@@ -142,9 +142,10 @@ describe('AgentPanel 激活引导卡 · 渲染条件', () => {
 
     const select = card!.querySelector('select')!;
     expect(select.value).toBe('deepseek'); // 预选推荐档，用户只需贴 Key
-    const link = card!.querySelector<HTMLAnchorElement>('a[target="_blank"]');
-    expect(link!.href).toBe('https://platform.deepseek.com/api_keys');
-    expect(link!.rel).toContain('noreferrer');
+    // v7.6.0：外链改经 openExternal（WebView 内 target=_blank 打不开系统浏览器）
+    const link = card!.querySelector<HTMLAnchorElement>('a[href="https://platform.deepseek.com/api_keys"]');
+    expect(link).toBeTruthy();
+    expect(link!.textContent).toContain('去获取 Key');
 
     expect(btn('保存并激活').disabled).toBe(true); // 未填 Key 不可保存
   });
@@ -207,8 +208,8 @@ describe('AgentPanel 激活引导卡 · 快速配置闭环', () => {
     renderPanel();
 
     choose(container!.querySelector('.sf-agent-activate select')!, 'zhipu-glm');
-    const link = container!.querySelector<HTMLAnchorElement>('.sf-agent-activate a[target="_blank"]');
-    expect(link!.href).toContain('bigmodel.cn');
+    const link = container!.querySelector<HTMLAnchorElement>('.sf-agent-activate a[href*="bigmodel.cn"]');
+    expect(link).toBeTruthy();
 
     type(cardInput(), 'sk-glm');
     await act(async () => {

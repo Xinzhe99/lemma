@@ -55,6 +55,8 @@ import { scheduleAutoCommit } from '../git/gitService';
 import { PlanCard } from '../components/PlanCard';
 import { DiffApprovalCard2 } from '../components/DiffApprovalCard2';
 import { AskUserCard } from '../components/AskUserCard';
+import { openExternal } from '../platform/openExternal';
+import { fetchModels } from '../providers/models';
 import { useUserAskStore, resolveUserAnswer } from '../userAsk';
 import { useLibraryStore } from '../state/libraryStore';
 import { recordApproval } from '../state/agentMemory';
@@ -130,6 +132,8 @@ const STRINGS = {
     activateTestOkNoModel: (ms: number) => `✓ 连接正常 · ${ms}ms`,
     activateTestFail: (err: string) => `✗ ${err}`,
     activateSave: '保存并激活',
+    activationModel: '模型',
+    activationFetchModels: '获取模型列表',
     // —— 会话历史（v1.2.0 持久化）——
     sessionHistory: '历史会话',
     sessionHistoryEmpty: '暂无历史会话',
@@ -204,6 +208,8 @@ const STRINGS = {
     activateTestOkNoModel: (ms: number) => `✓ Connected · ${ms}ms`,
     activateTestFail: (err: string) => `✗ ${err}`,
     activateSave: 'Save & activate',
+    activationModel: 'Model',
+    activationFetchModels: 'Fetch model list',
     // —— Session history (v1.2.0 persistence) ——
     sessionHistory: 'Sessions',
     sessionHistoryEmpty: 'No saved sessions yet',
@@ -299,9 +305,39 @@ export function AgentPanel() {
 
   const [quickPresetId, setQuickPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? '');
   const [quickKey, setQuickKey] = useState('');
+  // v7.6.0：模型可指定——默认预设首个模型，用户可改/从拉取列表中选
+  const [quickModel, setQuickModel] = useState(PROVIDER_PRESETS[0]?.models[0] ?? '');
+  const [quickModelOptions, setQuickModelOptions] = useState<string[]>([]);
+  const [quickModelNote, setQuickModelNote] = useState<string | null>(null);
+  const [quickModelLoading, setQuickModelLoading] = useState(false);
   const [quickTesting, setQuickTesting] = useState(false);
   const [quickResult, setQuickResult] = useState<TestResult | null>(null);
   const quickPreset = quickPresetId ? findPreset(quickPresetId) : undefined;
+  const pickQuickPreset = (id: string): void => {
+    setQuickPresetId(id);
+    const preset = id ? findPreset(id) : undefined;
+    setQuickModel(preset?.models[0] ?? '');
+    setQuickModelOptions(preset?.models ?? []);
+    setQuickModelNote(null);
+  };
+  const loadQuickModels = async (): Promise<void> => {
+    const preset = quickPresetId ? findPreset(quickPresetId) : undefined;
+    if (!preset || !quickKey.trim() || quickModelLoading) return;
+    setQuickModelLoading(true);
+    setQuickModelNote(null);
+    try {
+      const r = await fetchModels(preset.baseUrl, quickKey);
+      if (r.models.length > 0) {
+        setQuickModelOptions(r.models);
+        if (!r.models.includes(quickModel)) setQuickModel(r.models[0]!);
+        setQuickModelNote(null);
+      } else {
+        setQuickModelNote(r.error ?? '未获取到模型列表');
+      }
+    } finally {
+      setQuickModelLoading(false);
+    }
+  };
 
   const quickTest = async () => {
     const preset = quickPresetId ? findPreset(quickPresetId) : undefined;
@@ -309,7 +345,7 @@ export function AgentPanel() {
     setQuickTesting(true);
     setQuickResult(null);
     try {
-      setQuickResult(await testProvider({ baseUrl: preset.baseUrl, apiKey: quickKey, model: preset.models[0] }));
+      setQuickResult(await testProvider({ baseUrl: preset.baseUrl, apiKey: quickKey, model: quickModel.trim() || preset.models[0] }));
     } finally {
       setQuickTesting(false);
     }
@@ -325,7 +361,7 @@ export function AgentPanel() {
       label: preset.label,
       baseUrl: preset.baseUrl,
       apiKey: key,
-      model: preset.models[0] ?? '',
+      model: quickModel.trim() || (preset.models[0] ?? ''),
       tier: 'cheap',
     });
     setActive(id);
@@ -778,7 +814,16 @@ export function AgentPanel() {
               <span>
                 {t.activationPreset}
                 {quickPreset?.keyUrl && (
-                  <a className="sf-link-btn" href={quickPreset.keyUrl} target="_blank" rel="noreferrer" title={quickPreset.keyUrl}>
+                  <a
+                    className="sf-link-btn"
+                    href={quickPreset.keyUrl}
+                    title={quickPreset.keyUrl}
+                    onClick={(e) => {
+                      // v7.6.0：WebView 内 target=_blank 不打开系统浏览器（点「去获取 Key」无反应的根因）
+                      e.preventDefault();
+                      void openExternal(quickPreset.keyUrl!);
+                    }}
+                  >
                     {t.getKey}
                   </a>
                 )}
@@ -815,6 +860,37 @@ export function AgentPanel() {
                   setQuickResult(null);
                 }}
               />
+            </label>
+            {/* v7.6.0：模型可选——默认预设建议模型，可手填或从 /models 拉取列表选 */}
+            <label className="sf-form-field" style={{ gridColumn: '1 / -1' }}>
+              <span>
+                {t.activationModel}
+                <button
+                  type="button"
+                  className="sf-link-btn"
+                  disabled={!quickKey.trim() || quickModelLoading}
+                  onClick={() => void loadQuickModels()}
+                >
+                  {quickModelLoading ? '…' : t.activationFetchModels}
+                </button>
+              </span>
+              <input
+                className="sf-input"
+                value={quickModel}
+                placeholder={quickPreset?.models[0] ?? 'model'}
+                list="sf-quick-models"
+                onChange={(e) => setQuickModel(e.target.value)}
+              />
+              <datalist id="sf-quick-models">
+                {(quickModelOptions.length > 0 ? quickModelOptions : quickPreset?.models ?? []).map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              {quickModelNote && (
+                <small className="sf-agent-note" style={{ margin: 0, opacity: 0.75 }}>
+                  {quickModelNote}
+                </small>
+              )}
             </label>
             <div className="sf-form-actions">
               <button className="sf-btn" onClick={() => void quickTest()} disabled={quickTesting || !quickKey.trim()}>

@@ -2,7 +2,7 @@
  * OpenAI 兼容 API 适配器：DeepSeek / GLM / Kimi / Qwen / OpenAI 等共用
  * {baseUrl}/chat/completions + SSE 流式协议。fetch 由宿主注入，便于测试与代理配置。
  */
-import type { AgentMessage, ToolCallRequest } from '@lemma/shared';
+import type { AgentMessage, ToolCallRequest, ToolDef } from '@lemma/shared';
 import type { ChatEvent, ChatProvider, ChatRequest, ChatUsage } from './types';
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
@@ -67,7 +67,28 @@ function mergeToolCallDelta(acc: ToolCallAcc, fragment: Record<string, unknown>)
 /** 工具调用兜底 id 的全局序号（兼容不回传 id 的网关，跨轮唯一） */
 let callSeq = 0;
 
-function toRequestMessages(messages: AgentMessage[]): Record<string, unknown>[] {
+// ---------------------------------------------------------------------------
+// v7.6.0 修复：DeepSeek 等网关要求 function.name 匹配 ^[a-zA-Z0-9_-]+$，
+// 本域工具名带点（tex.edit / paper.read）会直接 400 拒绝。派发前把点改写为
+// 下划线，收到 tool-call 时按派发表映射回真实工具名；无派发表（模型自造名）
+// 原样透传由执行器报「未知工具」。
+// ---------------------------------------------------------------------------
+export function toWireToolName(name: string): string {
+  return name.replace(/\./g, '_');
+}
+
+function buildWireToolMap(tools: ToolDef[] | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const t of tools ?? []) {
+    const wire = toWireToolName(t.name);
+    // 派发冲突（如同时存在 a.b 与 a_b）时不映射该名，双方原样传输
+    if (map.has(wire) && map.get(wire) !== t.name) map.delete(wire);
+    else map.set(wire, t.name);
+  }
+  return map;
+}
+
+function toRequestMessages(messages: AgentMessage[], wireNames: Map<string, string>): Record<string, unknown>[] {
   return messages.map((m) => {
     if (m.role === 'tool') {
       return { role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content };
@@ -85,7 +106,7 @@ function toRequestMessages(messages: AgentMessage[]): Record<string, unknown>[] 
       out.tool_calls = m.toolCalls.map((tc) => ({
         id: tc.id,
         type: 'function',
-        function: { name: tc.tool, arguments: JSON.stringify(tc.args) },
+        function: { name: wireNames.get(tc.tool) ?? toWireToolName(tc.tool), arguments: JSON.stringify(tc.args) },
       }));
     }
     return out;
@@ -108,16 +129,18 @@ export class OpenAICompatibleProvider implements ChatProvider {
   }
 
   async *complete(req: ChatRequest): AsyncGenerator<ChatEvent> {
+    // 线上工具名（点→下划线）→ 真实工具名 的派发表（见 toWireToolName 注释）
+    const wireNames = buildWireToolMap(req.tools);
     const body: Record<string, unknown> = {
       model: req.model,
-      messages: toRequestMessages(req.messages),
+      messages: toRequestMessages(req.messages, wireNames),
       stream: true,
       stream_options: { include_usage: true },
     };
     if (req.tools?.length) {
       body.tools = req.tools.map((t) => ({
         type: 'function',
-        function: { name: t.name, description: t.description, parameters: t.parameters },
+        function: { name: toWireToolName(t.name), description: t.description, parameters: t.parameters },
       }));
       body.tool_choice = 'auto';
     }
@@ -181,7 +204,8 @@ export class OpenAICompatibleProvider implements ChatProvider {
           return {
             type: 'tool-call',
             // v7.0.0 修复：兜底 id 加全局序号——跨轮重复 id 会让工具卡结果张冠李戴
-            call: { id: acc.id || `call_${++callSeq}`, tool: acc.name, args },
+            // v7.6.0：线上名（下划线）映射回真实工具名（点号）
+            call: { id: acc.id || `call_${++callSeq}`, tool: wireNames.get(acc.name) ?? acc.name, args },
           } satisfies ChatEvent;
         });
     };

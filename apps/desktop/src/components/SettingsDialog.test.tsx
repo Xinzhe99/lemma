@@ -162,11 +162,10 @@ describe('SettingsDialog · 快速预设', () => {
     expect(formInput(1).value).toBe('https://api.deepseek.com/v1');
     expect(formInput(3).value).toBe('deepseek-chat');
 
-    const link = container!.querySelector<HTMLAnchorElement>('.sf-form a[target="_blank"]');
+    // v7.6.0：外链改经 openExternal（WebView 内 target=_blank 打不开系统浏览器）
+    const link = container!.querySelector<HTMLAnchorElement>('.sf-form a[href="https://platform.deepseek.com/api_keys"]');
     expect(link).toBeTruthy();
-    expect(link!.href).toBe('https://platform.deepseek.com/api_keys');
     expect(link!.textContent).toContain('去获取 Key');
-    expect(link!.rel).toContain('noreferrer');
 
     expect(container!.textContent).toContain('性价比高');
   });
@@ -286,7 +285,7 @@ describe('SettingsDialog · 既有功能零回归', () => {
     // 表单关闭：回到「新增服务」入口，表单输入全部消失（仅剩嵌入模型输入框）
     expect([...container!.querySelectorAll('button')].some((b) => b.textContent?.includes('新增服务'))).toBe(true);
     expect(container!.querySelector('.sf-form')).toBeNull();
-    expect(container!.querySelectorAll('input.sf-input')).toHaveLength(1); // 仅嵌入模型输入框
+    expect(container!.querySelectorAll('input.sf-input')).toHaveLength(2); // 嵌入模型 + 文献库目录（v7.6.0）
   });
 
   it('编辑既有服务：按 baseUrl 反查预设回显（含获取 Key 链接），改名保存走 updateProvider', () => {
@@ -308,7 +307,7 @@ describe('SettingsDialog · 既有功能零回归', () => {
 
     click(btn('编辑'));
     // 预设态回显：获取 Key 链接出现，且用户改过的模型未被预设默认值覆盖
-    expect(container!.querySelector('.sf-form a[target="_blank"]')?.textContent).toContain('去获取 Key');
+    expect(container!.querySelector('.sf-form a[href*="deepseek"]')?.textContent).toContain('去获取 Key');
     expect(formInput(3).value).toBe('deepseek-reasoner');
 
     type(formInput(0), 'DeepSeek 主力');
@@ -336,7 +335,7 @@ describe('SettingsDialog · zh/en 字典', () => {
     expect(options).toContain('Custom…');
 
     choose(sel, 'deepseek');
-    expect(container!.querySelector('.sf-form a[target="_blank"]')!.textContent).toContain('Get key');
+    expect(container!.querySelector('.sf-form a[href*="deepseek"]')!.textContent).toContain('Get key');
     expect(container!.textContent).toContain('Great value');
     expect(btn('Test connection')).toBeTruthy();
   });

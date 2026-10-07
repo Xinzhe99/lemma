@@ -44,6 +44,25 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     keyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
   },
   {
+    // v7.6.0：Coding Plan 订阅端点（OpenAI 兼容透传，订阅套餐计费而非按量）
+    id: 'zhipu-coding',
+    label: '智谱 GLM Coding Plan',
+    baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+    models: ['glm-4.7', 'glm-4.6'],
+    note: 'GLM Coding Plan 订阅专用端点（套餐计费）；Key 与开放平台相同，模型名以控制台为准',
+    noteEn: 'GLM Coding Plan subscription endpoint (plan-based billing); same key as the open platform',
+    keyUrl: 'https://open.bigmodel.cn/usercenter/proxykey',
+  },
+  {
+    id: 'kimi-coding',
+    label: 'Kimi For Coding',
+    baseUrl: 'https://api.kimi.com/coding/v1',
+    models: ['kimi-for-coding'],
+    note: 'Kimi 会员编程端点（套餐计费）；需开通 Kimi For Coding',
+    noteEn: 'Kimi membership coding endpoint (plan-based billing)',
+    keyUrl: 'https://www.kimi.com/coding/',
+  },
+  {
     id: 'moonshot',
     label: 'Kimi / Moonshot',
     baseUrl: 'https://api.moonshot.cn/v1',

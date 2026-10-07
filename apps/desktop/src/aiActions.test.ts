@@ -274,8 +274,9 @@ describe('fixCompileErrors（无错误 / 演示 / 真实三分支）', () => {
     };
     // 工具启用：ENABLED_TOOLS 注入请求（tex.edit 在列 → 落 diff 审批卡）
     const toolNames = (body.tools ?? []).map((t) => t.function.name);
-    expect(toolNames).toContain('tex.edit');
-    expect(toolNames).toContain('tex.compile');
+    // v7.6.0：线上名点号→下划线（DeepSeek 网关校验 ^[a-zA-Z0-9_-]+$）
+    expect(toolNames).toContain('tex_edit');
+    expect(toolNames).toContain('tex_compile');
     // 最后一条 user 消息即修复 prompt（诊断注入）
     const lastUser = [...body.messages].reverse().find((m) => m.role === 'user')!;
     expect(lastUser.content).toContain('修复以下 LaTeX 编译错误');
@@ -497,7 +498,7 @@ describe('计划模式 · executePlan（逐步执行）', () => {
     expect(calls).toHaveLength(4);
     const stepCalls = calls.slice(1);
     for (const c of stepCalls) {
-      expect(c.body.tools?.map((t) => t.function.name)).toContain('tex.edit');
+      expect(c.body.tools?.map((t) => t.function.name)).toContain('tex_edit');
     }
     // 逐步状态推进到位
     const exec = useAgentPlansStore.getState().plans[msgId]!;

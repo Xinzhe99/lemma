@@ -1,7 +1,10 @@
 /**
- * 编译动作：Tauri 形态按探测链使用真实引擎——系统 tectonic → 系统 latexmk →
- * 内置 tectonic（数据目录；不存在则经 texSetup 自动下载，用户只需点一次编译）——
- * 全链不可用或流程任一步失败时自动回退 MockEngine；浏览器形态直接 MockEngine。
+ * 编译动作：Tauri 形态按引擎矩阵探测真实引擎（tectonic/lualatex/xelatex/pdflatex/latexmk，
+ * --version 短超时探测、结果按引擎名缓存；auto 取第一个可用者，显式偏好被尊重且失败如实上报），
+ * 内置 tectonic（数据目录；不存在则经 texSetup 自动下载）是最后一条真实路径。
+ * 桌面形态绝不静默回退模拟引擎：探测与下载全部不可用、物化失败或引擎执行失败时，
+ * 日志给出可行动的指引并置编译失败。浏览器形态走 MockEngine（有意的演示行为，
+ * 日志注明「浏览器形态：模拟编译」）。
  * 真实编译前先把项目文本文件物化到数据目录（引擎 cwd），成功后经 fs_read_base64 读回
  * PDF 产物并自动打开应用内预览（同时缓存为 lastPdf，预览关闭后可经 reopenLastPdf 重看，D14），
  * 随后回读 .synctex.gz 注册 SyncTeX 索引
@@ -10,8 +13,9 @@
  * 命令面板与 agent 工具 tex.compile 共用。
  */
 
-import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, parseSynctex, runFullCompile } from '@lemma/compile';
-import type { Diagnostic, ProjectFileMap } from '@lemma/shared';
+import { LatexmkEngine, MockEngine, TectonicEngine, diagnosticHint, parseLatexLog, parseSynctex, runFullCompile } from '@lemma/compile';
+import type { CommandRunner, CompileInput, LatexEngine } from '@lemma/compile';
+import type { CompileResult, Diagnostic, ProjectFileMap } from '@lemma/shared';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useUiStore } from './state/uiStore';
 import { useSettingsStore, type Language } from './state/settingsStore';
@@ -62,6 +66,54 @@ export function withBuiltinTectonic(base: ProcRunner, tectonicPath: string | nul
   };
 }
 
+/**
+ * 裸 TeX 引擎（lualatex/xelatex/pdflatex）的通用实现：命令名即引擎名，
+ * 参数取自 engineArgs（--synctex=1 + nonstopmode，与 engineMatrix 单一事实源一致）；
+ * 多趟与 bibtex 编排由 runFullCompile 依据日志 rerun 提示驱动。
+ * 修复背景：此前 runRealCompile 对这三个引擎误用 TectonicEngine——日志标签写
+ * lualatex、实际却启动 tectonic（报「无法启动命令 tectonic」），本类消除该错位。
+ */
+export class PlainLatexEngine implements LatexEngine {
+  readonly kind: CompileResult['engine'];
+
+  constructor(private readonly cmd: 'lualatex' | 'xelatex' | 'pdflatex') {
+    this.kind = cmd;
+  }
+
+  async compile(input: CompileInput, runner: CommandRunner): Promise<CompileResult> {
+    const started = Date.now();
+    const args = engineArgs(this.cmd, input.entry);
+    const { code, stdout, stderr } = await runner.run(this.cmd, args, { cwd: input.cwd ?? '.' });
+    const log = `${stdout}\n${stderr}`;
+    return {
+      success: code === 0,
+      engine: this.kind,
+      durationMs: Date.now() - started,
+      diagnostics: parseLatexLog(log),
+      log,
+    };
+  }
+}
+
+/**
+ * 按选定的引擎种类构造真实引擎：日志标签（engineLabel）与实际启动的命令由此保证一致——
+ * tectonic/builtin-tectonic → TectonicEngine；latexmk → LatexmkEngine；
+ * lualatex/xelatex/pdflatex → PlainLatexEngine（同 kind 同命令名）。
+ */
+export function createRealEngine(kind: RealEngineKind): LatexEngine {
+  switch (kind) {
+    case 'latexmk':
+      return new LatexmkEngine();
+    case 'lualatex':
+    case 'xelatex':
+    case 'pdflatex':
+      return new PlainLatexEngine(kind);
+    case 'tectonic':
+    case 'builtin-tectonic':
+      return new TectonicEngine();
+  }
+}
+
 export interface CompileActionResult {
   ok: boolean;
   entry: string;
@@ -81,6 +133,8 @@ interface CompileDict {
   builtinReady: (cached: boolean) => string;
   builtinFirstRun: string;
   builtinFail: (err: string) => string;
+  /** 全部引擎（含内置下载兜底）不可用时的可行动安装指引 */
+  noEngineGuidance: string;
   mockStart: (entry: string) => string;
   realStart: (engine: string, entry: string, count: number) => string;
   summary: (engine: string, passes: number, durationMs: number, ok: boolean) => string;
@@ -91,7 +145,6 @@ interface CompileDict {
   pdfMissing: (pdfPath: string, err: string) => string;
   synctexOk: (synctexPath: string, bytes: number) => string;
   synctexFail: (synctexPath: string, err: string) => string;
-  autoCompileStart(): string;
   autoCompileStart(): string;
 }
 
@@ -105,13 +158,15 @@ export const L: Record<Language, CompileDict> = {
         : '✓ 内置 Tectonic 下载完成，已就绪（缓存于应用数据目录）',
     builtinFirstRun: 'ℹ 首次编译将联网获取宏包，稍慢属正常',
     builtinFail: (err) =>
-      `⚠ 内置 Tectonic 自动下载失败（${err}），回退模拟引擎。可检查网络/代理，或手动安装 Tectonic / TeX Live。`,
-    mockStart: (entry) => `▶ 开始编译 ${entry}（模拟引擎）`,
+      `⚠ 内置 Tectonic 自动下载失败（${err}）。可检查网络/代理，或手动安装 Tectonic / TeX Live。`,
+    noEngineGuidance:
+      '✗ 未检测到可用的 TeX 引擎（tectonic/xelatex/lualatex/pdflatex/latexmk）——请安装任一引擎后重试：tectonic 一键安装 https://tectonic-typesetting.github.io （或装 MiKTeX/TeX Live）',
+    mockStart: (entry) => `▶ 浏览器形态：模拟编译 ${entry}（模拟引擎，不产出真实 PDF）`,
     realStart: (engine, entry, count) => `▶ ${engine} 真实编译 ${entry}（已物化 ${count} 个项目文件到本地工作目录）`,
     summary: (engine, passes, durationMs, ok) => `▣ ${engine} · ${passes} 趟 · ${durationMs}ms · ${ok ? '成功' : '失败'}`,
     fixHint: (hint) => `    ↳ 修复提示：${hint}`,
-    materializeFail: (err) => `⚠ 项目文件物化失败（${err}），回退模拟引擎。`,
-    engineFail: (engine, err) => `⚠ ${engine} 执行失败（${err}），回退模拟引擎。`,
+    materializeFail: (err) => `⚠ 项目文件物化失败（${err}），编译中止。`,
+    engineFail: (engine, err) => `⚠ ${engine} 执行失败（${err}），编译中止。`,
     pdfOpened: (pdfPath, bytes) => `🖨 产物 ${pdfPath} 已读回（${bytes} 字节），PDF 预览已打开`,
     pdfMissing: (pdfPath, err) => `⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${err}）。请检查引擎输出目录设置。`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX 索引已注册（${synctexPath}，${bytes} 字节），PDF ↔ 源码同步可用`,
@@ -127,13 +182,15 @@ export const L: Record<Language, CompileDict> = {
         : '✓ Bundled Tectonic downloaded and ready (cached in the app data directory)',
     builtinFirstRun: 'ℹ The first compile fetches TeX packages online and may be slower',
     builtinFail: (err) =>
-      `⚠ Failed to download the bundled Tectonic (${err}); falling back to the mock engine. Check your network/proxy, or install Tectonic / TeX Live manually.`,
-    mockStart: (entry) => `▶ Compiling ${entry} (mock engine)`,
+      `⚠ Failed to download the bundled Tectonic (${err}). Check your network/proxy, or install Tectonic / TeX Live manually.`,
+    noEngineGuidance:
+      '✗ No usable TeX engine detected (tectonic/xelatex/lualatex/pdflatex/latexmk) — install any one of them and retry: one-click Tectonic https://tectonic-typesetting.github.io (or install MiKTeX / TeX Live)',
+    mockStart: (entry) => `▶ Browser mode: mock compile of ${entry} (mock engine; no real PDF is produced)`,
     realStart: (engine, entry, count) => `▶ ${engine} real compile of ${entry} (${count} project files materialized into the local working directory)`,
     summary: (engine, passes, durationMs, ok) => `▣ ${engine} · ${passes} pass(es) · ${durationMs}ms · ${ok ? 'succeeded' : 'failed'}`,
     fixHint: (hint) => `    ↳ Fix hint: ${hint}`,
-    materializeFail: (err) => `⚠ Failed to materialize project files (${err}); falling back to the mock engine.`,
-    engineFail: (engine, err) => `⚠ ${engine} failed (${err}); falling back to the mock engine.`,
+    materializeFail: (err) => `⚠ Failed to materialize project files (${err}); compile aborted.`,
+    engineFail: (engine, err) => `⚠ ${engine} failed (${err}); compile aborted.`,
     pdfOpened: (pdfPath, bytes) => `🖨 Artifact ${pdfPath} read back (${bytes} bytes); PDF preview opened`,
     pdfMissing: (pdfPath, err) => `⚠ Compiled successfully but the PDF artifact was not found: reading ${pdfPath} failed (${err}). Check the engine output directory settings.`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX index registered (${synctexPath}, ${bytes} bytes); PDF ↔ source sync enabled`,
@@ -209,13 +266,32 @@ export function probeFromError(e: unknown): ExecOutcome {
   return { ok: false, text: e instanceof Error ? e.message : String(e) };
 }
 
-/** 对某命令做 --version 探测（cwd 用数据目录根） */
+// --version 探测超时：本机进程启动 + 打印版本远用不了这么久；超时视为「本次不可用」
+const PROBE_TIMEOUT_MS = 5000;
+const PROBE_TIMEOUT_TEXT = `探测超时（>${PROBE_TIMEOUT_MS}ms）`;
+
+/** 探测结果按命令名缓存：引擎安装状态在会话内不变，避免每次编译都拉起 5 个 --version 进程 */
+const probeCache = new Map<string, ExecOutcome>();
+
+/** 测试复位（探测缓存不跨用例泄漏） */
+export function resetEngineProbeCache(): void {
+  probeCache.clear();
+}
+
+/** 对某命令做 --version 探测（cwd 用数据目录根）；短超时 + 结果按引擎名缓存 */
 async function probeEngine(cmd: string): Promise<ExecOutcome> {
-  try {
-    return probeFromRun(await tauriProcRun(cmd, ['--version'], ''));
-  } catch (e) {
-    return probeFromError(e);
-  }
+  const cached = probeCache.get(cmd);
+  if (cached) return cached;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    tauriProcRun(cmd, ['--version'], '').then(probeFromRun, probeFromError),
+    new Promise<ExecOutcome>((resolve) => {
+      timer = setTimeout(() => resolve({ ok: false, text: PROBE_TIMEOUT_TEXT }), PROBE_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
+  // 超时不缓存：可能只是瞬时挂起（杀软扫描等），下次编译再试
+  if (outcome.text !== PROBE_TIMEOUT_TEXT) probeCache.set(cmd, outcome);
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,7 +402,8 @@ function logDiagnostics(entry: string, diagnostics: Diagnostic[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// 模拟引擎（浏览器形态与回退路径）
+// 模拟引擎（仅浏览器形态：有意的演示行为，日志注明「浏览器形态：模拟编译」；
+// 桌面形态的编译路径不再进入本函数——无引擎时如实失败，见 runRealCompile）
 // ---------------------------------------------------------------------------
 
 export async function runMockCompile(): Promise<CompileActionResult> {
@@ -372,38 +449,50 @@ export async function runMockCompile(): Promise<CompileActionResult> {
 // ---------------------------------------------------------------------------
 
 /**
- * Tauri 真实编译：探测链（系统 tectonic → 系统 latexmk → 内置 tectonic，必要时自动下载）
- * → 物化项目文件到数据目录 → 编译 → 读回 PDF 打开预览。
- * 返回 null 表示应回退模拟引擎（全链不可用（含下载失败）/ 物化或编译执行失败）；
- * 编译本身的失败（有诊断）是真实结果，不回退。
+ * 桌面形态的如实失败收尾：停用 SyncTeX 同步、置编译失败状态。
+ * 桌面形态绝不回退模拟引擎假装成功——失败必须让用户看见。
  */
-async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise<CompileActionResult | null> {
+function failCompile(entry: string, passes = 0): CompileActionResult {
+  setSynctexIndex(null);
+  useWorkspaceStore.getState().setCompileStatus('fail');
+  return { ok: false, entry, passes, diagnostics: 0 };
+}
+
+/**
+ * Tauri 真实编译：全矩阵探测（tectonic/lualatex/xelatex/pdflatex/latexmk，并行 + 缓存）
+ * → 选引擎（显式偏好尊重，auto 取第一个可用）→ 探测全空时自动下载内置 tectonic（最后一条
+ * 真实路径）→ 物化项目文件到数据目录 → 以与标签一致的引擎编译 → 读回 PDF 打开预览。
+ * 任一步不可用都如实置编译失败并给出可行动指引，不再返回 null 触发模拟引擎回退。
+ */
+async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise<CompileActionResult> {
   const s = useWorkspaceStore.getState();
   const t = pick(useSettingsStore.getState().language);
   s.setCompileStatus('running');
 
-  // 前两级系统探测；内置引擎已就绪（本会话早前下载过）时作为第三级注入
-  // 全矩阵探测（v2.0.0）：tectonic/lualatex/xelatex/pdflatex/latexmk + 内置
+  // 全矩阵探测（v2.0.0）：tectonic/lualatex/xelatex/pdflatex/latexmk + 内置；
+  // 探测彼此独立，并行执行（全程异步，不阻塞 UI），结果按引擎名缓存
+  const probePairs = await Promise.all(
+    ENGINE_PROBE_COMMANDS.map(async ({ kind, cmd }) => ({ kind, ok: (await probeEngine(cmd)).ok })),
+  );
   const probes: Partial<Record<EngineKind, { ok: boolean }>> = {};
-  for (const { kind, cmd } of ENGINE_PROBE_COMMANDS) {
-    const r = await probeEngine(cmd);
-    probes[kind] = { ok: r.ok };
-  }
+  for (const { kind, ok } of probePairs) probes[kind] = { ok };
+
   const pref = useSettingsStore.getState().enginePreference ?? 'auto';
-  let sel = selectEngine(probes, pref, !!getReadyBuiltinTectonicPath());
+  const sel = selectEngine(probes, pref, !!getReadyBuiltinTectonicPath());
   let engineKind: EngineKind | null = sel?.kind ?? null;
   if (sel?.fellBack) {
     s.appendCompileLog(`⚠ 偏好引擎 ${pref} 不可用，回落 ${ENGINE_INFO[sel.kind].label}`);
   }
   let builtinPath = engineKind === 'builtin-tectonic' ? getReadyBuiltinTectonicPath() : null;
   if (!engineKind) {
-    // 全链兜底：触发内置 Tectonic 自动下载（数据目录已有则 Rust 侧直接返回 cached）。
-    // 用户只需点一次编译，全自动；下载失败日志中文说明后回退模拟引擎。
+    // 探测全空：最后一条真实路径——触发内置 Tectonic 自动下载（数据目录已有则直接返回 cached）。
     s.appendCompileLog(t.builtinDownloading);
     const info = await ensureBuiltinTectonic();
     if (!isBuiltinTectonicInfo(info)) {
+      // 绝不静默 mock：如实置失败，并给出可行动的安装指引（含下载链接）
       s.appendCompileLog(t.builtinFail(info.error));
-      return null;
+      s.appendCompileLog(t.noEngineGuidance);
+      return failCompile(entry);
     }
     builtinPath = info.path;
     engineKind = 'builtin-tectonic';
@@ -419,19 +508,20 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
     s.appendCompileLog(t.realStart(label, entry, count));
   } catch (e) {
     s.appendCompileLog(t.materializeFail(errText(e)));
-    return null;
+    return failCompile(entry);
   }
 
+  // 引擎与标签同源（createRealEngine）：选了什么引擎就真的启动什么命令
   let result;
   try {
     result = await runFullCompile(
       { files: s.files, entry, cwd: '' },
-      engineKind === 'latexmk' ? new LatexmkEngine() : new TectonicEngine(),
+      createRealEngine(engineKind),
       withBuiltinTectonic(tauriRunner, builtinPath),
     );
   } catch (e) {
     s.appendCompileLog(t.engineFail(label, errText(e)));
-    return null;
+    return failCompile(entry);
   }
 
   s.appendCompileLog(t.summary(label, result.passes, result.durationMs, result.success));
@@ -488,27 +578,28 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
 /**
  * v5.7.0：编译指定入口的预览产物（AI 画图 TikZ standalone 等）。
  * 复用真实编译链（引擎探测 / 物化 / PDF 回读），成功后右侧预览区自动切到该 PDF。
- * 桌面形态专用；浏览器形态返回模拟失败由调用方提示。
+ * 桌面形态专用；浏览器形态返回失败由调用方提示。
  */
 export async function compileTexPreview(entry: string): Promise<{ ok: boolean }> {
   if (getPlatform().kind !== 'tauri') return { ok: false };
   const real = await runRealCompile(entry, { auto: true });
-  return { ok: real ? real.ok : false };
+  return { ok: real.ok };
 }
 
-/** 统一入口：Tauri 环境按探测链使用真实引擎（系统 tectonic → 系统 latexmk → 内置 tectonic，
- *  内置不存在时自动下载，下载失败回退模拟引擎）；浏览器直接模拟。 */
 /**
  * 统一编译入口。opts.auto = 自动编译（保存触发）：抑制「跳到首个错误行」
  * （自动跳转会打断正在输入的光标位置），诊断仍照常进编辑器标注。
+ * 桌面形态一律真实编译（无可用引擎 → 失败 + 安装指引，绝不静默模拟）；
+ * 浏览器形态走模拟引擎（有意的演示行为，日志注明浏览器形态）。
  */
 export async function runCompile(opts?: { auto?: boolean }): Promise<CompileActionResult> {
   if (getPlatform().kind === 'tauri') {
     const entry = resolveCompileEntry();
-    if (entry) {
-      const real = await runRealCompile(entry, opts);
-      if (real) return real;
-    }
+    if (entry) return runRealCompile(entry, opts);
+    // 桌面形态无入口：如实失败，不借模拟引擎走流程
+    const s = useWorkspaceStore.getState();
+    s.appendCompileLog(pick(useSettingsStore.getState().language).noEntry);
+    return failCompile('');
   }
   return runMockCompile();
 }

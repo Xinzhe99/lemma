@@ -16,6 +16,10 @@ import {
   type ProviderTier,
 } from '../state/settingsStore';
 import { PROVIDER_PRESETS, findPreset, matchPresetByBaseUrl } from '../providers/presets';
+import { relocateLibrary } from '../state/libraryDisk';
+import { useLibraryStore } from '../state/libraryStore';
+import { fetchModels } from '../providers/models';
+import { openExternal } from '../platform/openExternal';
 import { testProvider, type TestResult } from '../providers/connectionTest';
 
 type DialogTab = 'providers' | 'appearance' | 'about';
@@ -228,6 +232,51 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   /** 当前表单选中的预设（未选/自定义为 null） */
   const formPreset = form && form.presetId !== '' && form.presetId !== 'custom' ? findPreset(form.presetId) ?? null : null;
 
+  // v7.6.0：从 /models 拉取可选模型，填充 datalist（也可手填）
+  // v7.6.0：本地文献库目录（相对应用数据目录）+ 附件迁移
+  const libraryDir = useSettingsStore((st) => st.libraryDir);
+  const setLibraryDir = useSettingsStore((st) => st.setLibraryDir);
+  const [relocating, setRelocating] = useState(false);
+  const [relocateNote, setRelocateNote] = useState<string | null>(null);
+  const moveLibrary = async (): Promise<void> => {
+    if (relocating) return;
+    setRelocating(true);
+    setRelocateNote(null);
+    try {
+      const prevDir = libraryDir;
+      const result = await relocateLibrary(libraryDir, useLibraryStore.getState().papers, async (paperId) => {
+        const st = useLibraryStore.getState();
+        if (st.pdfAttachments[paperId]) return st.pdfAttachments[paperId];
+        return null; // 内存没有的旧附件已由启动清扫上盘，磁盘层 relocateLibrary 自取
+      });
+      setLibraryDir(libraryDir);
+      if (result.error) setRelocateNote(result.error);
+      else if (result.failed > 0) setRelocateNote(`已迁移 ${result.moved} 个附件，${result.failed} 个失败`);
+      else setRelocateNote(`文献库位置已保存（${prevDir} → ${libraryDir}，迁移 ${result.moved} 个附件）`);
+    } finally {
+      setRelocating(false);
+    }
+  };
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [fetchModelsNote, setFetchModelsNote] = useState<string | null>(null);
+  const loadFormModels = async (): Promise<void> => {
+    if (!form || fetchingModels) return;
+    setFetchingModels(true);
+    setFetchModelsNote(null);
+    try {
+      const r = await fetchModels(form.baseUrl, form.apiKey);
+      if (r.models.length > 0) {
+        setFetchedModels(r.models);
+        setFetchModelsNote(null);
+      } else {
+        setFetchModelsNote(r.error ?? '未获取到模型列表');
+      }
+    } finally {
+      setFetchingModels(false);
+    }
+  };
+
   const field = (
     key: keyof Omit<ProviderForm, 'id' | 'presetId'>,
     label: string,
@@ -310,9 +359,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                         <a
                           className="sf-link-btn"
                           href={formPreset.keyUrl}
-                          target="_blank"
-                          rel="noreferrer"
                           title={formPreset.keyUrl}
+                          onClick={(e) => {
+                            e.preventDefault(); // WebView 内 target=_blank 打不开系统浏览器
+                            void openExternal(formPreset.keyUrl!);
+                          }}
                         >
                           {L.getKey}
                         </a>
@@ -333,17 +384,40 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                       </small>
                     )}
                   </label>
-                  {formPreset && (
-                    <datalist id="sf-preset-models">
-                      {formPreset.models.map((m) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  )}
+
                   {field('label', t('settings.field.label'), form.label)}
                   {field('baseUrl', t('settings.field.baseUrl'), form.baseUrl, 'text', 'https://api.deepseek.com/v1')}
                   {field('apiKey', t('settings.field.apiKey'), form.apiKey, 'password')}
-                  {field('model', t('settings.field.model'), form.model)}
+                  <label className="sf-form-field">
+                    <span>
+                      {t('settings.field.model')}
+                      <button
+                        type="button"
+                        className="sf-link-btn"
+                        disabled={!form.baseUrl.trim() || !form.apiKey.trim() || fetchingModels}
+                        onClick={() => void loadFormModels()}
+                      >
+                        {fetchingModels ? '…' : language === 'en' ? 'Fetch models' : '获取模型列表'}
+                      </button>
+                    </span>
+                    <input
+                      className="sf-input"
+                      value={form.model}
+                      placeholder={formPreset?.models[0]}
+                      list={(fetchedModels.length > 0 ? fetchedModels : formPreset?.models) ? 'sf-preset-models' : undefined}
+                      onChange={(e) => setForm((f) => (f ? { ...f, model: e.target.value } : f))}
+                    />
+                    <datalist id="sf-preset-models">
+                      {(fetchedModels.length > 0 ? fetchedModels : formPreset?.models ?? []).map((m) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                    {fetchModelsNote && (
+                      <small className="sf-agent-note" style={{ margin: 0, opacity: 0.75 }}>
+                        {fetchModelsNote}
+                      </small>
+                    )}
+                  </label>
                   <label className="sf-form-field">
                     <span>{t('settings.field.tier')}</span>
                     <select
@@ -399,6 +473,26 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <p className="sf-embedding-hint">{t('settings.embeddingHint')}</p>
+
+              {/* —— v7.6.0：本地文献库目录（PDF 附件落盘位置，相对应用数据目录，可迁移） —— */}
+              <div className="sf-appearance-row sf-embedding-row">
+                <span>{language === 'en' ? 'Library folder' : '文献库目录'}</span>
+                <input
+                  className="sf-input sf-embedding-input"
+                  value={libraryDir}
+                  placeholder="library"
+                  onChange={(e) => setLibraryDir(e.target.value)}
+                />
+                <button className="sf-btn" disabled={relocating} onClick={() => void moveLibrary()}>
+                  {relocating ? '…' : language === 'en' ? 'Save & move files' : '保存并迁移附件'}
+                </button>
+              </div>
+              <p className="sf-embedding-hint">
+                {language === 'en'
+                  ? 'PDF attachments are stored as regular files under <app data dir>/<this folder>/papers/. Changing it moves existing files automatically; the app reconnects on next launch.'
+                  : 'PDF 附件以普通文件存放在「应用数据目录 / 此目录 / papers/」。修改后点「保存并迁移附件」自动搬移已有文件；重启后自动关联新位置。'}
+                {relocateNote ? ` ${relocateNote}` : ''}
+              </p>
 
               {/* —— Agent 引擎选择 + CLI agent 桥（v1.5.0） —— */}
               <div className="sf-appearance-row sf-engine-row">

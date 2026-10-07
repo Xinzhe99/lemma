@@ -2,6 +2,11 @@
  * 文献库面板：条目列表（智能过滤器查询语言 + 详情视图 + 多选批量操作 + 库内 PDF 关联）/
  * 全文知识检索 / 文献发现（arXiv+Crossref 聚合检索，一键入库）/ 导入。
  *
+ * v7.6.0 条目工具栏重构：tab 内只留高频操作——整行搜索框 + [筛选下拉 | 导入文献]；
+ * 其余入口（BibTeX / RIS / Zotero JSON / DOI/arXiv / PDF 目录 / Zotero 同步 / 清理 Bib /
+ * 导出全库 .bib）全部收进「导入文献」对话框（sf-lib-import，四分组：粘贴导入 / 在线获取 /
+ * 批量关联 / 导出与维护）。各分组按钮只做入口，打开既有对话框 / 触发既有逻辑。
+ *
  * WF-4：
  * - L1 点击条目展开详情：全部作者、摘要全文、DOI/arXiv 外链、IEEE/APA/AMA 引用格式预览；
  * - L2 「打开 PDF」经 libraryStore.openPdf（uiStore.setPdfView）、「关联本地 PDF」走隐藏 file input（Ref 回调式）；
@@ -21,7 +26,7 @@
  */
 
 import { useRef, useState, type ChangeEvent, type InputHTMLAttributes , useMemo} from 'react';
-import { BookOpen, Download, Paperclip, Trash2 } from 'lucide-react';
+import { BookOpen, Download, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { RefreshCw } from 'lucide-react';
 import { probeZotero, syncZotero } from '../zoteroSync';
 import {
@@ -105,6 +110,26 @@ interface Copy {
   openPdfErrAttach: string;
   dialogClose: string;
   dialogImport: string;
+  // —— v7.6.0「导入文献」对话框（工具栏只留搜索 + 筛选 + 本入口，低频操作全部收进来） ——
+  importButton: string;
+  importTitle: string;
+  secPaste: string;
+  secPasteDesc: string;
+  secOnline: string;
+  secOnlineDesc: string;
+  secBulk: string;
+  secBulkDesc: string;
+  secMaintain: string;
+  secMaintainDesc: string;
+  /** 在线获取区入口按钮（打开既有 fetch 对话框） */
+  fetchEntry: string;
+  /** Zotero 同步区本地状态说明（替代旧「未检测到本地 Zotero」chip） */
+  zoteroStatusOff: string;
+  zoteroStatusOk: string;
+  zoteroStatusBusy: string;
+  zoteroSyncDone: (added: number, errors: number) => string;
+  /** 搜索框 title 提示：智能过滤器查询语法（placeholder 已简化） */
+  filterSyntaxHint: string;
   bibtexTitle: string;
   bibtexPlaceholder: string;
   importSummary: (added: number, notes: string) => string;
@@ -162,7 +187,7 @@ const COPY: Record<Language, Copy> = {
     modeList: '条目',
     modeSearch: '知识检索',
     modeDiscover: '发现',
-    filterPlaceholder: '过滤：year:>2020 venue:NeurIPS status:reading 关键词',
+    filterPlaceholder: '搜索标题/作者/citekey…',
     searchPlaceholder: '在文献全文/摘要中语义检索…',
     discoverPlaceholder: '关键词检索 arXiv + Crossref…',
     searchButton: '检索',
@@ -201,6 +226,23 @@ const COPY: Record<Language, Copy> = {
     openPdfErrAttach: '尚未关联 PDF，请先「关联本地 PDF」',
     dialogClose: '关闭',
     dialogImport: '导入',
+    importButton: '导入文献',
+    importTitle: '导入文献',
+    secPaste: '粘贴导入',
+    secPasteDesc: '粘贴 BibTeX / RIS / Zotero 导出的文本，一键入库',
+    secOnline: '在线获取',
+    secOnlineDesc: '按 DOI / arXiv ID 抓取元数据并入库',
+    secBulk: '批量关联',
+    secBulkDesc: '把本地 PDF 批量关联到条目，或从本机 Zotero 同步',
+    secMaintain: '导出与维护',
+    secMaintainDesc: '导出全库 .bib，或清理项目 .bib 中的重复条目',
+    fetchEntry: 'DOI / arXiv 抓取',
+    zoteroStatusOff: '未检测到本机 Zotero（需安装 Zotero 并运行 Better BibTeX）',
+    zoteroStatusOk: '已连接本机 Zotero',
+    zoteroStatusBusy: '正在连接本机 Zotero…',
+    zoteroSyncDone: (added, errors) =>
+      `同步完成：新增 ${added} 条${errors > 0 ? ` / 解析错误 ${errors} 条` : ''}`,
+    filterSyntaxHint: '支持过滤语法：year:>2020 venue:NeurIPS status:reading 关键词',
     bibtexTitle: '导入 BibTeX',
     bibtexPlaceholder: '粘贴 BibTeX 条目…\n\n@article{...}',
     importSummary: (added, notes) => `导入 ${added} 条${notes}`,
@@ -256,7 +298,7 @@ const COPY: Record<Language, Copy> = {
     modeList: 'Items',
     modeSearch: 'Knowledge',
     modeDiscover: 'Discover',
-    filterPlaceholder: 'Filter: year:>2020 venue:NeurIPS status:reading keywords',
+    filterPlaceholder: 'Search title/author/citekey…',
     searchPlaceholder: 'Semantic search across full texts/abstracts…',
     discoverPlaceholder: 'Search arXiv + Crossref…',
     searchButton: 'Search',
@@ -295,6 +337,23 @@ const COPY: Record<Language, Copy> = {
     openPdfErrAttach: 'No PDF attached yet — use "Attach local PDF" first',
     dialogClose: 'Close',
     dialogImport: 'Import',
+    importButton: 'Import papers',
+    importTitle: 'Import papers',
+    secPaste: 'Paste import',
+    secPasteDesc: 'Paste BibTeX / RIS / Zotero export text to import in one click',
+    secOnline: 'Fetch online',
+    secOnlineDesc: 'Fetch metadata by DOI / arXiv ID into the library',
+    secBulk: 'Bulk attach',
+    secBulkDesc: 'Attach local PDFs in bulk, or sync from local Zotero',
+    secMaintain: 'Export & maintenance',
+    secMaintainDesc: 'Export the library as .bib, or clean duplicates from the project .bib',
+    fetchEntry: 'DOI / arXiv fetch',
+    zoteroStatusOff: 'Local Zotero not detected (install Zotero and run it with Better BibTeX)',
+    zoteroStatusOk: 'Connected to local Zotero',
+    zoteroStatusBusy: 'Connecting to local Zotero…',
+    zoteroSyncDone: (added, errors) =>
+      `Sync done: ${added} added${errors > 0 ? ` / ${errors} parse errors` : ''}`,
+    filterSyntaxHint: 'Filter syntax supported: year:>2020 venue:NeurIPS status:reading keywords',
     bibtexTitle: 'Import BibTeX',
     bibtexPlaceholder: 'Paste BibTeX entries…\n\n@article{...}',
     importSummary: (added, notes) => `Imported ${added}${notes}`,
@@ -443,6 +502,9 @@ export function LibraryPanel() {
   const [risText, setRisText] = useState('');
   const [risResult, setRisResult] = useState<string | null>(null);
 
+  // v7.6.0「导入文献」对话框：低频入口的统一容器（粘贴导入 / 在线获取 / 批量关联 / 导出与维护）
+  const [importOpen, setImportOpen] = useState(false);
+
   // Zotero JSON 导入对话框（同 RIS：组件内部 state，集合结构经 zotero:<名> tag 保留）
 
   const runZoteroSync = async () => {
@@ -450,15 +512,15 @@ export function LibraryPanel() {
     setZoteroSyncState('probing');
     setZoteroSyncNote('');
     if (!(await probeZotero())) {
+      // 探测失败：状态行回落为「未检测到本机 Zotero（需安装…）」明确说明（v7.6.0 起不再依赖含糊 chip）
       setZoteroSyncState('off');
-      setZoteroSyncNote('未检测到本地 Zotero（需 Zotero + Better BibTeX，端口 23119）');
       return;
     }
     setZoteroSyncState('busy');
     const r = await syncZotero();
     if (r.ok) {
       setZoteroSyncState('ok');
-      setZoteroSyncNote(`同步完成：新增 ${r.added} 条${r.errors.length > 0 ? ` / 解析错误 ${r.errors.length} 条` : ''}`);
+      setZoteroSyncNote(c.zoteroSyncDone(r.added, r.errors.length));
     } else {
       setZoteroSyncState('off');
       setZoteroSyncNote(r.reason);
@@ -772,6 +834,15 @@ export function LibraryPanel() {
     setCleanPreview(null);
   };
 
+  /** Zotero 同步区状态行：优先显示最近一次同步结果，否则按探测状态给出明确说明 */
+  const zoteroStatusLine = zoteroSyncNote
+    ? zoteroSyncNote
+    : zoteroSyncState === 'probing' || zoteroSyncState === 'busy'
+      ? c.zoteroStatusBusy
+      : zoteroSyncState === 'ok'
+        ? c.zoteroStatusOk
+        : c.zoteroStatusOff;
+
   return (
     <div className="sf-lib">
       <div className="sf-lib-mode">
@@ -784,81 +855,34 @@ export function LibraryPanel() {
 
       {mode === 'list' && (
         <>
-          <div className="sf-lib-toolbar">
+          {/* v7.6.0 工具栏重构：搜索框独占一行 + [筛选 | 导入文献] 一行，低频入口收进导入对话框 */}
+          <div className="sf-lib-toolbar sf-lib-toolbar--stack">
             <input
               className="sf-input sf-lib-filter"
               placeholder={c.filterPlaceholder}
+              title={c.filterSyntaxHint}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            {/* 智能筛选（v3.4.0 B）：最近添加 / 被引用 / 未读 */}
-            <select
-              className="sf-input"
-              style={{ width: 130, fontSize: 12 }}
-              value={smartFilter}
-              onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
-            >
-              <option value="all">{language === 'zh' ? '全部文献' : 'All papers'}</option>
-              <option value="recent">{language === 'zh' ? '最近添加' : 'Recently added'}</option>
-              <option value="cited">{language === 'zh' ? '被稿件引用' : 'Cited in ms'}</option>
-              <option value="unread">{language === 'zh' ? '未读' : 'Unread'}</option>
-            </select>
-            <button className="sf-btn" onClick={() => setDialog('bibtex')}>
-              BibTeX
-            </button>
-            <button className="sf-btn" onClick={() => setRisOpen(true)}>
-              RIS
-            </button>
-            <button
-              className="sf-btn"
-              onClick={() => {
-                setZoteroResult(null);
-                setZoteroOpen(true);
-              }}
-            >
-              {c.zoteroButton}
-            </button>
-            <button
-              className="sf-btn"
-              title={c.zoteroSyncTitle}
-              disabled={zoteroSyncState === 'busy' || zoteroSyncState === 'probing'}
-              onClick={() => void runZoteroSync()}
-            >
-              <RefreshCw size={12} style={{ verticalAlign: -1 }} /> {c.zoteroSyncButton}
-            </button>
-            {zoteroSyncNote ? (
-              <span
-                className="sf-chip dim"
-                title={zoteroSyncNote}
-                style={{ fontSize: 10.5, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            <div className="sf-lib-toolbar-row">
+              {/* 智能筛选（v3.4.0 B）：最近添加 / 被引用 / 未读 */}
+              <select
+                className="sf-input"
+                value={smartFilter}
+                onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
               >
-                {zoteroSyncState === 'ok' ? '✓' : '⚠'} {zoteroSyncNote}
-              </span>
-            ) : null}
-            <button className="sf-btn" onClick={() => setDialog('fetch')}>
-              DOI/arXiv
-            </button>
-            <button
-              className="sf-btn"
-              onClick={() => {
-                setPdfCandidates([]);
-                setPdfDirMsg(null);
-                setPdfDirOpen(true);
-              }}
-            >
-              {c.pdfDirButton}
-            </button>
-            <button className="sf-btn" onClick={openBibCleaner}>
-              {c.cleanButton}
-            </button>
-            <button
-              className="sf-btn sf-export-bib"
-              onClick={exportLibraryBib}
-              disabled={papers.length === 0}
-              title={c.exportBib}
-            >
-              <Download size={13} /> {c.exportBib}
-            </button>
+                <option value="all">{language === 'zh' ? '全部文献' : 'All papers'}</option>
+                <option value="recent">{language === 'zh' ? '最近添加' : 'Recently added'}</option>
+                <option value="cited">{language === 'zh' ? '被稿件引用' : 'Cited in ms'}</option>
+                <option value="unread">{language === 'zh' ? '未读' : 'Unread'}</option>
+              </select>
+              <button
+                className="sf-btn sf-btn--primary sf-lib-import-btn"
+                onClick={() => setImportOpen(true)}
+              >
+                <Plus size={13} /> {c.importButton}
+              </button>
+            </div>
           </div>
           <p className="sf-lib-count">
             {c.count(
@@ -1077,6 +1101,131 @@ export function LibraryPanel() {
             {hits === null && <p className="placeholder">{c.discoverIdle}</p>}
           </ul>
         </>
+      )}
+
+      {/* v7.6.0「导入文献」对话框：四分组（粘贴导入 / 在线获取 / 批量关联 / 导出与维护）。
+          各分组按钮仅负责打开既有对话框 / 触发既有逻辑（本对话框随即关闭），导入逻辑零改动。 */}
+      {importOpen && (
+        <div className="sf-dialog-overlay" onMouseDown={() => setImportOpen(false)}>
+          <div className="sf-dialog sf-lib-dialog sf-lib-import" onMouseDown={(e) => e.stopPropagation()}>
+            <header className="sf-dialog-header">
+              <strong>{c.importTitle}</strong>
+            </header>
+            <div className="sf-dialog-body">
+              <section className="sf-lib-import-sec">
+                <h4>{c.secPaste}</h4>
+                <p className="sf-lib-import-desc">{c.secPasteDesc}</p>
+                <div className="sf-lib-import-actions">
+                  <button
+                    className="sf-btn"
+                    onClick={() => {
+                      setImportOpen(false);
+                      setDialog('bibtex');
+                    }}
+                  >
+                    BibTeX
+                  </button>
+                  <button
+                    className="sf-btn"
+                    onClick={() => {
+                      setImportOpen(false);
+                      setRisOpen(true);
+                    }}
+                  >
+                    RIS
+                  </button>
+                  <button
+                    className="sf-btn"
+                    onClick={() => {
+                      setImportOpen(false);
+                      setZoteroResult(null);
+                      setZoteroOpen(true);
+                    }}
+                  >
+                    {c.zoteroButton}
+                  </button>
+                </div>
+              </section>
+              <section className="sf-lib-import-sec">
+                <h4>{c.secOnline}</h4>
+                <p className="sf-lib-import-desc">{c.secOnlineDesc}</p>
+                <div className="sf-lib-import-actions">
+                  <button
+                    className="sf-btn"
+                    onClick={() => {
+                      setImportOpen(false);
+                      setDialog('fetch');
+                    }}
+                  >
+                    {c.fetchEntry}
+                  </button>
+                </div>
+              </section>
+              <section className="sf-lib-import-sec">
+                <h4>{c.secBulk}</h4>
+                <p className="sf-lib-import-desc">{c.secBulkDesc}</p>
+                <div className="sf-lib-import-actions">
+                  <button
+                    className="sf-btn"
+                    onClick={() => {
+                      setImportOpen(false);
+                      setPdfCandidates([]);
+                      setPdfDirMsg(null);
+                      setPdfDirOpen(true);
+                    }}
+                  >
+                    {c.pdfDirButton}
+                  </button>
+                  {/* Zotero 同步：状态就地显示在本分组（探测/结果说明见 zoteroStatusLine） */}
+                  <button
+                    className="sf-btn"
+                    title={c.zoteroSyncTitle}
+                    disabled={zoteroSyncState === 'busy' || zoteroSyncState === 'probing'}
+                    onClick={() => void runZoteroSync()}
+                  >
+                    <RefreshCw size={12} style={{ verticalAlign: -1 }} /> {c.zoteroSyncButton}
+                  </button>
+                </div>
+                <p
+                  className={
+                    zoteroSyncState === 'ok'
+                      ? 'sf-lib-import-status sf-lib-import-status--ok'
+                      : 'sf-lib-import-status'
+                  }
+                >
+                  {zoteroStatusLine}
+                </p>
+              </section>
+              <section className="sf-lib-import-sec">
+                <h4>{c.secMaintain}</h4>
+                <p className="sf-lib-import-desc">{c.secMaintainDesc}</p>
+                <div className="sf-lib-import-actions">
+                  <button
+                    className="sf-btn"
+                    onClick={() => {
+                      setImportOpen(false);
+                      openBibCleaner();
+                    }}
+                  >
+                    {c.cleanButton}
+                  </button>
+                  {/* 导出反馈走列表模式的状态行（pdfMsg），先关对话框再导出才能看到结果 */}
+                  <button
+                    className="sf-btn sf-export-bib"
+                    onClick={() => {
+                      setImportOpen(false);
+                      exportLibraryBib();
+                    }}
+                    disabled={papers.length === 0}
+                    title={c.exportBib}
+                  >
+                    <Download size={13} /> {c.exportBib}
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
       )}
 
       {dialog === 'bibtex' && (

@@ -2,7 +2,7 @@
 /**
  * LibraryPanel「Bib 清理向导」测试。测试环境说明同 libraryRis.test.tsx：
  * mock zustand 为仅依赖本包 react@18 的等价实现。覆盖验收路径：
- *  - 条目模式工具栏出现「清理 Bib」按钮，点击打开向导对话框（sf-dialog）；
+ *  - 「清理 Bib」入口收进「导入文献」对话框（导出与维护区），点击打开向导对话框（sf-dialog）；
  *  - 项目无 .bib → 指引提示、无去重入口；干净 .bib → 无问题提示、去重按钮禁用；
  *  - 有 issue → error / warning 分区展示（keys + message + suggestion）；
  *  - 自动去重 → 预览（删除条目/行数统计 + 前 3 组被删 key）→ 应用内 confirm 确认
@@ -106,8 +106,9 @@ function btn(text: string): HTMLButtonElement {
   return found;
 }
 
-/** 打开清理向导（前置：workspaceStore.files 已就绪） */
+/** 打开清理向导（v7.6.0：「清理 Bib」入口收进「导入文献」对话框的导出与维护区） */
 function openCleaner(): void {
+  click(btn('导入文献'));
   click(btn('清理 Bib'));
   expect(container!.querySelector('.sf-lib-dialog')).toBeTruthy();
 }
@@ -148,12 +149,19 @@ afterEach(() => {
 });
 
 describe('LibraryPanel · Bib 清理向导', () => {
-  it('条目模式工具栏渲染「清理 Bib」按钮（PDF 目录之后），点击打开 sf-dialog 向导', () => {
+  it('「清理 Bib」入口收进「导入文献」对话框（导出与维护区），点击打开 sf-dialog 向导', () => {
     const buttons = [...container!.querySelectorAll<HTMLButtonElement>('.sf-lib-toolbar button')].map(
       (b) => b.textContent?.trim(),
     );
-    expect(buttons).toContain('清理 Bib');
-    expect(buttons!.indexOf('清理 Bib')).toBeGreaterThan(buttons!.indexOf('PDF 目录'));
+    // 工具栏只留高频操作：清理 Bib 不再直接出现在工具栏，由「导入文献」进入
+    expect(buttons).toContain('导入文献');
+    expect(buttons).not.toContain('清理 Bib');
+    expect(buttons).not.toContain('PDF 目录');
+
+    click(btn('导入文献'));
+    const hub = container!.querySelector('.sf-lib-import');
+    expect(hub).toBeTruthy();
+    expect(hub!.textContent).toContain('导出与维护');
 
     openCleaner();
     expect(container!.querySelector('header strong')!.textContent).toBe(

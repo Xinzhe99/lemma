@@ -116,7 +116,20 @@ export function setBigData(key: string, value: unknown): Promise<void> {
     try {
       await kvSet(key, value);
     } catch (e) {
-      console.warn(`[storage] IndexedDB 写入失败（key=${key}）：`, e);
+      // v7.6.0：IndexedDB 写失败（打包环境存储异常等）→ 降级写 localStorage，
+      // 宁可冒配额风险也不静默丢数据；getBigData 读路径本就兜底 localStorage
+      console.warn(`[storage] IndexedDB 写入失败（key=${key}），降级 localStorage：`, e);
+      try {
+        const serialized = JSON.stringify(value);
+        try {
+          localStorage.removeItem(`idb:${key}`); // 迁移层留下的旧占位，先清出配额
+        } catch {
+          /* 忽略 */
+        }
+        localStorage.setItem(key, serialized);
+      } catch (e2) {
+        console.warn(`[storage] localStorage 降级写入也失败（key=${key}）：`, e2);
+      }
     } finally {
       // 仅当没有更新值在途时清除标记（同值重复写为无害边界）
       if (pendingWrites.get(key) === value) pendingWrites.delete(key);

@@ -149,9 +149,23 @@ export function App() {
     warmPdfChunk();
     // v5.0.0 内置 git：启动即探测可用性
     void detectGitAvailability();
+    // v7.6.0：禁用 WebView2/WKWebView 原生右键菜单（其中的「刷新」会整页重载，
+    // 用户误触后以为数据全丢）——输入框/文本域内保留系统菜单以便复制粘贴
+    const suppressContext = (e: MouseEvent): void => {
+      const el = e.target as HTMLElement | null;
+      const editable =
+        el?.tagName === 'INPUT' ||
+        el?.tagName === 'TEXTAREA' ||
+        el?.isContentEditable === true ||
+        el?.closest('input, textarea, [contenteditable="true"]') != null;
+      if (!editable) e.preventDefault();
+    };
+    window.addEventListener('contextmenu', suppressContext);
+    const detachContext = () => window.removeEventListener('contextmenu', suppressContext);
     return () => {
       detach();
       detachAutoCompile();
+      detachContext();
     };
   }, []);
 

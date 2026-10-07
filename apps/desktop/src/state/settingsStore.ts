@@ -73,6 +73,9 @@ export interface SettingsState {
   sessionBudgetTokens: number;
   /** v7.5.0：会话亲和缓存（prompt_cache_key）——同会话稳定 cache key 提升服务商前缀缓存命中；默认开 */
   promptCacheKey: boolean;
+  /** v7.6.0：本地文献库目录（相对应用数据目录；默认 library） */
+  libraryDir: string;
+  setLibraryDir(dir: string): void;
   setSessionBudgetTokens(n: number): void;
   setPromptCacheKey(on: boolean): void;
   theme: Theme;
@@ -113,6 +116,7 @@ interface PersistedSettings {
   speechLanguage?: 'auto' | 'zh' | 'en';
   sessionBudgetTokens?: number;
   promptCacheKey?: boolean;
+  libraryDir?: string;
   theme: Theme;
   language: Language;
   agentEngine: AgentEngine;
@@ -137,6 +141,7 @@ function readPersisted(): PersistedSettings | null {
       speechLanguage: v.speechLanguage === 'auto' || v.speechLanguage === 'zh' || v.speechLanguage === 'en' ? v.speechLanguage : undefined,
       sessionBudgetTokens: typeof v.sessionBudgetTokens === 'number' && v.sessionBudgetTokens >= 0 ? v.sessionBudgetTokens : 0,
       promptCacheKey: v.promptCacheKey !== false, // 默认开
+      libraryDir: typeof v.libraryDir === 'string' && v.libraryDir.trim() ? v.libraryDir.trim() : undefined,
       // 亮色为默认主题；仅显式持久化过 'dark' 才回落暗色
       theme: v.theme === 'dark' ? 'dark' : 'light',
       language: v.language === 'en' ? 'en' : 'zh',
@@ -169,6 +174,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     speechLanguage: initial?.speechLanguage ?? 'auto',
     sessionBudgetTokens: initial?.sessionBudgetTokens ?? 0,
     promptCacheKey: initial?.promptCacheKey !== false,
+    libraryDir: typeof initial?.libraryDir === 'string' && initial.libraryDir.trim() ? initial.libraryDir.trim() : 'library',
   theme: initial?.theme ?? 'light',
   language: initial?.language ?? 'zh',
   agentEngine: initial?.agentEngine ?? 'auto',
@@ -215,6 +221,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
 
   setPromptCacheKey(promptCacheKey) {
     set({ promptCacheKey });
+  },
+
+  setLibraryDir(libraryDir) {
+    set({ libraryDir: libraryDir.trim() || 'library' });
   },
 
   setAgentEngine(agentEngine) {
@@ -269,6 +279,7 @@ useSettingsStore.subscribe((s) => {
         speechLanguage: s.speechLanguage,
         sessionBudgetTokens: s.sessionBudgetTokens,
         promptCacheKey: s.promptCacheKey,
+        libraryDir: s.libraryDir,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snap));
     }

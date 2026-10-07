@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentMessage } from '@lemma/shared';
-import { OpenAICompatibleProvider, parseSseChunk } from './openaiCompat';
+import { OpenAICompatibleProvider, parseSseChunk, toWireToolName } from './openaiCompat';
 import type { FetchLike } from './openaiCompat';
 import type { ChatEvent, ChatRequest } from './types';
 
@@ -110,7 +110,7 @@ describe('OpenAICompatibleProvider', () => {
       { role: 'user', content: '你好' },
       { role: 'tool', tool_call_id: 'call_9', content: '{"n":1}' },
     ]);
-    expect(body.tools[0].function.name).toBe('library.search');
+    expect(body.tools[0].function.name).toBe('library_search'); // v7.6.0 线上名点号→下划线
     expect(body.tools[0].function.parameters.required).toEqual(['query']);
 
     expect(events.filter((e) => e.type === 'text-delta').map((e) => (e as any).delta).join('')).toBe('你好');
@@ -197,5 +197,51 @@ describe('OpenAICompatibleProvider', () => {
     const events = await collect(req(), provider);
     expect(events[0]).toMatchObject({ type: 'error' });
     expect((events[0] as any).message).toContain('ECONNREFUSED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v7.6.0：工具名点号 → 下划线（DeepSeek 等网关 function.name 校验 ^[a-zA-Z0-9_-]+$）
+// ---------------------------------------------------------------------------
+describe('工具名线上映射（点号改写）', () => {
+  const fetchFn = async (_url: string, init?: RequestInit) => {
+    capturedBody = String(init?.body);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder();
+        controller.enqueue(enc.encode(
+          'data: ' + JSON.stringify({
+            choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_x', function: { name: 'tex_edit', arguments: '{"file":"main.tex"}' } }] }, finish_reason: 'tool_calls' }],
+          }) + '\n\ndata: [DONE]\n\n',
+        ));
+        controller.close();
+      },
+    });
+    return new Response(stream, { status: 200 });
+  };
+  let capturedBody = '';
+
+  it('tools 声明与历史 tool_calls 的点号名在线上均为下划线', async () => {
+    capturedBody = '';
+    const provider = new OpenAICompatibleProvider({ id: 'x', label: 'x', baseUrl: 'https://api.example.com/v1', apiKey: 'k', fetchFn });
+    const tools = [{ name: 'tex.edit', description: 'd', permission: 'write' as const, parameters: { type: 'object', properties: {} } }];
+    const messages: AgentMessage[] = [
+      { id: 'u', role: 'user', content: '改', createdAt: 0 },
+      { id: 'a', role: 'assistant', content: '', createdAt: 1, toolCalls: [{ id: 'c1', tool: 'tex.edit', args: { file: 'main.tex' } }] },
+      { id: 't', role: 'tool', toolCallId: 'c1', content: '{"applied":true}', createdAt: 2 },
+    ];
+    for await (const ev of provider.complete({ model: 'm', messages, tools })) {
+      if (ev.type === 'tool-call') {
+        expect(ev.call.tool).toBe('tex.edit'); // 收到下划线名映射回真实名
+      }
+    }
+    expect(capturedBody).toContain('"name":"tex_edit"'); // 声明与历史均改写
+    expect(capturedBody).not.toContain('"name":"tex.edit"');
+  });
+
+  it('toWireToolName 纯函数：点号转下划线，其余不动', () => {
+    expect(toWireToolName('tex.edit')).toBe('tex_edit');
+    expect(toWireToolName('user.ask')).toBe('user_ask');
+    expect(toWireToolName('already_ok')).toBe('already_ok');
   });
 });

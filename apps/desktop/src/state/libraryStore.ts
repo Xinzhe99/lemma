@@ -31,6 +31,11 @@ import {
   OpenAICompatEmbeddings,
   type EmbeddingProvider,
 } from '@lemma/knowledge';
+import {
+  mirrorPdfToDisk,
+  readPdfFromDisk,
+  sweepAttachmentsToDisk,
+} from './libraryDisk';
 import { useSettingsStore } from './settingsStore';
 import { useUiStore } from './uiStore';
 import { paperAnnotationKey, useAnnotationStore } from './annotationStore';
@@ -481,6 +486,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     persistQuietly(
       attachmentPut({ paperId, data: new Blob([copy]), name, savedAt: Date.now() }),
     );
+    // v7.6.0：镜像到本地文献库目录（磁盘普通文件，用户可见、可迁移位置）
+    persistQuietly(mirrorPdfToDisk(name, copy));
     // v4.4.0：异步抽取全文入索引（成功后知识检索升级为全文级）
     extractFullText(paperId);
     return true;
@@ -526,9 +533,23 @@ function persistQuietly(op: Promise<unknown>): void {
 
 /** 从持久层读回单条附件填内存（内存已有或持久层无则不动）。 */
 async function backfillAttachment(paperId: string): Promise<void> {
-  if (useLibraryStore.getState().pdfAttachments[paperId]) return;
+  const st = useLibraryStore.getState();
+  if (st.pdfAttachments[paperId]) return;
+  const paper = st.papers.find((p) => p.id === paperId);
   const rec = await attachmentGet(paperId);
-  if (!rec) return;
+  if (!rec) {
+    // v7.6.0：IndexedDB 未命中（清过存储/换机器）→ 从本地文献库目录回填
+    if (paper?.pdfPath) {
+      const name = `${paper.citekey || paper.id}.pdf`;
+      const fromDisk = await readPdfFromDisk(name);
+      if (fromDisk) {
+        useLibraryStore.setState((s) =>
+          s.pdfAttachments[paperId] ? s : { pdfAttachments: { ...s.pdfAttachments, [paperId]: fromDisk } },
+        );
+      }
+    }
+    return;
+  }
   const bytes = await blobToArrayBuffer(rec.data);
   // 仅在内存仍缺时填入，避免覆盖稍新的 attachPdf 副本
   useLibraryStore.setState((s) =>
@@ -582,6 +603,13 @@ export async function initLibrary(): Promise<void> {
   chooseEmbedder();
   await rebuildIndex(useLibraryStore.getState().papers);
   useLibraryStore.setState({ indexReady: true, indexMode: embedderMode });
+  // v7.6.0：后台把历史附件（IndexedDB-only 旧数据）补镜像到本地文献库目录
+  void sweepAttachmentsToDisk(useLibraryStore.getState().papers, async (paperId) => {
+    const st = useLibraryStore.getState();
+    if (st.pdfAttachments[paperId]) return st.pdfAttachments[paperId];
+    const rec = await attachmentGet(paperId).catch(() => null);
+    return rec ? blobToArrayBuffer(rec.data) : null;
+  }).catch((e) => console.warn('[library] 附件清扫失败：', e));
 }
 
 // 嵌入配置（激活服务 / 嵌入模型）变化时自动重建索引

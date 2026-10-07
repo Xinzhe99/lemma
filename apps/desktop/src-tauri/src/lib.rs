@@ -5,7 +5,9 @@
  * - fs_read / fs_read_base64 / fs_write / fs_write_base64 / fs_delete / fs_list：
  *   项目虚拟文件系统（数据目录下的相对路径）；fs_write_base64 供二进制写入（插图向导的 figures/ 图片）
  * - secret_get / secret_set：API key 存取（当前为数据目录 JSON 文件；正式版换 OS keychain）
- * - proc_run：阻塞式命令执行（Tectonic/latexmk 编译与一次性 CLI agent 调用；流式 spawn 属后续增量）
+ * - proc_run：一次性命令执行（Tectonic/latexmk/lualatex 编译与 CLI agent 调用；
+ *   async 命令 + spawn_blocking 不阻塞主线程，Windows 带 CREATE_NO_WINDOW 不弹黑窗；
+ *   流式 spawn 属后续增量）
  *
  * 边界说明：项目文件均为文本（LaTeX 工程），fs_read 以 UTF-8 读取；
  * 二进制产物（编译得到的 PDF）经 fs_read_base64 以 base64 编码返回，由前端解码为字节；
@@ -184,10 +186,61 @@ struct ProcResult {
     stderr: String,
 }
 
-/// 阻塞式命令执行：供 Tectonic/latexmk 编译与一次性 CLI agent 调用。
-/// cwd 为空时使用应用数据目录；args 原样传递，不做 shell 展开。
+/// Windows：CREATE_NO_WINDOW 抑制子进程附带的控制台窗口（否则每次编译/探测
+/// 都会闪出黑色 conhost 窗口）。0x08000000 即 winbase.h 的 CREATE_NO_WINDOW。
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// 构造并同步执行子进程（阻塞直至退出）：供 proc_run / 系统引擎探测共用。
+/// work_dir 为 None 时沿用当前目录；Windows 下一律带 CREATE_NO_WINDOW；
+/// args 原样传递，不做 shell 展开。
+fn run_child(cmd: &str, args: &[String], work_dir: Option<&Path>) -> std::io::Result<std::process::Output> {
+    let mut command = Command::new(cmd);
+    command.args(args);
+    if let Some(dir) = work_dir {
+        command.current_dir(dir);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command.output()
+}
+
+/** 用系统默认浏览器/资源管理器打开外部 URL 或本地文件夹（「去获取 Key」、打开文献库目录）。 */
 #[tauri::command]
-fn proc_run(
+async fn open_external(target: String) -> Result<(), String> {
+    // 仅放行 http(s) 链接与本地存在的目录/文件路径，防止任意命令面
+    let is_http = target.starts_with("http://") || target.starts_with("https://");
+    if !is_http {
+        let path = std::path::Path::new(&target);
+        if !path.exists() {
+            return Err(format!("路径不存在：{target}"));
+        }
+    }
+    let (cmd, args): (&str, Vec<String>) = if cfg!(target_os = "windows") {
+        ("explorer.exe", vec![target.clone()])
+    } else if cfg!(target_os = "macos") {
+        ("open", vec![target.clone()])
+    } else {
+        ("xdg-open", vec![target.clone()])
+    };
+    let handle = tauri::async_runtime::spawn_blocking(move || {
+        run_child(cmd, &args, None).map_err(|e| format!("打开失败：{e}"))
+    })
+    .await
+    .map_err(|e| format!("open_external 任务失败：{e}"))??;
+    // explorer/open/xdg-open 的退出码不统一（ explorer 常>0 ），只关心命令能启动
+    let _ = handle;
+    Ok(())
+}
+
+/// 一次性命令执行：供 Tectonic/latexmk/lualatex 等编译与 CLI agent 调用。
+/// cwd 为空时使用应用数据目录。async 命令 + spawn_blocking：阻塞的 output()
+/// 在阻塞线程池执行，不占主线程与异步运行时工作线程（UI 不冻结）。
+#[tauri::command]
+async fn proc_run(
     app: tauri::AppHandle,
     cmd: String,
     args: Vec<String>,
@@ -200,16 +253,17 @@ fn proc_run(
         }
         _ => base_dir(&app),
     };
-    let output = Command::new(&cmd)
-        .args(&args)
-        .current_dir(&work_dir)
-        .output()
-        .map_err(|e| format!("无法启动命令 {cmd}：{e}"))?;
-    Ok(ProcResult {
-        code: output.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+    tauri::async_runtime::spawn_blocking(move || {
+        let output = run_child(&cmd, &args, Some(&work_dir))
+            .map_err(|e| format!("无法启动命令 {cmd}：{e}"))?;
+        Ok(ProcResult {
+            code: output.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        })
     })
+    .await
+    .map_err(|e| format!("proc_run 任务失败：{e}"))?
 }
 
 #[derive(serde::Serialize)]
@@ -484,9 +538,7 @@ fn pandoc_asset() -> Result<(String, &'static str), String> {
 
 /// 系统探测：PATH 上能否直接运行 pandoc（--version 退出码 0）。
 fn system_pandoc_available() -> bool {
-    Command::new("pandoc")
-        .arg("--version")
-        .output()
+    run_child("pandoc", &["--version".to_string()], None)
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -728,6 +780,7 @@ mod pandoc_install_tests {
             secret_get,
             secret_set,
             proc_run,
+            open_external,
             updater_status,
             download_and_install_tectonic,
             download_and_install_pandoc

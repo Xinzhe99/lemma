@@ -9,6 +9,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest';
 import type { SynctexIndex } from '@lemma/compile';
 import type { Diagnostic } from '@lemma/shared';
 import {
+  createRealEngine,
   detectEngine,
   engineLabel,
   firstErrorJump,
@@ -97,6 +98,36 @@ describe('withBuiltinTectonic（runner 命令重映射）', () => {
 
   it('路径为 null 时返回原 runner（系统引擎路径零开销）', () => {
     expect(withBuiltinTectonic(fakeRunner, null)).toBe(fakeRunner);
+  });
+});
+
+describe('createRealEngine（选定引擎 → 实际启动的命令一致，修复标签错位）', () => {
+  /** 记录实际被启动的命令名与参数 */
+  const calls: { cmd: string; args: string[] }[] = [];
+  const spyRunner = {
+    async run(cmd: string, args: string[], _opts: { cwd: string; stdin?: string }) {
+      calls.push({ cmd, args });
+      return { code: 0, stdout: 'ok', stderr: '' };
+    },
+  };
+
+  it('lualatex/xelatex/pdflatex → 启动同名命令与 engineArgs（此前误启动 tectonic 的错位已修）', async () => {
+    for (const kind of ['lualatex', 'xelatex', 'pdflatex'] as const) {
+      const engine = createRealEngine(kind);
+      const r = await engine.compile({ files: {}, entry: 'main.tex' }, spyRunner);
+      expect(r.engine).toBe(kind);
+      expect(r.success).toBe(true);
+      const last = calls[calls.length - 1];
+      expect(last.cmd).toBe(kind); // 标签 lualatex 就真的启动 lualatex
+      expect(last.args).toEqual(['--synctex=1', '--interaction=nonstopmode', 'main.tex']);
+    }
+  });
+
+  it('tectonic/latexmk → 分别启动 tectonic / latexmk', async () => {
+    await createRealEngine('tectonic').compile({ files: {}, entry: 'main.tex' }, spyRunner);
+    expect(calls[calls.length - 1].cmd).toBe('tectonic');
+    await createRealEngine('latexmk').compile({ files: {}, entry: 'main.tex' }, spyRunner);
+    expect(calls[calls.length - 1].cmd).toBe('latexmk');
   });
 });
 
@@ -405,23 +436,23 @@ describe('编译日志双语（D15）', () => {
     useSettingsStore.setState({ language: 'zh' });
   });
 
-  it('language=en 时模拟编译日志为英文', async () => {
+  it('language=en 时模拟编译日志为英文，并注明浏览器形态', async () => {
     useSettingsStore.setState({ language: 'en' });
     seedProjectTo(useWorkspaceStore, useUiStore);
     const result = await runCompile();
     expect(result.ok).toBe(true);
     const log = useWorkspaceStore.getState().compileLog.join('\n');
-    expect(log).toContain('▶ Compiling main.tex (mock engine)');
+    expect(log).toContain('▶ Browser mode: mock compile of main.tex');
     expect(log).toContain('succeeded');
     expect(log).not.toContain('模拟引擎');
     expect(log).not.toContain('成功');
   });
 
-  it('切回 zh 时恢复中文原文', async () => {
+  it('切回 zh 时恢复中文原文，并注明「浏览器形态：模拟编译」', async () => {
     seedProjectTo(useWorkspaceStore, useUiStore);
     await runCompile();
     const log = useWorkspaceStore.getState().compileLog.join('\n');
-    expect(log).toContain('▶ 开始编译 main.tex（模拟引擎）');
+    expect(log).toContain('▶ 浏览器形态：模拟编译 main.tex');
     expect(log).toContain('成功');
   });
 });

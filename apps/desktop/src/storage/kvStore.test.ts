@@ -139,15 +139,17 @@ describe('migrateLocalStorageToIdb 分界与搬运', () => {
   });
 
   it('搬运失败（kvSet 抛错）保留 localStorage 原键并计入 skipped', async () => {
-    localStorage.setItem('sf-notes', bigJson(BIG_DATA_THRESHOLD_BYTES));
+    // 注意用非保护键：sf-notes 等在 LAZY_READER_KEYS 名单内时迁移不触达 kvSet，
+    // mockRejectedValueOnce 会滞留队列泄漏进后续用例（v7.6.0 修复的测试隐患）
+    localStorage.setItem('sf-misc-big', bigJson(BIG_DATA_THRESHOLD_BYTES));
     vi.mocked(kvSet).mockRejectedValueOnce(new Error('idb 不可用'));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const r = await migrateLocalStorageToIdb();
 
     expect(r.migrated).toEqual([]);
-    expect(r.skipped).toEqual(['sf-notes']);
-    expect(localStorage.getItem('sf-notes')).not.toBeNull();
+    expect(r.skipped).toEqual(['sf-misc-big']);
+    expect(localStorage.getItem('sf-misc-big')).not.toBeNull();
     warn.mockRestore();
   });
 
@@ -162,10 +164,20 @@ describe('migrateLocalStorageToIdb 分界与搬运', () => {
 });
 
 describe('getBigData / setBigData', () => {
-  it('setBigData 往返：写 IndexedDB、不写 localStorage（不占配额）', async () => {
+  it('setBigData 往返：IndexedDB 可写时不写 localStorage（不占配额）', async () => {
+    vi.mocked(kvSet).mockResolvedValueOnce(undefined);
     await setBigData('sf-library', { papers: [{ id: 'p1' }], seeded: true });
     expect(await getBigData('sf-library')).toEqual({ papers: [{ id: 'p1' }], seeded: true });
     expect(localStorage.getItem('sf-library')).toBeNull();
+  });
+
+  it('setBigData：IndexedDB 写失败时降级写 localStorage（不静默丢数据，v7.6.0）', async () => {
+    vi.mocked(kvSet).mockRejectedValueOnce(new Error('idb 不可用'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await setBigData('sf-library', { papers: [{ id: 'p1' }], seeded: true });
+    expect(await getBigData('sf-library')).toEqual({ papers: [{ id: 'p1' }], seeded: true });
+    expect(localStorage.getItem('sf-library')).not.toBeNull(); // 降级副本可供重启恢复
+    warn.mockRestore();
   });
 
   it('getBigData 兜底读旧 localStorage 键（启动迁移前的首次运行）', async () => {

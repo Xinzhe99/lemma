@@ -143,7 +143,13 @@ export interface Diagnostic {
   hint?: string;
 }
 
-export type CompileEngineKind = 'tectonic' | 'latexmk' | 'mock';
+export type CompileEngineKind =
+  | 'tectonic'
+  | 'latexmk'
+  | 'lualatex'
+  | 'xelatex'
+  | 'pdflatex'
+  | 'mock';
 
 export interface CompileResult {
   success: boolean;

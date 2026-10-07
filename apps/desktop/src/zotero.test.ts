@@ -510,6 +510,11 @@ function btn(text: string): HTMLButtonElement {
   return found;
 }
 
+/** v7.6.0 工具栏重构：Zotero JSON / PDF 目录等低频入口收进「导入文献」对话框，先开容器 */
+function openImportHub(): void {
+  click(btn('导入文献'));
+}
+
 function typeInto(textarea: HTMLTextAreaElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
   act(() => {
@@ -567,12 +572,22 @@ afterEach(() => {
 });
 
 describe('LibraryPanel · Zotero JSON 导入入口', () => {
-  it('工具栏渲染「Zotero JSON」按钮（RIS 之后），点击打开粘贴对话框', () => {
+  it('「Zotero JSON」入口收进「导入文献」对话框（粘贴导入区，RIS 之后），点击打开粘贴对话框', () => {
     const labels = [...container!.querySelectorAll<HTMLButtonElement>('.sf-lib-toolbar button')].map(
       (b) => b.textContent?.trim(),
     );
-    expect(labels).toContain('Zotero JSON');
-    expect(labels!.indexOf('Zotero JSON')).toBeGreaterThan(labels!.indexOf('RIS'));
+    // 工具栏只留高频操作：搜索 + 筛选 + 导入文献，Zotero JSON 不再直接出现在工具栏
+    expect(labels).toContain('导入文献');
+    expect(labels).not.toContain('Zotero JSON');
+
+    openImportHub();
+    const hub = container!.querySelector('.sf-lib-import');
+    expect(hub).toBeTruthy();
+    const hubButtons = [...hub!.querySelectorAll<HTMLButtonElement>('button')].map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(hubButtons).toContain('RIS');
+    expect(hubButtons!.indexOf('Zotero JSON')).toBeGreaterThan(hubButtons!.indexOf('RIS'));
 
     click(btn('Zotero JSON'));
     expect(container!.querySelector('.sf-lib-dialog')).toBeTruthy();
@@ -583,6 +598,7 @@ describe('LibraryPanel · Zotero JSON 导入入口', () => {
   });
 
   it('粘贴合法 JSON → 导入 2 条：citekey 补齐、集合写入 zotero: tag、显示「导入 2 条 / 跳过重复 0 / 错误 0」', () => {
+    openImportHub();
     click(btn('Zotero JSON'));
     typeInto(container!.querySelector<HTMLTextAreaElement>('.sf-lib-textarea')!, ZOTERO_JSON);
     click(btn('导入'));
@@ -613,6 +629,7 @@ describe('LibraryPanel · Zotero JSON 导入入口', () => {
         }),
       ],
     });
+    openImportHub();
     click(btn('Zotero JSON'));
     typeInto(container!.querySelector<HTMLTextAreaElement>('.sf-lib-textarea')!, ZOTERO_JSON);
     click(btn('导入'));
@@ -629,6 +646,7 @@ describe('LibraryPanel · Zotero JSON 导入入口', () => {
       { itemType: 'preprint', title: 'T1', arxivId: '2303.08774' },
       { itemType: 'preprint', title: 'T1 duplicate', extra: 'arXiv: 2303.08774' },
     ]);
+    openImportHub();
     click(btn('Zotero JSON'));
     typeInto(container!.querySelector<HTMLTextAreaElement>('.sf-lib-textarea')!, text);
     click(btn('导入'));
@@ -639,6 +657,7 @@ describe('LibraryPanel · Zotero JSON 导入入口', () => {
   });
 
   it('坏 JSON → 「导入 0 条 / 跳过重复 0 / 错误 1」', () => {
+    openImportHub();
     click(btn('Zotero JSON'));
     typeInto(container!.querySelector<HTMLTextAreaElement>('.sf-lib-textarea')!, '[{"itemType": ');
     click(btn('导入'));
@@ -649,6 +668,7 @@ describe('LibraryPanel · Zotero JSON 导入入口', () => {
   });
 
   it('「关闭」按钮关闭对话框且不导入；空文本时导入按钮禁用', () => {
+    openImportHub();
     click(btn('Zotero JSON'));
     expect(btn('导入').disabled).toBe(true);
     typeInto(container!.querySelector<HTMLTextAreaElement>('.sf-lib-textarea')!, ZOTERO_JSON);
@@ -665,14 +685,26 @@ describe('LibraryPanel · PDF 目录批量关联入口', () => {
   });
 
   function openPdfDir(): HTMLInputElement {
+    openImportHub();
     click(btn('PDF 目录'));
     const input = container!.querySelector<HTMLInputElement>('input[webkitdirectory]');
     if (!input) throw new Error('webkitdirectory input not found');
     return input;
   }
 
-  it('工具栏渲染「PDF 目录」按钮，打开对话框（含 webkitdirectory multiple 的隐藏 file input）', () => {
-    const input = openPdfDir();
+  it('「PDF 目录」入口收进「导入文献」对话框（批量关联区），打开对话框（含 webkitdirectory multiple 的隐藏 file input）', () => {
+    const labels = [...container!.querySelectorAll<HTMLButtonElement>('.sf-lib-toolbar button')].map(
+      (b) => b.textContent?.trim(),
+    );
+    expect(labels).toContain('导入文献');
+    expect(labels).not.toContain('PDF 目录');
+
+    openImportHub();
+    expect(container!.querySelector('.sf-lib-import')!.textContent).toContain('批量关联');
+
+    click(btn('PDF 目录'));
+    const input = container!.querySelector<HTMLInputElement>('input[webkitdirectory]');
+    if (!input) throw new Error('webkitdirectory input not found');
     expect(container!.querySelector('header strong')!.textContent).toBe('批量关联 PDF 文件夹');
     expect(input.hasAttribute('multiple')).toBe(true);
     expect(useUiStore.getState().libraryDialog).toBeNull();
