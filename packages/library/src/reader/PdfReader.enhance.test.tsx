@@ -12,6 +12,7 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Annotation } from '@lemma/shared';
 import { PdfReader, type PdfReaderProps } from './PdfReader';
@@ -521,5 +522,62 @@ describe('PdfReader 连续模式 D10：文本层 / 选中 / 点击同步', () =>
     // 创建后选区清除、工具条收起
     expect(window.getSelection()?.isCollapsed).toBe(true);
     expect(container!.querySelector('[aria-label="方法"]')).toBeNull();
+  });
+
+  it('v7.9.2 Feishu 式：📝 展开笔记输入，Enter 创建 note 标注；视口下部浮条翻转到选区上方', async () => {
+    const onCreateAnnotation = vi.fn();
+    renderReader({ onCreateAnnotation });
+    await flushLoad();
+    act(() => {
+      exactButton('连续').click();
+    });
+    await flushLoad();
+    // 桩选区几何：bottom=220 → 视口高 800 的下部判断在此不触发；直接验证 flip 类随几何变化
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        left: 100,
+        top: 200,
+        width: 50,
+        height: 20,
+        right: 150,
+        bottom: 220,
+        x: 100,
+        y: 200,
+        toJSON: () => ({}),
+      }),
+    });
+    const span = selectPageText(2);
+    act(() => {
+      span.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    // 浮条出现且带 flip 翻转类（jsdom 容器高 0 → 视口下部判定恒真，属预期降级）
+    const pill = container!.querySelector('.sf-pdf-sel') as HTMLElement | null;
+    expect(pill).not.toBeNull();
+    expect(pill!.classList.contains('flip')).toBe(true);
+    // 笔记输入默认收起；点 📝（aria-label = 保存笔记）展开
+    expect(container!.querySelector('.sf-pdf-sel-note')).toBeNull();
+    const noteBtn = container!.querySelector('[aria-label="保存笔记"]') as HTMLButtonElement | null;
+    expect(noteBtn).not.toBeNull();
+    act(() => {
+      noteBtn!.click();
+    });
+    const textarea = container!.querySelector('.sf-pdf-sel-note textarea') as HTMLTextAreaElement | null;
+    expect(textarea).not.toBeNull();
+    // 输入 + Enter → 创建 note 标注（semantic 为空、text=笔记）
+    expect(textarea).not.toBeNull();
+    act(() => {
+      fireEvent.change(textarea!, { target: { value: '这句话值得记录' } });
+    });
+    act(() => {
+      fireEvent.keyDown(textarea!, { key: 'Enter' });
+    });
+    expect(onCreateAnnotation).toHaveBeenCalledTimes(1);
+    const created = onCreateAnnotation.mock.calls[0][0] as Annotation;
+    expect(created.kind).toBe('note');
+    expect(created.semantic).toBeUndefined();
+    expect(created.text).toBe('这句话值得记录');
+    // 创建后浮条与笔记输入一并收起
+    expect(container!.querySelector('.sf-pdf-sel')).toBeNull();
   });
 });

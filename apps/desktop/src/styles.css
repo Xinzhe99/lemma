@@ -3652,3 +3652,105 @@ kbd {
   border-color: var(--accent);
   color: #fff;
 }
+
+/* ---- v7.9.2 PDF 选中浮动工具条（Feishu 式紧凑浮条） ---- */
+.sf-pdf-sel {
+  position: absolute;
+  z-index: 20;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(6px);
+}
+.sf-pdf-sel.flip {
+  transform: translate(-50%, -100%);
+}
+.sf-pdf-sel-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sf-pdf-sel-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s;
+}
+.sf-pdf-sel-dot:hover {
+  transform: scale(1.18);
+}
+.sf-pdf-sel-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--border);
+}
+.sf-pdf-sel-btn {
+  border: none;
+  background: transparent;
+  color: var(--fg-1);
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.sf-pdf-sel-btn:hover,
+.sf-pdf-sel-btn.active {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+.sf-pdf-sel-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.sf-pdf-sel-note textarea {
+  width: 250px;
+  resize: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-1, var(--bg-2));
+  color: var(--fg-0);
+}
+.sf-pdf-sel-note textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.sf-pdf-sel-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.sf-pdf-sel-note-save {
+  padding: 3px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sf-pdf-sel-note-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

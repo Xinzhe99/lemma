@@ -151,6 +151,8 @@ interface TextSpan {
 interface SelectionToolbar {
   x: number;
   y: number;
+  /** v7.9.2：视口下部浮现时翻转到选区上方（Feishu 式），true 时渲染 translateY(-100%) */
+  flip: boolean;
   text: string;
   /** 选区所在页（单页模式 = 当前页；连续模式 = 选区锚点所在页）。 */
   page: number;
@@ -318,6 +320,8 @@ export function PdfReader({
   const [textSpans, setTextSpans] = useState<TextSpan[]>([]);
   const [toolbar, setToolbar] = useState<SelectionToolbar | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  /** v7.9.2 Feishu 式：笔记输入默认收起，点 📝 展开为浮条内第二行 */
+  const [noteOpen, setNoteOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [semanticFilter, setSemanticFilter] = useState<HighlightSemantic | 'all'>('all');
   /** v5.7.0 审阅往返：批注处理状态筛选（待处理/已处理） */
@@ -735,7 +739,9 @@ export function PdfReader({
     }
     setToolbar({
       x: rect.left - containerRect.left + rect.width / 2,
+      // v7.9.2 Feishu 式：视口下部时翻到选区上方（工具条高约 44px + 间距）
       y: rect.bottom - containerRect.top + 10,
+      flip: rect.bottom - containerRect.top + 70 > containerRect.height,
       text,
       page,
       rect: {
@@ -751,6 +757,7 @@ export function PdfReader({
     window.getSelection()?.removeAllRanges();
     setToolbar(null);
     setNoteDraft('');
+    setNoteOpen(false);
   };
 
   // WS-2：画布点击 → PDF 用户空间坐标回调（PDF → 源码同步；由宿主接 synctexBridge）
@@ -1152,65 +1159,86 @@ export function PdfReader({
     </aside>
   ) : null;
 
-  // 选中浮动工具条（单页/连续共用）：四色高亮 + 笔记 + 选中即问。单页渲染在页容器内，
-  // 连续渲染在滚动容器外（避免被 overflowY 裁剪；坐标均相对外层 containerRef）。
+  // 选中浮动工具条（单页/连续共用，Feishu 式紧凑浮条 v7.9.2）：
+  //  第一行 = 四色高亮（点即标注）· 分隔线 · 📝 笔记（展开输入）· 即问动作 chips；
+  //  笔记展开为浮条内第二行（Enter 保存 / Esc 收起）。视口下部自动翻转到选区上方。
+  // 样式类 .sf-pdf-sel-* 见应用全局 styles.css（明暗主题跟随 CSS 变量）。
   const toolbarNode = toolbar ? (
     <div
       ref={toolbarRef}
-      style={{
-        position: 'absolute',
-        left: toolbar.x,
-        top: toolbar.y,
-        transform: 'translate(-50%, 0)',
-        zIndex: 10,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '4px 8px',
-        background: '#ffffff',
-        border: '1px solid #d1d5db',
-        borderRadius: 8,
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-      }}
+      className={`sf-pdf-sel${toolbar.flip ? ' flip' : ''}`}
+      style={{ left: toolbar.x, top: toolbar.y }}
+      onMouseDown={e => e.stopPropagation()}
     >
-      {SEMANTIC_ORDER.map(semantic => (
+      <div className="sf-pdf-sel-row">
+        {SEMANTIC_ORDER.map(semantic => (
+          <button
+            key={semantic}
+            type="button"
+            className="sf-pdf-sel-dot"
+            title={SEMANTIC_STYLES[semantic].label[language]}
+            aria-label={SEMANTIC_STYLES[semantic].label[language]}
+            onClick={() => emitAnnotation(semantic, '')}
+            style={{ background: SEMANTIC_STYLES[semantic].solid }}
+          />
+        ))}
+        <span className="sf-pdf-sel-divider" />
         <button
-          key={semantic}
           type="button"
-          title={SEMANTIC_STYLES[semantic].label[language]}
-          aria-label={SEMANTIC_STYLES[semantic].label[language]}
-          onClick={() => emitAnnotation(semantic, '')}
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            background: SEMANTIC_STYLES[semantic].solid,
-            border: '1px solid rgba(0, 0, 0, 0.2)',
-            cursor: 'pointer',
-          }}
-        />
-      ))}
-      <input
-        value={noteDraft}
-        onChange={event => setNoteDraft(event.target.value)}
-        placeholder={t('notePlaceholder')}
-        style={{ width: 120, fontSize: 12, padding: '2px 6px' }}
-      />
-      <button type="button" onClick={() => emitAnnotation(undefined, noteDraft.trim())} disabled={!noteDraft.trim()}>
-        {t('saveNote')}
-      </button>
-      {(askActions ?? []).map(action => (
-        <button
-          key={action.label}
-          type="button"
-          onClick={() => {
-            action.run(toolbar.text);
-            dismissSelection();
-          }}
+          className={`sf-pdf-sel-btn${noteOpen ? ' active' : ''}`}
+          title={t('saveNote')}
+          aria-label={t('saveNote')}
+          onClick={() => setNoteOpen(v => !v)}
         >
-          {action.label}
+          📝
         </button>
-      ))}
+        {(askActions ?? []).map(action => (
+          <button
+            key={action.label}
+            type="button"
+            className="sf-pdf-sel-btn sf-pdf-sel-btn--text"
+            title={action.label}
+            onClick={() => {
+              action.run(toolbar.text);
+              dismissSelection();
+            }}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+      {noteOpen && (
+        <div className="sf-pdf-sel-note">
+          <textarea
+            autoFocus
+            rows={2}
+            value={noteDraft}
+            onChange={event => setNoteDraft(event.target.value)}
+            placeholder={t('notePlaceholder')}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                if (noteDraft.trim()) emitAnnotation(undefined, noteDraft.trim());
+              }
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                setNoteOpen(false);
+                setNoteDraft('');
+              }
+            }}
+          />
+          <div className="sf-pdf-sel-note-actions">
+            <button
+              type="button"
+              className="sf-pdf-sel-note-save"
+              disabled={!noteDraft.trim()}
+              onClick={() => emitAnnotation(undefined, noteDraft.trim())}
+            >
+              {t('saveNote')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   ) : null;
 
