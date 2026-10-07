@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUILTIN_WORKFLOWS,
   type ChatLabels,
+  type ChatPanelHandle,
   type MentionItem,
   type SlashMenuItem,
   ChatPanel,
@@ -171,6 +172,7 @@ const STRINGS = {
     attachLabel: '添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴）',
     toolResultLabel: '工具结果',
     fetchedCount: (n: number) => `已获取 ${n} 个模型（点击填入）`,
+    addedToChat: (name: string) => `已把 ${name} 加入对话附件`,
   },
   en: {
     newSession: 'New session',
@@ -259,6 +261,7 @@ const STRINGS = {
     attachLabel: 'Attach files (image/PDF/Word/data/text; drag or paste)',
     toolResultLabel: 'Tool result',
     fetchedCount: (n: number) => `Fetched ${n} models (click to fill)`,
+    addedToChat: (name: string) => `Attached ${name} to the conversation`,
   },
 } as const;
 
@@ -462,6 +465,52 @@ export function AgentPanel() {
       useUiStore.getState().setSidebarTab('library');
     }
   }, []);
+
+  // ------------------------------------------------------------------
+  // v7.9.1 标签 → 对话：右键「添加到对话」与拖入标签都把工作区文件转成
+  // File 注入输入区附件（复用既有提取管线：txt/pdf/docx/csv 均可读）
+  // ------------------------------------------------------------------
+
+  const chatRef = useRef<ChatPanelHandle>(null);
+  const addToChatTick = useUiStore((s) => s.addToChatTick);
+  useEffect(() => {
+    const path = useUiStore.getState().addToChatPath;
+    if (!path) return;
+    const ws = useWorkspaceStore.getState();
+    const content = ws.files[path];
+    useUiStore.getState().clearAddToChat();
+    if (typeof content !== 'string') return;
+    if (content === '') {
+      // figures/ 等二进制占位：工作区里只有空串标记，真实字节在磁盘
+      useUiStore.getState().showToast(
+        language === 'en'
+          ? `${path} is a binary placeholder — attach it via 📎 instead`
+          : `${path} 是二进制文件占位——请用 📎 选取真实文件`,
+      );
+      return;
+    }
+    const file = new File([content], path.split('/').pop() ?? path, { type: 'text/plain' });
+    chatRef.current?.addFiles([file]);
+    useUiStore.getState().showToast(
+      (STRINGS[language] as (typeof STRINGS)[Language]).addedToChat(path.split('/').pop() ?? path),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addToChatTick, language]);
+
+  /** v7.9.1 拖入编辑器标签：路径 → File → 附件区（拖 OS 文件走既有 Files 分支） */
+  const handleDropPaths = useCallback(
+    (paths: string[]) => {
+      const ws = useWorkspaceStore.getState();
+      const files: File[] = [];
+      for (const p of paths) {
+        const content = ws.files[p];
+        if (typeof content !== 'string' || content === '') continue;
+        files.push(new File([content], p.split('/').pop() ?? p, { type: 'text/plain' }));
+      }
+      if (files.length > 0) chatRef.current?.addFiles(files);
+    },
+    [],
+  );
 
   const handleRegenerate = useCallback(() => {
     const st = useAgentHubStore.getState();
@@ -1100,9 +1149,11 @@ ${proposal.after.slice(0, 800)}`,
       <div className="sf-agent-chat">
         {session ? (
           <ChatPanel
+            ref={chatRef}
             session={session}
             onSend={send}
             onStop={() => abortChat()}
+            onDropPaths={handleDropPaths}
             placeholder={t.chatPlaceholder}
             labels={{
               emptyTitle: t.collabTitle,

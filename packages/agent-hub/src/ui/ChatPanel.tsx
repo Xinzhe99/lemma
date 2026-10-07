@@ -6,7 +6,7 @@
  * 说明：MessageList 保持无 hooks（既有测试以元素树遍历方式直接调用），
  * 消息操作（复制反馈 / 编辑重发草稿）的状态由 ChatPanel 持有并经 props 下传。
  */
-import { memo, useEffect, useRef, useState } from 'react';
+import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { isSpeechSupported, startSpeechSession, type SpeechSession } from '../asr/speechInput';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { ChatOverviewBar } from './ChatOverviewBar';
@@ -128,10 +128,20 @@ export interface ChatPanelProps {
   /** 当前 Provider 徽标（v3.8.0 E：显示在输入框上方） */
   providerLabel?: string;
   /**
-   * v7.9.0 Codex 式会话内切换模型：输入区左下角出现紧凑下拉，
+   * v7.9.1 Codex 式会话内切换模型：输入区左下角出现紧凑下拉，
    * onChange 由宿主写入激活服务的模型字段（对后续轮次生效）。
    */
   modelSwitcher?: { model: string; options: string[]; onChange: (model: string) => void };
+  /**
+   * v7.9.1 拖入工作区文件标签：drop 携带 application/x-lemma-paths（路径数组）时回调，
+   * 宿主负责把工作区文件转成 File 后经 ref.addFiles() 塞回附件区。
+   */
+  onDropPaths?: (paths: string[]) => void;
+}
+
+/** v7.9.1 宿主命令式入口：标签右键「添加到对话」经 ref.addFiles 注入附件 */
+export interface ChatPanelHandle {
+  addFiles(files: File[]): void;
 }
 
 export interface MessageListProps {
@@ -435,7 +445,7 @@ function mentionMatches(item: MentionItem, query: string): boolean {
   return `${item.id} ${item.label}`.toLowerCase().includes(query.toLowerCase());
 }
 
-export function ChatPanel(props: ChatPanelProps) {
+export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(function ChatPanel(props, ref) {
   const {
     session,
     onSend,
@@ -455,6 +465,7 @@ export function ChatPanel(props: ChatPanelProps) {
     insertLatexLabel,
     providerLabel,
     modelSwitcher,
+    onDropPaths,
     labels: labelOverrides,
   } = props;
   const labels = { ...DEFAULT_LABELS, ...labelOverrides };
@@ -541,6 +552,19 @@ export function ChatPanel(props: ChatPanelProps) {
         : [...prev, file],
     );
   };
+
+  // v7.9.1 宿主命令式入口：标签右键「添加到对话」→ ref.addFiles([File])
+  useImperativeHandle(
+    ref,
+    () => ({
+      addFiles: (files: File[]) => {
+        for (const f of files ?? []) addFileAttachment(f);
+      },
+    }),
+    // addFileAttachment 每次渲染重建但仅闭包稳定 state setter，行为等价
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const onInputPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'));
@@ -728,9 +752,26 @@ export function ChatPanel(props: ChatPanelProps) {
     <div
       className="sf-ah-chat"
       onDragOver={(e) => {
-        if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
+        // v7.9.1：除 OS 文件外，也接受来自编辑器标签的工作区文件拖拽
+        if (e.dataTransfer?.types?.includes('Files') || e.dataTransfer?.types?.includes('application/x-lemma-paths')) {
+          e.preventDefault();
+        }
       }}
       onDrop={(e) => {
+        // v7.9.1：编辑器标签拖入（application/x-lemma-paths = 工作区相对路径数组）
+        const pathsRaw = e.dataTransfer?.getData('application/x-lemma-paths');
+        if (pathsRaw) {
+          e.preventDefault();
+          try {
+            const paths = JSON.parse(pathsRaw) as unknown;
+            if (Array.isArray(paths) && paths.length > 0 && onDropPaths) {
+              onDropPaths(paths.filter((p): p is string => typeof p === 'string' && p.length > 0));
+            }
+          } catch {
+            /* 非 JSON：忽略，走 Files 分支 */
+          }
+          return;
+        }
         if (!e.dataTransfer?.files?.length) return;
         e.preventDefault();
         for (const f of e.dataTransfer.files) addFileAttachment(f);
@@ -973,4 +1014,5 @@ export function ChatPanel(props: ChatPanelProps) {
       </div>
     </div>
   );
-}
+});
+

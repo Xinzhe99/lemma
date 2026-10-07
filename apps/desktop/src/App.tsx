@@ -482,6 +482,9 @@ export function App() {
   const editorPane = (
     <section className="center sf-pane-editor">
       <EditorTabs
+        onAddToConversation={(path) => useUiStore.getState().requestAddToChat(path)}
+        addToConversationLabel={t('tabs.addToChat')}
+        closeTabLabel={t('tabs.close')}
         actions={
           <>
             {/* v7.2.1 F2：编辑器分屏开关 */}

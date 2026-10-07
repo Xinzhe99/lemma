@@ -237,6 +237,10 @@ const dict: MessageDict = {
   'editor.splitOpen': { zh: '分屏编辑（同时查看两个文件）', en: 'Split editor (view two files at once)' },
   'editor.splitClose': { zh: '关闭分屏', en: 'Close split' },
   'editor.splitFile': { zh: '分屏文件', en: 'Split file' },
+  // v7.9.1 标签右键菜单（添加到对话）
+  'tabs.addToChat': { zh: '添加到对话', en: 'Add to conversation' },
+  'tabs.close': { zh: '关闭标签', en: 'Close tab' },
+  'toast.addedToChat': { zh: '已把 {name} 加入对话附件', en: 'Attached {name} to the conversation' },
   'dlg.loading': { zh: '加载中…', en: 'Loading…' },
   'dlg.loadFailed': { zh: '组件加载失败（{file}）—— 请确认对应工作流已合入。', en: 'Failed to load component ({file}) — check that its module is bundled.' },
   'toast.noAnnotations': { zh: '没有未处理的批注——先在 PDF 中标注，或经「审阅导入」导入导师批注', en: 'No open annotations — annotate in the PDF first, or import reviewer comments via Reviews import' },

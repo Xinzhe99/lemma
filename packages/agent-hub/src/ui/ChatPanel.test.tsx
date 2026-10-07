@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
-import { ChatPanel } from './ChatPanel';
+import { ChatPanel, type ChatPanelHandle } from './ChatPanel';
 import type { AgentSession } from '../store';
 
 afterEach(cleanup);
@@ -479,5 +479,54 @@ describe('v7.9.0 工具消息信息流精简', () => {
     expect(sel!.value).toBe('deepseek-chat');
     fireEvent.change(sel!, { target: { value: 'deepseek-reasoner' } });
     expect(onChange).toHaveBeenCalledWith('deepseek-reasoner');
+  });
+
+  it('v7.9.1 拖入编辑器标签：application/x-lemma-paths → onDropPaths（路径数组）', () => {
+    const onDropPaths = vi.fn();
+    const { container } = render(<ChatPanel session={makeSession()} onDropPaths={onDropPaths} />);
+    const chat = container.querySelector('.sf-ah-chat')!;
+    const getData = vi.fn(() => JSON.stringify(['sections/method.tex']));
+    fireEvent.drop(chat, {
+      dataTransfer: {
+        types: ['application/x-lemma-paths'],
+        getData,
+        files: { length: 0 },
+      },
+    });
+    expect(getData).toHaveBeenCalledWith('application/x-lemma-paths');
+    expect(onDropPaths).toHaveBeenCalledWith(['sections/method.tex']);
+  });
+});
+
+describe('v7.9.1 ref.addFiles（标签右键「添加到对话」的注入入口）', () => {
+  it('ref.addFiles 注入文件附件 chip，发送时随 onSend 传出', () => {
+    const onSend = vi.fn();
+    // 普通 ref 对象（React ref 即 { current } 形状；测试作用域不能调用 useRef）
+    const innerRef: { current: ChatPanelHandle | null } = { current: null };
+    const { container, getByText } = render(
+      <div>
+        <button
+          type="button"
+          onClick={() => innerRef.current?.addFiles([new File(['chapter content'], 'intro.tex', { type: 'text/plain' })])}
+        >
+          inject
+        </button>
+        <ChatPanel ref={innerRef} session={makeSession()} onSend={onSend} />
+      </div>,
+    );
+    fireEvent.click(getByText('inject'));
+    // 附件 chip 渲染（文件名 + 大小）
+    const chip = container.querySelector('.sf-ah-file-chip');
+    expect(chip).not.toBeNull();
+    expect(chip!.getAttribute('title')).toContain('intro.tex');
+    // 随消息发送
+    const ta = container.querySelector('.sf-ah-input textarea') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '看看这章' } });
+    const sendBtn = container.querySelector<HTMLButtonElement>('.sf-ah-icon-btn--send');
+    fireEvent.click(sendBtn!);
+    expect(onSend).toHaveBeenCalledTimes(1);
+    const files = onSend.mock.calls[0]![2] as File[];
+    expect(files).toHaveLength(1);
+    expect(files[0]!.name).toBe('intro.tex');
   });
 });

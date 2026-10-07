@@ -71,6 +71,7 @@ export type {
   SlashMenuItem,
   MentionItem,
   ChatLabels,
+  ChatPanelHandle,
 } from './ui/ChatPanel';
 // 零依赖 markdown 渲染器（含引用 chip 护栏）
 export { renderMarkdown } from './ui/markdown';

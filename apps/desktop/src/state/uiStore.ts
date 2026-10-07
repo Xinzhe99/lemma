@@ -56,6 +56,11 @@ interface UiState {
   workflowLaunchVars: Record<string, string> | null;
   /** 命令面板请求的 AI 改稿动作（AgentPanel 消费后清空） */
   agentAction: AgentAction;
+  /** v7.9.1 标签右键「添加到对话」：EditorTabs 发起，AgentPanel 消费后清空（tick 变化触发） */
+  addToChatPath: string | null;
+  addToChatTick: number;
+  requestAddToChat(path: string): void;
+  clearAddToChat(): void;
   historyOpen: boolean;
   /** 快速打开文件浮层（Ctrl+P）：命令面板命令与全局快捷键经此解耦 */
   quickOpenOpen: boolean;
@@ -118,6 +123,8 @@ interface UiState {
   setLibraryMode(mode: LibraryMode): void;
   requestPdfPicker(): void;
   requestZipPicker(): void;
+  requestAddToChat(path: string): void;
+  clearAddToChat(): void;
   setPdfView(view: PdfView | null): void;
   setCenterView(view: 'editor' | 'pdf' | 'split'): void;
   setWorkflowLaunch(id: string | null): void;
@@ -203,6 +210,11 @@ export const useUiStore = create<UiState>((set) => ({
   textDialog: null,
   newProjectDialogOpen: false,
   toast: null,
+  addToChatPath: null,
+  addToChatTick: 0,
+
+  requestAddToChat: (path) => set((s) => ({ addToChatPath: path, addToChatTick: s.addToChatTick + 1 })),
+  clearAddToChat: () => set({ addToChatPath: null }),
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setKnowledgeTab: (tab) => set({ knowledgeTab: tab }),

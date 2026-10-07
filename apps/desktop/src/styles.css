@@ -570,6 +570,36 @@ body {
   outline: none;
 }
 
+/* ---- v7.9.1 标签右键菜单（添加到对话 / 关闭标签） ---- */
+.sf-tab-menu {
+  position: fixed;
+  z-index: 300;
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 8px;
+  background: var(--bg-2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+.sf-tab-menu-item {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-1);
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sf-tab-menu-item:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+
 /* v5.4.0 Codex 式激活态：软底色 + 深文字，无彩色描边 */
 .tab.active {
   color: var(--fg-0);
