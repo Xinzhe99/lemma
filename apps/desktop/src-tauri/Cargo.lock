@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "lemma"
-version = "7.8.0"
+version = "7.8.1"
 dependencies = [
  "base64 0.22.1",
  "flate2",

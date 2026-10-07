@@ -66,7 +66,7 @@ const PERSIST_DEBOUNCE_MS = 300;
 // 内置演示 LaTeX 项目
 // ---------------------------------------------------------------------------
 
-const DEMO_MAIN_TEX = `\\documentclass[11pt]{article}
+const DEMO_MAIN_TEX = `\\documentclass[11pt]{ctexart}
 \\usepackage{amsmath}
 \\usepackage{graphicx}
 \\usepackage[colorlinks, citecolor=blue]{hyperref}
@@ -79,7 +79,7 @@ const DEMO_MAIN_TEX = `\\documentclass[11pt]{article}
 \\maketitle
 
 \\begin{abstract}
-本文演示 Lemma 工作站的项目结构：主文件通过 \\input 组织章节，参考文献集中于 refs.bib。
+本文演示 Lemma 工作站的项目结构：主文件通过 \\texttt{\\string\\input} 组织章节，参考文献集中于 refs.bib。
 \\end{abstract}
 
 \\input{sections/intro}

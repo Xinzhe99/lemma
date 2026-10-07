@@ -91,6 +91,24 @@ describe('workspaceStore.loadDemoProject', () => {
     expect(s.openTabs).toEqual(['main.tex']);
     expect(s.activeTab).toBe('main.tex');
   });
+
+  it('demo 正文不含裸 \\input（回归：摘要说明文字曾被真实引擎当作命令 → I can\'t find file → Emergency stop）', () => {
+    useWorkspaceStore.getState().loadDemoProject();
+    const main = useWorkspaceStore.getState().files['main.tex'] ?? '';
+    // 所有 \input 必须是带花括号的 \input{...}；\string\input（字面排印）除外——
+    // 裸 \input 后跟中文会被 TeX 扫成文件名
+    expect(main.match(/(?<!\\string)\\input(?!\{)/g)).toBeNull();
+    expect(main).toContain('\\input{sections/intro}');
+    expect(main).toContain('\\input{sections/method}');
+    // 说明文字里的命令名经 \string 转义，不再被引擎执行
+    expect(main).toContain('\\texttt{\\string\\input}');
+  });
+
+  it('demo 使用带 CJK 能力的文档类（回归：article + 中文正文在真实引擎下中文静默丢字）', () => {
+    useWorkspaceStore.getState().loadDemoProject();
+    const main = useWorkspaceStore.getState().files['main.tex'] ?? '';
+    expect(main).toMatch(/\\documentclass\[[^\]]*\]\{ctexart\}/);
+  });
 });
 
 describe('workspaceStore tabs 一致性', () => {

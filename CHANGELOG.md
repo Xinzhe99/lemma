@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [7.8.1] - 2026-10-08
+
+### Fixed（演示项目在真实编译引擎下失败——用户实测报告）
+
+- **demo 摘要里的 `\input` 被真实引擎当作命令**：演示项目 main.tex 摘要写的说明文字「主文件通过 \input 组织章节」中，`\input` 是真实 LaTeX 命令——桌面版真实编译（lualatex 等）时 TeX 把后面的中文扫成文件名，报 `I can't find file '组织章节，参…'` → `Emergency stop` → `Fatal error occurred, no output PDF file produced!`（浏览器模拟编译永远发现不了）。现改写为 `\texttt{\string\input}` 字面排印，不再被执行
+- **demo 文档类不支持中文**：演示项目此前是 `article` + 中文正文——即使修好 `\input`，真实引擎也会把全部中文以 `Missing character` 静默丢弃（PDF 里没有中文）。现改用 `ctexart`（与产品内置中文模板一致），TeX Live / MiKTeX 自动补齐依赖
+- 已在真实 TeX Live 2024 + lualatex 上跑通完整流水线（lualatex → bibtex → lualatex ×2）：退出码 0、PDF 正常产出、无 Fatal error、0 个 Missing character
+- 新增 2 项回归测试（demo 正文不含裸 `\input`（`\string\input` 转义除外）；文档类必须带 CJK 能力）
+
 ## [7.8.0] - 2026-10-07
 
 ### Fixed（全量缺陷审查：7 路并行深查，确认并修复 90+ 项问题）
