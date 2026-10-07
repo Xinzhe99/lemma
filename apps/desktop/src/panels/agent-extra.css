@@ -80,6 +80,131 @@
   border-top: 1px solid var(--border);
 }
 
+/* ---------- 工作流透明化：「流程与提示词」编辑区块 ---------- */
+.sf-wf-launcher-steps {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  padding: 8px 10px;
+}
+
+.sf-wf-launcher-steps-summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-0);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.sf-wf-launcher-steps-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.sf-wf-launcher-steps-hint {
+  margin: 8px 0;
+  font-size: 11px;
+  color: var(--fg-2);
+  line-height: 1.6;
+}
+
+.sf-wf-launcher-step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sf-wf-launcher-step {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-0, var(--bg-1));
+  padding: 8px;
+}
+
+.sf-wf-launcher-step-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.sf-wf-launcher-step-index {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  min-width: 16px;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.sf-wf-launcher-step-id {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--fg-0);
+}
+
+.sf-wf-launcher-step-name {
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.sf-wf-launcher-step-deps {
+  font-size: 10px;
+  color: var(--fg-2);
+  font-family: var(--mono, ui-monospace, monospace);
+}
+
+.sf-wf-launcher-step-checkpoint {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--border));
+}
+
+.sf-wf-launcher-step-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sf-wf-launcher-step-prompt {
+  width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-0);
+  font-size: 11px;
+  line-height: 1.55;
+  padding: 6px 8px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.sf-wf-launcher-step-prompt:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sf-wf-launcher-steps-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ---------- A2 W10 结构化自检报告 ---------- */
 .sf-checklist {
   border: 1px solid var(--border);

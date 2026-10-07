@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildCommands, type CommandContext } from './commands';
-import { fuzzyScore, PALETTE_GROUP_ORDER } from './commandPalette';
+import { PALETTE_GROUP_ORDER } from './commandPalette';
 import { t } from './i18n';
 import { useUiStore } from './state/uiStore';
 import { useWorkspaceStore } from './state/workspaceStore';
@@ -32,13 +32,11 @@ describe('buildCommands', () => {
       'view.focusTree',
       'compile.clearLog',
       'compile.run',
-      // WF-5 新增：投稿、知识入口、W7/W11 工作流
+      // WF-5 新增：投稿、知识入口（工作流命令已移除——工作流统一从 Agent 面板启动）
       'submit.open',
       'submit.venue',
       'knowledge.notes',
       'knowledge.glossary',
-      'agent.workflowRebuttal',
-      'agent.workflowCoverLetter',
     ];
     for (const id of required) {
       expect(ids).toContain(id);
@@ -55,23 +53,11 @@ describe('buildCommands', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('⌘K 搜 "cover letter" 能命中 W11 命令', () => {
-    const w11 = byId('agent.workflowCoverLetter');
-    expect(fuzzyScore('cover letter', `${w11.title} ${w11.hint ?? ''}`)).toBeGreaterThan(0);
-  });
-
-  it('W11 命令经 launchWorkflow 启动并预填 journal/highlights', () => {
-    byId('agent.workflowCoverLetter').run?.();
-    const ui = useUiStore.getState();
-    expect(ui.workflowLaunch).toBe('w11-cover-letter');
-    expect(ui.workflowLaunchVars).toEqual({ journal: '', highlights: '' });
-    ui.setWorkflowLaunch(null);
-  });
-
-  it('W7 命令设置 workflowLaunch', () => {
-    byId('agent.workflowRebuttal').run?.();
-    expect(useUiStore.getState().workflowLaunch).toBe('w7-rebuttal');
-    useUiStore.getState().setWorkflowLaunch(null);
+  it('工作流命令不再进入命令面板（统一从 Agent 面板启动）', () => {
+    const ids = buildCommands(ctx).map((c) => c.id);
+    for (const id of ids) {
+      expect(id.startsWith('wf.') || id.startsWith('agent.workflow')).toBe(false);
+    }
   });
 
   it('投稿/知识命令切换侧栏页签（含 knowledge 子页签）', () => {
@@ -151,7 +137,6 @@ describe('命令面板分组与精选（palette 分区重设计）', () => {
     expect(groupOf('agent.newSession')).toBe('palette.group.ai');
     expect(groupOf('library.importBibtex')).toBe('palette.group.library');
     expect(groupOf('theme.toggle')).toBe('palette.group.view');
-    expect(groupOf('agent.workflowCoverLetter')).toBe('palette.group.workflow');
     expect(groupOf('submit.venue')).toBe('palette.group.submit');
     expect(groupOf('knowledge.glossary')).toBe('palette.group.knowledge');
     expect(groupOf('app.settings')).toBe('palette.group.app');
@@ -185,9 +170,6 @@ describe('命令面板分组与精选（palette 分区重设计）', () => {
         // 视图
         'focus.toggle',
         'theme.toggle',
-        // 工作流
-        'agent.workflowPolish',
-        'agent.workflowSectionDraft',
         // 投稿
         'submit.open',
         'submit.venue',
@@ -199,10 +181,11 @@ describe('命令面板分组与精选（palette 分区重设计）', () => {
         'app.shortcuts',
       ].sort(),
     );
-    // 每组精选 2-3 个，且 10 个分组都有精选项
+    // 每组精选 2-3 个；工作流分组已无命令（工作流统一从 Agent 面板启动），其余分组都有精选项
     const perGroup = new Map<string, number>();
     for (const c of featured) perGroup.set(c.group!, (perGroup.get(c.group!) ?? 0) + 1);
-    expect(perGroup.size).toBe(PALETTE_GROUP_ORDER.length);
+    expect(perGroup.size).toBe(PALETTE_GROUP_ORDER.length - 1);
+    expect(perGroup.has('palette.group.workflow')).toBe(false);
     for (const n of perGroup.values()) {
       expect(n).toBeGreaterThanOrEqual(2);
       expect(n).toBeLessThanOrEqual(3);

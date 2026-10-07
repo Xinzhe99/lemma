@@ -2694,8 +2694,8 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-width: 0;
-  /* v7.5.0：内容超宽时收缩省略，不挤压相邻状态项 */
+  /* v7.7.1：flex:none 禁止收缩——窄面板下条目整体换行，文字绝不互相挤压重叠 */
+  flex: none;
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;

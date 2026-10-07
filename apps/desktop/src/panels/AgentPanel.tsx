@@ -63,6 +63,7 @@ import { recordApproval } from '../state/agentMemory';
 import { ChecklistReport } from './ChecklistReport';
 import { workflowName, workflowDescription } from '../workflowI18n';
 import { WorkflowLauncher } from '../components/WorkflowLauncher';
+import { applyWorkflowOverrides, getWorkflowOverrides } from '../state/workflowOverrides';
 import './agent-extra.css';
 
 /** 工作流步骤声明的 allowedTools 与本形态已接通工具的交集 */
@@ -289,8 +290,6 @@ export function AgentPanel() {
     const r = resolveProvider();
     return r.real ? r.label : (STRINGS[language] as (typeof STRINGS)[Language]).demoModeLabel;
   }, [providers, activeProviderId, language]);
-  const aiPersona = useSettingsStore((s) => s.aiPersona);
-  const setAiPersona = useSettingsStore((s) => s.setAiPersona);
   const plans = useAgentPlansStore((s) => s.plans);
   const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
   const libraryPapers = useLibraryStore((s) => s.papers);
@@ -580,7 +579,10 @@ export function AgentPanel() {
     setLaunchForm({ def, presetVars: presetVars ?? {} });
   };
 
-  const executeWorkflow = async (def: WorkflowDef, vars: Record<string, string>) => {
+  const executeWorkflow = async (baseDef: WorkflowDef, vars: Record<string, string>) => {
+    // 工作流透明化：执行入口应用用户对步骤 prompt 的覆盖（无覆盖时与原 def 完全一致），
+    // 保证真正发给模型的是修改后的提示词；运行视图（WorkflowRunView）也展示生效值。
+    const def = applyWorkflowOverrides(baseDef, getWorkflowOverrides());
     setWorkflow({
       def,
       statuses: Object.fromEntries(def.steps.map((s) => [s.id, 'pending'])) as Record<string, WorkflowStepUiStatus>,
@@ -709,18 +711,7 @@ export function AgentPanel() {
       {/* v5.3.0 Codex 化工具栏：上行 = 会话操作（角色/新会话/历史/提示词库），下行 = 文档级操作 */}
       <div className="sf-agent-toolbar">
         <div className="sf-agent-toolbar-row">
-          <select
-            className="sf-cli-input"
-            style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '2px 10px', fontSize: 11, background: 'var(--bg-0)', color: 'var(--fg-1)' }}
-            value={aiPersona}
-            onChange={(e) => setAiPersona(e.target.value as typeof aiPersona)}
-            title={t.personaTitle}
-          >
-            <option value="default">{t.personaDefault}</option>
-            <option value="reviewer">{t.personaReviewer}</option>
-            <option value="coach">{t.personaCoach}</option>
-            <option value="translator">{t.personaTranslator}</option>
-          </select>
+          {/* v7.7.1：助手角色切换移除——现代模型下角色差异由用户在 prompt 中说明更自然 */}
           <span style={{ flex: 1 }} />
           <button
             className="sf-pill-btn"

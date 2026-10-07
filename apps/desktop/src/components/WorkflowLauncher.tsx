@@ -7,10 +7,15 @@
  *  3) ReviewPanel 的 W7 衔接（presetVars 全量预填 → 仅剩确认一步）。
  */
 
-import { useMemo, useState } from 'react';
-import type { WorkflowDef } from '@lemma/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { WorkflowDef, WorkflowStepDef } from '@lemma/shared';
 import { workflowName, workflowDescription } from '../workflowI18n';
 import { useSettingsStore, type Language } from '../state/settingsStore';
+import {
+  getWorkflowOverrides,
+  resetWorkflowOverrides,
+  setStepOverride,
+} from '../state/workflowOverrides';
 
 /** 变量元信息：说明（双语）+ 默认值 + 是否多行 */
 interface VarMeta {
@@ -37,6 +42,7 @@ export const WORKFLOW_VAR_META: Record<string, VarMeta> = {
     multiline: true,
   },
   venue: { desc: { zh: '目标会议/期刊（审稿口味与要求来源）', en: 'Target venue (review criteria source)' }, def: 'NeurIPS' },
+  highlights: { desc: { zh: '稿件亮点/核心贡献（分号分隔）', en: 'Paper highlights/contributions (semicolon-separated)' }, def: '', multiline: true },
   journal: { desc: { zh: '目标期刊/会议（自检清单来源）', en: 'Target journal/conference (checklist source)' }, def: 'NeurIPS' },
   reviews: { desc: { zh: '审稿意见全文（将逐条拆解回复）', en: 'Full review comments (parsed item by item)' }, def: '', multiline: true },
   text: { desc: { zh: '待润色文本', en: 'Text to polish' }, def: '本文提出了一种面向科研写作的智能体工作流。', multiline: true },
@@ -60,6 +66,18 @@ const STRINGS = {
     submit: '启动工作流',
     confirmOnly: '确认启动',
     required: '必填',
+    // 工作流透明化：「流程与提示词」区块
+    stepsTitle: '流程与提示词',
+    stepsHint:
+      '以下是每一步实际发给模型的提示词，可直接修改（本次及以后的启动都会生效）；{{var}} 占位符在执行时自动替换为上方变量。',
+    checkpoint: '人工检查点',
+    checkpointTitle: '执行到该步骤前会暂停，等待人工确认后继续',
+    dependsOn: (deps: string) => `依赖：${deps}`,
+    modifiedChip: '已修改',
+    modifiedCount: (n: number) => `${n} 步已修改`,
+    revertStep: '还原',
+    revertAll: '全部还原',
+    promptAria: (name: string) => `步骤「${name}」的提示词`,
   },
   en: {
     title: (name: string) => `Launch workflow: ${name}`,
@@ -70,6 +88,17 @@ const STRINGS = {
     submit: 'Launch workflow',
     confirmOnly: 'Launch',
     required: 'required',
+    stepsTitle: 'Pipeline & prompts',
+    stepsHint:
+      'These are the prompts actually sent to the model for each step. Edit them freely — changes apply to this and future launches; {{var}} placeholders are substituted with the variables above at run time.',
+    checkpoint: 'Checkpoint',
+    checkpointTitle: 'Pauses before this step and waits for manual confirmation',
+    dependsOn: (deps: string) => `Depends on: ${deps}`,
+    modifiedChip: 'modified',
+    modifiedCount: (n: number) => `${n} modified`,
+    revertStep: 'Revert',
+    revertAll: 'Revert all',
+    promptAria: (name: string) => `Prompt for step "${name}"`,
   },
 } as const;
 
@@ -129,10 +158,12 @@ export function WorkflowLauncher({ def, presetVars = {}, onSubmit, onCancel }: W
                 return (
                   <label key={key} className="sf-wf-launcher-field">
                     <span className="sf-wf-launcher-field-name">
-                      {t.fieldLabel(key)}
+                      {/* v7.7.1：字段名本地化（此前直接显示 raw 变量名 journal/highlights） */}
+                      {meta ? meta.desc[language] : t.fieldLabel(key)}
+                      <code className="sf-wf-launcher-field-var">{key}</code>
                       <em className="sf-wf-launcher-field-required">{t.required}</em>
                     </span>
-                    <span className="sf-wf-launcher-field-desc">{meta ? meta.desc[language] : ''}</span>
+
                     {meta?.multiline ? (
                       <textarea
                         rows={3}
@@ -152,6 +183,8 @@ export function WorkflowLauncher({ def, presetVars = {}, onSubmit, onCancel }: W
               })}
             </form>
           )}
+          {/* 工作流透明化：步骤信息与 prompt 查看/修改（默认折叠） */}
+          <WorkflowStepsEditor def={def} language={language} />
         </div>
         <div className="sf-lib-dialog-actions sf-wf-launcher-actions">
           <button className="sf-btn" onClick={onCancel}>
@@ -167,5 +200,149 @@ export function WorkflowLauncher({ def, presetVars = {}, onSubmit, onCancel }: W
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * 「流程与提示词」区块（工作流透明化）：默认折叠的 details，
+ * 逐卡展示每个步骤的序号 / id / modelTier / checkpoint / dependsOn，并以 textarea
+ * 呈现当前生效的 prompt（覆盖值 ?? YAML 原文）。
+ * 编辑防抖（500ms）写入 workflowOverrides；改回原文、单步「还原」、「全部还原」都会
+ * 移除覆盖回退原文；卸载时冲刷未保存的编辑，保证「改了就关」也不丢。
+ */
+export function WorkflowStepsEditor({ def, language }: { def: WorkflowDef; language: Language }) {
+  const t = STRINGS[language];
+
+  /** 各步骤的 YAML 原文（def 来自内置工作流，稳定引用） */
+  const originalPrompts = useMemo(() => Object.fromEntries(def.steps.map((s) => [s.id, s.prompt])), [def]);
+
+  /** textarea 当前值：初始为生效值（覆盖 ?? 原文），编辑后为草稿 */
+  const [drafts, setDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      def.steps.map((s) => [s.id, getWorkflowOverrides()[def.id]?.[s.id] ?? s.prompt]),
+    ),
+  );
+
+  /** 待防抖保存的草稿（stepId → value）；还原操作会把对应条目摘除 */
+  const pendingRef = useRef<Record<string, string>>({});
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 立即把待保存草稿写入覆盖层（值等于原文 → 还原） */
+  const commitPending = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const pending = pendingRef.current;
+    for (const [stepId, value] of Object.entries(pending)) {
+      setStepOverride(def.id, stepId, value === originalPrompts[stepId] ? null : value);
+    }
+    pendingRef.current = {};
+  };
+
+  /** 卸载时冲刷未保存的编辑（用户改完直接点「启动工作流」也不丢） */
+  useEffect(() => {
+    return () => commitPending();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onPromptChange = (stepId: string, value: string) => {
+    setDrafts((d) => ({ ...d, [stepId]: value }));
+    pendingRef.current[stepId] = value;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(commitPending, 500);
+  };
+
+  const revertStep = (stepId: string) => {
+    delete pendingRef.current[stepId];
+    setDrafts((d) => ({ ...d, [stepId]: originalPrompts[stepId] }));
+    setStepOverride(def.id, stepId, null);
+  };
+
+  const revertAll = () => {
+    pendingRef.current = {};
+    setDrafts({ ...originalPrompts });
+    resetWorkflowOverrides(def.id);
+  };
+
+  const modifiedIds = def.steps.filter((s) => (drafts[s.id] ?? s.prompt) !== s.prompt).map((s) => s.id);
+
+  return (
+    <details className="sf-wf-launcher-steps" data-wf-steps>
+      <summary className="sf-wf-launcher-steps-summary">
+        <span>{t.stepsTitle}</span>
+        <span className="sf-wf-launcher-steps-count">{def.steps.length}</span>
+        {modifiedIds.length > 0 && <span className="sf-chip warn">{t.modifiedCount(modifiedIds.length)}</span>}
+      </summary>
+      <p className="sf-wf-launcher-steps-hint">{t.stepsHint}</p>
+      <ol className="sf-wf-launcher-step-list">
+        {def.steps.map((step, index) => (
+          <WorkflowStepCard
+            key={step.id}
+            step={step}
+            index={index}
+            language={language}
+            value={drafts[step.id] ?? step.prompt}
+            modified={modifiedIds.includes(step.id)}
+            onChange={(v) => onPromptChange(step.id, v)}
+            onRevert={() => revertStep(step.id)}
+          />
+        ))}
+      </ol>
+      <div className="sf-wf-launcher-steps-footer">
+        <button className="sf-btn" type="button" disabled={modifiedIds.length === 0} onClick={revertAll}>
+          {t.revertAll}
+        </button>
+      </div>
+    </details>
+  );
+}
+
+/** 单个步骤卡：序号 + id + 名称 + modelTier / checkpoint / dependsOn 徽标 + prompt textarea */
+function WorkflowStepCard(props: {
+  step: WorkflowStepDef;
+  index: number;
+  language: Language;
+  value: string;
+  modified: boolean;
+  onChange: (value: string) => void;
+  onRevert: () => void;
+}) {
+  const { step, index, language, value, modified, onChange, onRevert } = props;
+  const t = STRINGS[language];
+  return (
+    <li className="sf-wf-launcher-step" data-step-id={step.id}>
+      <div className="sf-wf-launcher-step-head">
+        <span className="sf-wf-launcher-step-index">{index + 1}</span>
+        <code className="sf-wf-launcher-step-id">{step.id}</code>
+        <span className="sf-wf-launcher-step-name">{step.name}</span>
+        {step.modelTier && (
+          <span className={`sf-chip ${step.modelTier === 'flagship' ? 'warn' : 'dim'}`}>{step.modelTier}</span>
+        )}
+        {step.checkpoint && (
+          <span className="sf-chip sf-wf-launcher-step-checkpoint" title={t.checkpointTitle}>
+            ↺ {t.checkpoint}
+          </span>
+        )}
+        {step.dependsOn && step.dependsOn.length > 0 && (
+          <span className="sf-wf-launcher-step-deps">{t.dependsOn(step.dependsOn.join(', '))}</span>
+        )}
+        {modified && (
+          <span className="sf-wf-launcher-step-actions">
+            <span className="sf-chip warn">{t.modifiedChip}</span>
+            <button className="sf-link-btn" type="button" onClick={onRevert}>
+              {t.revertStep}
+            </button>
+          </span>
+        )}
+      </div>
+      <textarea
+        className="sf-wf-launcher-step-prompt"
+        rows={4}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={t.promptAria(step.name || step.id)}
+      />
+    </li>
   );
 }
