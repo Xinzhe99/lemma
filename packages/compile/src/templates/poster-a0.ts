@@ -23,6 +23,7 @@ export const posterA0: TemplateModule = {
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：poster-a0
 \documentclass[landscape]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[a0paper,margin=1.2cm,landscape]{geometry}
 \usepackage{tikz}
 \usetikzlibrary{positioning,calc,fit,backgrounds}

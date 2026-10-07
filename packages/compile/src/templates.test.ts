@@ -136,6 +136,21 @@ describe('模板可编译性回归', () => {
     }
   });
 
+  it('含中文正文的模板必须加载 ctex（回归：article + 中文在真实引擎下中文静默丢字，PDF 近乎空白）', () => {
+    for (const t of listTemplates()) {
+      const main = scaffoldProject(t.id, { title: 'T', authors: 'A' })[t.entry] as string;
+      // 去掉注释行后判断正文是否含中文
+      const body = main
+        .split('\n')
+        .filter((l) => !l.trim().startsWith('%'))
+        .join('\n');
+      if (!/[\u4e00-\u9fff]/.test(body)) continue;
+      const cjkCapable =
+        /\\documentclass\[[^\]]*\]\{ctex[^}]*\}/.test(main) || /\\usepackage\[[^\]]*\]\{ctex\}/.test(main);
+      expect(cjkCapable, `${t.id} 中文正文但未加载 ctex（真实引擎下中文会丢字）`).toBe(true);
+    }
+  });
+
   it('模板不使用单反斜杠 \\[ 当作换行（会打开行间数学模式）', () => {
     for (const t of listTemplates()) {
       const main = scaffoldProject(t.id, { title: 'T', authors: 'A' })[t.entry] as string;

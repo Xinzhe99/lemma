@@ -1,12 +1,14 @@
 /**
- * 权限网关（设计文档 5.3 权限模型）：
- * read 默认放行 → execute 首次确认（strict 下逐次确认）→ write 逐 diff 审批 → export 显式确认。
- * mode 档位：strict（最严）/ balanced（默认）/ yolo（全自动，风险自负）。
+ * 权限网关（设计文档 5.3 权限模型）。
+ * v7.9.0：档位对齐 DeepSeek Harness 式三档（UI 可选，见设置/Agent 面板）：
+ *  - readonly（仅可查看）：只读放行、编译放行；写级操作与内容外发一律拦截；
+ *  - balanced（工作区内修改，默认）：只读/编译放行，写级操作逐 diff 审批，外发显式确认；
+ *  - full（完全权限）：全部放行（写操作仍自动快照 + 自动进版本历史，可回滚）。
  */
 import type { ToolDef } from '@lemma/shared';
 import { PAPER_TOOLS } from './tools/registry';
 
-export type PermissionMode = 'strict' | 'balanced' | 'yolo';
+export type PermissionMode = 'readonly' | 'balanced' | 'full';
 
 export interface PermissionPolicy {
   mode: PermissionMode;
@@ -38,23 +40,35 @@ export function checkCall(
     case 'read':
       return { decision: 'allow', reason: `「${toolName}」为只读操作，自动放行` };
     case 'execute':
-      if (policy.mode === 'strict') {
-        return { decision: 'confirm', reason: `strict 模式下「${toolName}」属执行级操作，需逐次确认` };
+      // 编译用于查看结果；readonly 档放行（构建产物不入稿件，改稿另有 write 级闸门）
+      if (policy.mode === 'full') {
+        return { decision: 'allow', reason: `「${toolName}」属执行级操作，完全权限下放行` };
       }
-      return { decision: 'allow', reason: `「${toolName}」属执行级操作，${modeLabel(policy.mode)}模式下放行` };
+      return { decision: 'allow', reason: `「${toolName}」属执行级操作，放行` };
     case 'write':
-      if (policy.mode === 'yolo') {
-        return { decision: 'allow', reason: `yolo 模式下「${toolName}」的写操作免审批直接执行` };
+      if (policy.mode === 'readonly') {
+        return {
+          decision: 'blocked',
+          reason: '当前权限模式为「仅可查看」：AI 不能修改文件——切换到「工作区内修改」或「完全权限」后再试',
+        };
+      }
+      if (policy.mode === 'full') {
+        return { decision: 'allow', reason: `「${toolName}」属写级操作，完全权限下免审批直接执行（自动快照，可回滚）` };
       }
       return { decision: 'confirm', reason: `「${toolName}」属写级操作，修改需经 diff 审批` };
     case 'export':
-      if (!policy.allowExport) {
-        return { decision: 'blocked', reason: `策略禁止内容离开本机，「${toolName}」已拦截` };
+      if (policy.mode === 'readonly' || !policy.allowExport) {
+        return {
+          decision: 'blocked',
+          reason:
+            policy.mode === 'readonly'
+              ? '当前权限模式为「仅可查看」：内容外发已禁用'
+              : `策略禁止内容离开本机，「${toolName}」已拦截`,
+        };
+      }
+      if (policy.mode === 'full') {
+        return { decision: 'allow', reason: `「${toolName}」会将内容发送到本机之外，完全权限下放行` };
       }
       return { decision: 'confirm', reason: `「${toolName}」会将内容发送到本机之外，需显式确认` };
   }
-}
-
-function modeLabel(mode: PermissionMode): string {
-  return mode === 'strict' ? 'strict' : mode === 'yolo' ? 'yolo' : 'balanced';
 }

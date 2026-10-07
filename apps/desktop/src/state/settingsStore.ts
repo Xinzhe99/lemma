@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { createId } from '@lemma/shared';
+import type { PermissionMode } from '@lemma/agent-hub';
 import type { Theme } from '../theme';
 
 export type Language = 'zh' | 'en';
@@ -103,6 +104,9 @@ export interface SettingsState {
   /** 实时预览（Live 模式：短防抖 + 平滑 PDF 刷新） */
   livePreview: boolean;
   setLivePreview(on: boolean): void;
+  /** v7.9.0 权限模式（DeepSeek Harness 式三档）：readonly 仅可查看 / balanced 工作区内修改 / full 完全权限 */
+  permissionMode: PermissionMode;
+  setPermissionMode(mode: PermissionMode): void;
   setTheme(theme: Theme): void;
   setLanguage(language: Language): void;
 }
@@ -126,6 +130,7 @@ interface PersistedSettings {
   /** AI 角色（v3.9.0） */
   aiPersona: 'default' | 'reviewer' | 'coach' | 'translator';
   livePreview: boolean;
+  permissionMode?: PermissionMode;
 }
 
 /**
@@ -179,6 +184,8 @@ function readPersisted(): PersistedSettings | null {
       aiPersona: v.aiPersona === 'reviewer' || v.aiPersona === 'coach' || v.aiPersona === 'translator'
         ? v.aiPersona
         : 'default',
+      permissionMode:
+        v.permissionMode === 'readonly' || v.permissionMode === 'full' ? v.permissionMode : 'balanced',
     };
   } catch {
     return null;
@@ -203,6 +210,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   enginePreference: initial?.enginePreference ?? 'auto',
   aiPersona: initial?.aiPersona ?? 'default',
   livePreview: initial?.livePreview ?? true,
+  permissionMode: initial?.permissionMode ?? 'balanced',
   cliAgent: initial?.cliAgent ?? { ...DEFAULT_CLI_AGENT },
 
   addProvider(input) {
@@ -272,6 +280,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ livePreview });
   },
 
+  setPermissionMode(permissionMode) {
+    set({ permissionMode });
+  },
+
   setTheme(theme) {
     set({ theme });
   },
@@ -296,6 +308,7 @@ useSettingsStore.subscribe((s) => {
         enginePreference: s.enginePreference,
         aiPersona: s.aiPersona,
         livePreview: s.livePreview,
+        permissionMode: s.permissionMode,
         // v7.0.0 修复：写侧此前遗漏该字段
         speechLanguage: s.speechLanguage,
         sessionBudgetTokens: s.sessionBudgetTokens,

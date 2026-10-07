@@ -24,6 +24,7 @@ export const preprintMlLike: TemplateModule = {
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：preprint-ml-like —— 机器学习预印本观感（单栏）
 \documentclass[11pt]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[T1]{fontenc}
 \usepackage{mathptmx}
 \usepackage[margin=1in]{geometry}

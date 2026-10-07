@@ -1,9 +1,10 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { ChatEvent, ChatProvider, ChatRequest } from '@lemma/agent-hub';
 import { useAgentHubStore } from '@lemma/agent-hub';
 import type { ToolCallRequest } from '@lemma/shared';
 import { useWorkspaceStore } from './state/workspaceStore';
 import { useLibraryStore } from './state/libraryStore';
+import { useSettingsStore } from './state/settingsStore';
 import { createAppToolExecutor, runAgentTurn, ENABLED_TOOLS } from './agentTools';
 import type { ApprovalDecision, ApprovalFn } from './approval';
 
@@ -620,6 +621,48 @@ describe('tex.create_file / project.find_in_files / citation.validate 边界（v
       args: { key: 'a', claim: '某主张' },
     })) as { ok: boolean };
     expect(good.ok).toBe(true); // refs.bib 中的 @article{a}
+  });
+});
+
+describe('权限模式（v7.9.0：readonly 拦截 / full 免审批）', () => {
+  beforeEach(() => {
+    resetWorkspace();
+    useSettingsStore.setState({ permissionMode: 'balanced' });
+  });
+
+  it('readonly：tex.edit 在闸门被拦（不触发审批、不落盘），错误附可行动指引', async () => {
+    useSettingsStore.setState({ permissionMode: 'readonly' });
+    const neverAsk = vi.fn(async () => {
+      throw new Error('readonly 下不应触发审批');
+    }) as unknown as ApprovalFn;
+    const executor = createAppToolExecutor(neverAsk);
+    const result = (await executor.execute({
+      id: 'pm1',
+      tool: 'tex.edit',
+      args: { file: 'main.tex', find: 'utilize', replace: 'use' },
+    })) as { error: string };
+    expect(result.error).toContain('仅可查看');
+    expect(result.error).toContain('切换');
+    expect(useWorkspaceStore.getState().files['main.tex']).toContain('utilize');
+    expect(neverAsk).not.toHaveBeenCalled();
+  });
+
+  it('full：tex.edit 免审批直接应用（审批回调绝不触发），仍自动快照', async () => {
+    useSettingsStore.setState({ permissionMode: 'full' });
+    const neverAsk = vi.fn(async () => {
+      throw new Error('full 模式不应触发审批');
+    }) as unknown as ApprovalFn;
+    const executor = createAppToolExecutor(neverAsk);
+    const result = (await executor.execute({
+      id: 'pm2',
+      tool: 'tex.edit',
+      args: { file: 'main.tex', find: 'utilize', replace: 'use' },
+    })) as { applied: boolean; note: string };
+    expect(result.applied).toBe(true);
+    expect(result.note).toContain('完全权限');
+    expect(useWorkspaceStore.getState().files['main.tex']).toBe('In order to test, we use data.');
+    expect(neverAsk).not.toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().snapshots['main.tex']).toHaveLength(1);
   });
 });
 

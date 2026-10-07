@@ -21,6 +21,7 @@ import type { GlossaryTerm } from '@lemma/shared';
 import { mergeSearchHits, searchArxiv, searchCrossref, type PaperSearchHit } from '@lemma/library';
 import { useLibraryStore } from './state/libraryStore';
 import { useWorkspaceStore } from './state/workspaceStore';
+import { useSettingsStore } from './state/settingsStore';
 import { buildMemoryInjection, useAgentMemoryStore } from './state/agentMemory';
 import { useAgentHubStore } from '@lemma/agent-hub';
 import { bibCitekeys, combinedDoc, outlineAcrossFiles } from './projectDoc';
@@ -62,8 +63,20 @@ export const ENABLED_TOOLS: ToolDef[] = PAPER_TOOLS.filter((t) =>
   (ENABLED_TOOL_NAMES as readonly string[]).includes(t.name),
 );
 
-/** 权限策略（5.3）：balanced——read 放行、execute 放行、write 走审批、export 拦截 */
-const POLICY = { mode: 'balanced' as const, allowExport: false };
+/**
+ * 权限策略（v7.9.0）：跟随用户在 Agent 面板选择的权限模式（settingsStore.permissionMode，
+ * DeepSeek Harness 式三档 readonly / balanced / full）。allowExport 常开——外发级由模式
+ * 自身把关（readonly 拦截 / balanced 确认 / full 放行），不再叠加第二道开关。
+ */
+function currentPolicy(): { mode: 'readonly' | 'balanced' | 'full'; allowExport: boolean } {
+  const mode = useSettingsStore.getState().permissionMode;
+  return { mode, allowExport: mode !== 'readonly' };
+}
+
+/** v7.9.0：full（完全权限）下写级操作免审批直接应用（仍自动快照 + 自动进版本历史）。 */
+function fullAccessDecision(): { approved: true; note: string } {
+  return { approved: true, note: '完全权限模式：免审批直接应用（已自动创建快照，可在版本历史回滚）' };
+}
 
 function outlineMd(files: Record<string, string>): string {
   return outlineAcrossFiles(files)
@@ -209,7 +222,7 @@ export function diffTargetMismatch(
 
 /** 创建绑定真实应用数据的工具执行器；写级操作经 approval 阻塞等待人工裁决 */
 export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval): ToolExecutor {
-  return createToolExecutor({
+  const inner = createToolExecutor({
     'library.search_fulltext': async (args) => {
       const query = String(args.query ?? '');
       // v7.8.0：注册表声明的是 `limit`（模型照声明传参），此前只读 `args.k`——
@@ -397,7 +410,9 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       // v7.8.0：注册表声明的 summary（本次修改的一句话说明）此前被静默丢弃——
       // 审批卡标题带上它，用户不必从 diff 猜这次改动的意图
       const summary = typeof args.summary === 'string' ? args.summary.trim() : '';
-      const decision = await approval({
+      const decision = useSettingsStore.getState().permissionMode === 'full'
+        ? fullAccessDecision()
+        : await approval({
         file,
         before,
         after,
@@ -448,7 +463,9 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       const entry = bibtexEntryOf(entrySource);
       const citekey = String(entrySource.citekey ?? entrySource.key ?? 'unnamed');
       const after = `${before.trimEnd()}${before.trim() ? '\n\n' : ''}${entry}\n`;
-      const decision = await approval({
+      const decision = useSettingsStore.getState().permissionMode === 'full'
+        ? fullAccessDecision()
+        : await approval({
         file: path,
         before,
         after,
@@ -523,7 +540,9 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       const note = `【${key}】${value}`;
       const before = mem.styleNotes.length > 0 ? mem.styleNotes.join('\n') : '（项目记忆为空）';
       const after = [...mem.styleNotes, note].join('\n');
-      const decision = await approval({
+      const decision = useSettingsStore.getState().permissionMode === 'full'
+        ? fullAccessDecision()
+        : await approval({
         file: '项目记忆（agent-memory）',
         before,
         after,
@@ -638,7 +657,9 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       if (!path || !content.trim()) return { created: false, reason: '需要 path 和 content' };
       const ws = useWorkspaceStore.getState();
       if (ws.files[path] !== undefined) return { created: false, reason: `文件已存在：${path}（用 tex.edit 修改）` };
-      const decision = await approval({
+      const decision = useSettingsStore.getState().permissionMode === 'full'
+        ? fullAccessDecision()
+        : await approval({
         file: path,
         before: '',
         after: content,
@@ -680,6 +701,18 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
       return { answered: true, answer };
     },
   });
+
+  // v7.9.0：权限闸门下沉到执行器本身——任何调用路径（agent 多轮循环 / 计划执行 /
+  // 测试直调）都过同一道闸；readonly 的写级操作在这里被拦，handler 不会执行。
+  return {
+    async execute(call: ToolCallRequest): Promise<unknown> {
+      const gate = checkCall(call.tool, currentPolicy());
+      if (gate.decision === 'blocked') {
+        return { error: `权限拦截：${gate.reason}` };
+      }
+      return inner.execute(call);
+    },
+  };
 }
 
 export interface AgentTurnEventHandlers {
@@ -853,7 +886,7 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
       }
       opts.onToolCall?.(call);
       let output: unknown;
-      const gate = checkCall(call.tool, POLICY);
+      const gate = checkCall(call.tool, currentPolicy());
       if (gate.decision === 'blocked') {
         output = { error: `权限拦截：${gate.reason}` };
       } else {

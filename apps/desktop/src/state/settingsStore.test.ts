@@ -80,6 +80,29 @@ describe('settingsStore localStorage 持久化', () => {
     expect(readPersistedSettings()!.theme).toBe('light');
   });
 
+  it('v7.9.0 权限模式：默认 balanced；显式持久化保留；非法值回落 balanced；写侧随变更落盘', () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ providers: [], theme: 'light', language: 'zh', embeddingModel: '' }),
+    );
+    expect(readPersistedSettings()!.permissionMode).toBe('balanced');
+
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ providers: [], theme: 'light', language: 'zh', embeddingModel: '', permissionMode: 'full' }),
+    );
+    expect(readPersistedSettings()!.permissionMode).toBe('full');
+
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ providers: [], theme: 'light', language: 'zh', embeddingModel: '', permissionMode: 'yolo' }),
+    );
+    expect(readPersistedSettings()!.permissionMode).toBe('balanced');
+
+    useSettingsStore.getState().setPermissionMode('readonly');
+    expect(readPersistedSettings()!.permissionMode).toBe('readonly');
+  });
+
   it('CRUD 后 round-trip 恢复一致', () => {
     useSettingsStore.getState().addProvider({ label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', apiKey: 'sk-x', model: 'deepseek-chat', tier: 'cheap' });
     useSettingsStore.getState().setTheme('light');

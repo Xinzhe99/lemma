@@ -914,3 +914,67 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ---- v7.9.0 会话内模型切换器（Codex 式，输入区左下角） ---- */
+.sf-ah-model-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  max-width: 150px;
+  padding: 2px 18px 2px 8px;
+  border: 1px solid var(--border, #d8dae2);
+  border-radius: 999px;
+  background: var(--bg-3, #f0f0f2)
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23888'/%3E%3C/svg%3E")
+    no-repeat right 7px center;
+  color: var(--fg-1, #333);
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-ah-model-switch:hover {
+  border-color: var(--fg-2, #a0a0aa);
+}
+.sf-ah-model-switch:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- v7.9.0 未配对工具结果：折叠一行，点开才见全文 ---- */
+.sf-ah-tool-result {
+  border: 1px solid var(--border, #d8dae2);
+  border-radius: 8px;
+  background: var(--bg-3, #f0f0f2);
+  font-size: 12px;
+  overflow: hidden;
+}
+.sf-ah-tool-result > summary {
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--fg-2, #6b7280);
+  user-select: none;
+  list-style: none;
+}
+.sf-ah-tool-result > summary::-webkit-details-marker {
+  display: none;
+}
+.sf-ah-tool-result > summary::before {
+  content: '▸ ';
+}
+.sf-ah-tool-result[open] > summary::before {
+  content: '▾ ';
+}
+.sf-ah-tool-result > pre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  border-top: 1px solid var(--border, #d8dae2);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--fg-1, #333);
+}

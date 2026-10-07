@@ -20,6 +20,7 @@ export const genericArticle: TemplateModule = {
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：generic-article —— 通用学术论文（article + natbib）
 \documentclass[11pt,a4paper]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage[margin=2.5cm]{geometry}

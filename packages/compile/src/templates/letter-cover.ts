@@ -23,6 +23,7 @@ export const letterCover: TemplateModule = {
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：letter-cover
 \documentclass[11pt]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[a4paper,margin=2.5cm]{geometry}
 \usepackage[colorlinks=true]{hyperref}
 \begin{document}

@@ -3594,3 +3594,31 @@ kbd {
   color: var(--fg-1);
   line-height: 1.6;
 }
+
+/* ---- v7.9.0 模型候选 chips（点击填入；datalist 在 WebView2 里常常点不出来） ---- */
+.sf-model-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.sf-model-chip {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--fg-1);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.sf-model-chip:hover {
+  border-color: var(--accent);
+  color: var(--fg-0);
+}
+.sf-model-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

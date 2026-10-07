@@ -142,6 +142,7 @@ interface CompileDict {
   materializeFail: (err: string) => string;
   engineFail: (engine: string, err: string) => string;
   pdfOpened: (pdfPath: string, bytes: number) => string;
+  pdfEmpty: (pdfPath: string) => string;
   pdfMissing: (pdfPath: string, err: string) => string;
   synctexOk: (synctexPath: string, bytes: number) => string;
   synctexFail: (synctexPath: string, err: string) => string;
@@ -170,6 +171,7 @@ export const L: Record<Language, CompileDict> = {
     materializeFail: (err) => `⚠ 项目文件物化失败（${err}），编译中止。`,
     engineFail: (engine, err) => `⚠ ${engine} 执行失败（${err}），编译中止。`,
     pdfOpened: (pdfPath, bytes) => `🖨 产物 ${pdfPath} 已读回（${bytes} 字节），PDF 预览已打开`,
+    pdfEmpty: (pdfPath) => `⚠ 产物 ${pdfPath} 为 0 字节（可能被下一次编译覆盖或引擎尚未写完），已保留上一次预览`,
     pdfMissing: (pdfPath, err) => `⚠ 编译成功但未找到产物 PDF：${pdfPath} 读取失败（${err}）。请检查引擎输出目录设置。`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX 索引已注册（${synctexPath}，${bytes} 字节），PDF ↔ 源码同步可用`,
     synctexFail: (synctexPath, err) => `⚠ SyncTeX 索引不可用（${synctexPath} 读取失败：${err}），PDF ↔ 源码同步已停用。`,
@@ -195,6 +197,7 @@ export const L: Record<Language, CompileDict> = {
     materializeFail: (err) => `⚠ Failed to materialize project files (${err}); compile aborted.`,
     engineFail: (engine, err) => `⚠ ${engine} failed (${err}); compile aborted.`,
     pdfOpened: (pdfPath, bytes) => `🖨 Artifact ${pdfPath} read back (${bytes} bytes); PDF preview opened`,
+    pdfEmpty: (pdfPath) => `⚠ Artifact ${pdfPath} is 0 bytes (likely overwritten by the next compile or still being written); the previous preview was kept`,
     pdfMissing: (pdfPath, err) => `⚠ Compiled successfully but the PDF artifact was not found: reading ${pdfPath} failed (${err}). Check the engine output directory settings.`,
     synctexOk: (synctexPath, bytes) => `🔗 SyncTeX index registered (${synctexPath}, ${bytes} bytes); PDF ↔ source sync enabled`,
     synctexFail: (synctexPath, err) => `⚠ SyncTeX index unavailable (failed to read ${synctexPath}: ${err}); PDF ↔ source sync disabled.`,
@@ -541,16 +544,27 @@ async function runRealCompile(entry: string, opts?: { auto?: boolean }): Promise
   if (result.success) {
     const pdfPath = pdfTargetFor(entry);
     try {
-      const bytes = await tauriReadBase64(pdfPath);
-      lastPdf = { name: pdfPath, data: toArrayBuffer(bytes) };
-      const ui = useUiStore.getState();
-      if (!ui.pdfView) {
-        ui.setPdfView(lastPdf);
-      } else {
-        // 已开预览：仅更新数据（不切视图，不闪屏）
-        useUiStore.setState({ pdfView: lastPdf });
+      let bytes = await tauriReadBase64(pdfPath);
+      // v7.9.0：0 字节 = PDF 正被下一次编译覆盖（auto-compile 与手动编译竞态）或引擎
+      // 尚未写完。此时不能把空 PDF 缓存进 lastPdf / 顶掉预览（用户会看到空白页，
+      // 误以为「编译内容和左侧不同步」）——延迟重读一次，仍为 0 则保留上一次预览。
+      if (bytes.length === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        bytes = await tauriReadBase64(pdfPath);
       }
-      s.appendCompileLog(t.pdfOpened(pdfPath, bytes.length));
+      if (bytes.length === 0) {
+        s.appendCompileLog(t.pdfEmpty(pdfPath));
+      } else {
+        lastPdf = { name: pdfPath, data: toArrayBuffer(bytes) };
+        const ui = useUiStore.getState();
+        if (!ui.pdfView) {
+          ui.setPdfView(lastPdf);
+        } else {
+          // 已开预览：仅更新数据（不切视图，不闪屏）
+          useUiStore.setState({ pdfView: lastPdf });
+        }
+        s.appendCompileLog(t.pdfOpened(pdfPath, bytes.length));
+      }
     } catch (e) {
       s.appendCompileLog(t.pdfMissing(pdfPath, errText(e)));
     }

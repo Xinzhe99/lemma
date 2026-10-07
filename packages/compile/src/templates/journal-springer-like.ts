@@ -24,6 +24,7 @@ export const journalSpringerLike: TemplateModule = {
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：journal-springer-like —— 通用期刊单栏风格（自写样式）
 \documentclass[11pt,a4paper]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[T1]{fontenc}
 \usepackage{mathptmx}
 \usepackage[margin=2.4cm]{geometry}

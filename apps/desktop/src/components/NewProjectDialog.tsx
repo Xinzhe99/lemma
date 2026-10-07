@@ -62,10 +62,12 @@ const STRINGS = {
 
 type Dict = (typeof STRINGS)['zh'] | (typeof STRINGS)['en'];
 
-/** 新项目的最小可编译模板（自 SessionsPanel 迁入，供对话框统一创建路径） */
+/** 新项目的最小可编译模板（自 SessionsPanel 迁入，供对话框统一创建路径）。
+ *  v7.9.0：文档类改为 ctexart——此前 article + 中文正文在真实引擎（lualatex/xelatex）
+ *  下中文全部 Missing character 静默丢字，PDF 看起来近乎空白（用户误以为编译不同步）。 */
 export const NEW_PROJECT_FILES: Record<string, string> = {
   'main.tex': [
-    '\\documentclass{article}',
+    '\\documentclass[11pt]{ctexart}',
     '\\usepackage{amsmath,graphicx,hyperref}',
     '',
     '\\title{新论文}',

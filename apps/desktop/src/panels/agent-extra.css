@@ -483,3 +483,37 @@
   max-height: 320px;
   overflow: auto;
 }
+
+/* ---------- v7.9.0 权限模式（DeepSeek Harness 式三档分段选择器） ---------- */
+.sf-perm-switch {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.sf-perm-btn {
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.sf-perm-btn + .sf-perm-btn {
+  border-left: 1px solid var(--border);
+}
+.sf-perm-btn:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
+}
+.sf-perm-btn.active {
+  background: var(--accent, #4a6cf7);
+  color: #fff;
+}
+
+/* ---------- v7.9.0 模型候选 chips：样式在全局 styles.css（设置对话框也用） ---------- */

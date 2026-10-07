@@ -5,7 +5,7 @@
  * 底部「测试连接」按钮（保存前即可验证 BaseURL/Key/模型）。
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Cpu, Globe2, Info, Palette, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useT } from '../i18n';
 import { isCliAgentAvailable, tauriCliRunner } from '../cliAgent';
@@ -260,6 +260,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchModelsNote, setFetchModelsNote] = useState<string | null>(null);
+  // v7.9.0：候选 = 预设建议（永远在场，含 reasoner/pro 档）∪ /models 拉取结果（预设在前）
+  const mergedFormModels = useMemo(
+    () => [...new Set([...(formPreset?.models ?? []), ...fetchedModels])].filter(Boolean),
+    [formPreset?.id, fetchedModels],
+  );
   const loadFormModels = async (): Promise<void> => {
     if (!form || fetchingModels) return;
     setFetchingModels(true);
@@ -408,10 +413,30 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                       onChange={(e) => setForm((f) => (f ? { ...f, model: e.target.value } : f))}
                     />
                     <datalist id="sf-preset-models">
-                      {(fetchedModels.length > 0 ? fetchedModels : formPreset?.models ?? []).map((m) => (
+                      {(fetchedModels.length > 0 ? mergedFormModels : formPreset?.models ?? []).map((m) => (
                         <option key={m} value={m} />
                       ))}
                     </datalist>
+                    {/* v7.9.0：模型候选 chips（datalist 在 WebView2 里常常点不出来）+ 拉取计数 */}
+                    {mergedFormModels.length > 0 && (
+                      <div className="sf-model-chips">
+                        {mergedFormModels.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={`sf-model-chip${m === form.model ? ' active' : ''}`}
+                            onClick={() => setForm((f) => (f ? { ...f, model: m } : f))}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {fetchedModels.length > 0 && (
+                      <small className="sf-agent-note" style={{ margin: 0, opacity: 0.75 }}>
+                        {t('settings.modelsFetched', { n: fetchedModels.length })}
+                      </small>
+                    )}
                     {fetchModelsNote && (
                       <small className="sf-agent-note" style={{ margin: 0, opacity: 0.75 }}>
                         {fetchModelsNote}

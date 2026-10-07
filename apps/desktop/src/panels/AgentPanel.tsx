@@ -47,7 +47,7 @@ import {
   polishSelection,
 } from '../aiActions';
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
-import { PROVIDER_PRESETS, findPreset } from '../providers/presets';
+import { PROVIDER_PRESETS, findPreset, matchPresetByBaseUrl } from '../providers/presets';
 import { testProvider, type TestResult } from '../providers/connectionTest';
 import { ReviewPanel, RebuttalPanel } from './ReviewPanel';
 import { useAgentPlansStore } from '../state/agentPlans';
@@ -158,6 +158,19 @@ const STRINGS = {
     collabTitle: '开始与 AI 协作',
     collabHint: '描述你想做的事——润色、找文献、改稿、修编译错误；AI 会自己调用工具完成。',
     demoModeLabel: '演示模式（内置示例数据）',
+    // —— v7.9.0 权限模式（DeepSeek Harness 式三档）——
+    permTitle: '权限模式：决定 AI 能对稿件做什么',
+    permReadonly: '仅可查看',
+    permReadonlyTip: 'AI 只能读取与编译，不能修改文件',
+    permBalanced: '工作区内修改',
+    permBalancedTip: 'AI 修改稿件需经 diff 审批（默认）',
+    permFull: '完全权限',
+    permFullTip: 'AI 免审批直接修改（自动快照，可在版本历史回滚）',
+    // —— v7.9.0 会话内切换模型 / 附件 / 工具结果文案 ——
+    modelSwitchTitle: '切换模型',
+    attachLabel: '添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴）',
+    toolResultLabel: '工具结果',
+    fetchedCount: (n: number) => `已获取 ${n} 个模型（点击填入）`,
   },
   en: {
     newSession: 'New session',
@@ -233,6 +246,19 @@ const STRINGS = {
     collabTitle: 'Start collaborating with AI',
     collabHint: 'Describe what you need — polish, find papers, revise, fix compile errors; the agent runs the tools itself.',
     demoModeLabel: 'Demo mode (built-in sample data)',
+    // —— v7.9.0 permission modes (DeepSeek-Harness-style three tiers) ——
+    permTitle: 'Permission mode: what the AI may do to your manuscript',
+    permReadonly: 'View only',
+    permReadonlyTip: 'AI can read and compile but cannot modify files',
+    permBalanced: 'Workspace edits',
+    permBalancedTip: 'AI edits require diff approval (default)',
+    permFull: 'Full access',
+    permFullTip: 'AI edits apply without approval (auto-snapshot, reversible via history)',
+    // —— v7.9.0 in-chat model switch / attach / tool-result labels ——
+    modelSwitchTitle: 'Switch model',
+    attachLabel: 'Attach files (image/PDF/Word/data/text; drag or paste)',
+    toolResultLabel: 'Tool result',
+    fetchedCount: (n: number) => `Fetched ${n} models (click to fill)`,
   },
 } as const;
 
@@ -258,6 +284,9 @@ export function AgentPanel() {
   const activeProviderId = useSettingsStore((s) => s.activeProviderId);
   const addProvider = useSettingsStore((s) => s.addProvider);
   const setActive = useSettingsStore((s) => s.setActive);
+  const updateProvider = useSettingsStore((s) => s.updateProvider);
+  const permissionMode = useSettingsStore((s) => s.permissionMode);
+  const setPermissionMode = useSettingsStore((s) => s.setPermissionMode);
   const language = useSettingsStore((s) => s.language);
   const t = STRINGS[language] as (typeof STRINGS)[Language];
 
@@ -290,6 +319,30 @@ export function AgentPanel() {
     const r = resolveProvider();
     return r.real ? r.label : (STRINGS[language] as (typeof STRINGS)[Language]).demoModeLabel;
   }, [providers, activeProviderId, language]);
+
+  // ------------------------------------------------------------------
+  // v7.9.0 Codex 式会话内切换模型：下拉读激活服务的模型字段 + 同预设建议模型；
+  // 切换即写回激活服务（对后续轮次生效），与设置对话框共享同一数据源。
+  // ------------------------------------------------------------------
+  const activeProvider = useMemo(
+    () => providers.find((p) => p.id === activeProviderId) ?? null,
+    [providers, activeProviderId],
+  );
+  const activeProviderPreset = useMemo(
+    () => (activeProvider ? matchPresetByBaseUrl(activeProvider.baseUrl) : undefined),
+    [activeProvider?.baseUrl],
+  );
+  const modelSwitchOptions = useMemo(() => {
+    if (!activeProvider) return [];
+    return [...new Set([activeProvider.model, ...(activeProviderPreset?.models ?? [])].filter(Boolean))];
+  }, [activeProvider?.model, activeProviderPreset?.id]);
+  const onModelSwitch = useCallback(
+    (model: string) => {
+      if (activeProvider) updateProvider(activeProvider.id, { model });
+    },
+    [activeProvider?.id, updateProvider],
+  );
+
   const plans = useAgentPlansStore((s) => s.plans);
   const [approvalExplanation, setApprovalExplanation] = useState<string | undefined>(undefined);
   const libraryPapers = useLibraryStore((s) => s.papers);
@@ -312,6 +365,11 @@ export function AgentPanel() {
   const [quickTesting, setQuickTesting] = useState(false);
   const [quickResult, setQuickResult] = useState<TestResult | null>(null);
   const quickPreset = quickPresetId ? findPreset(quickPresetId) : undefined;
+  /** v7.9.0：候选 = 预设建议（永远在场，含 reasoner/pro 档）∪ /models 拉取结果 */
+  const quickModelChoices = useMemo(
+    () => [...new Set([...(quickPreset?.models ?? []), ...quickModelOptions])].filter(Boolean),
+    [quickPreset?.id, quickModelOptions],
+  );
   const pickQuickPreset = (id: string): void => {
     setQuickPresetId(id);
     const preset = id ? findPreset(id) : undefined;
@@ -327,8 +385,12 @@ export function AgentPanel() {
     try {
       const r = await fetchModels(preset.baseUrl, quickKey);
       if (r.models.length > 0) {
-        setQuickModelOptions(r.models);
-        if (!r.models.includes(quickModel)) setQuickModel(r.models[0]!);
+        // v7.9.0：与预设建议模型合并（预设在前）——部分网关的 /models 不含
+        // reasoner/pro 档（用户实测 DeepSeek 只返回 chat），合并保证建议档永远可选手
+        setQuickModelOptions([...new Set([...(preset.models ?? []), ...r.models])]);
+        if (!r.models.includes(quickModel) && !preset.models.includes(quickModel)) {
+          setQuickModel(r.models[0]!);
+        }
         setQuickModelNote(null);
       } else {
         setQuickModelNote(r.error ?? '未获取到模型列表');
@@ -708,10 +770,39 @@ export function AgentPanel() {
 
   return (
     <div className="sf-agent">
-      {/* v5.3.0 Codex 化工具栏：上行 = 会话操作（角色/新会话/历史/提示词库），下行 = 文档级操作 */}
+      {/* v5.3.0 Codex 化工具栏：上行 = 会话操作（权限模式/新会话/历史/提示词库），下行 = 文档级操作 */}
       <div className="sf-agent-toolbar">
         <div className="sf-agent-toolbar-row">
-          {/* v7.7.1：助手角色切换移除——现代模型下角色差异由用户在 prompt 中说明更自然 */}
+          {/* v7.9.0 权限模式（DeepSeek Harness 式三档）：决定 AI 能对稿件做什么 */}
+          <div className="sf-perm-switch" role="radiogroup" aria-label={t.permTitle} title={t.permTitle}>
+            <button
+              type="button"
+              className={`sf-perm-btn${permissionMode === 'readonly' ? ' active' : ''}`}
+              title={t.permReadonlyTip}
+              aria-pressed={permissionMode === 'readonly'}
+              onClick={() => setPermissionMode('readonly')}
+            >
+              {t.permReadonly}
+            </button>
+            <button
+              type="button"
+              className={`sf-perm-btn${permissionMode === 'balanced' ? ' active' : ''}`}
+              title={t.permBalancedTip}
+              aria-pressed={permissionMode === 'balanced'}
+              onClick={() => setPermissionMode('balanced')}
+            >
+              {t.permBalanced}
+            </button>
+            <button
+              type="button"
+              className={`sf-perm-btn${permissionMode === 'full' ? ' active' : ''}`}
+              title={t.permFullTip}
+              aria-pressed={permissionMode === 'full'}
+              onClick={() => setPermissionMode('full')}
+            >
+              {t.permFull}
+            </button>
+          </div>
           <span style={{ flex: 1 }} />
           <button
             className="sf-pill-btn"
@@ -873,10 +964,31 @@ export function AgentPanel() {
                 onChange={(e) => setQuickModel(e.target.value)}
               />
               <datalist id="sf-quick-models">
-                {(quickModelOptions.length > 0 ? quickModelOptions : quickPreset?.models ?? []).map((m) => (
+                {quickModelChoices.map((m) => (
                   <option key={m} value={m} />
                 ))}
               </datalist>
+              {/* v7.9.0：模型候选直接以可点击 chips 呈现（datalist 在 WebView2 里
+                  常常点不出来，用户误以为「只有 flash 一个模型」） */}
+              {quickModelChoices.length > 0 && (
+                <div className="sf-model-chips">
+                  {quickModelChoices.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className={`sf-model-chip${m === quickModel ? ' active' : ''}`}
+                      onClick={() => setQuickModel(m)}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {quickModelOptions.length > 0 && (
+                <small className="sf-agent-note" style={{ margin: 0, opacity: 0.75 }}>
+                  {t.fetchedCount(quickModelOptions.length)}
+                </small>
+              )}
               {quickModelNote && (
                 <small className="sf-agent-note" style={{ margin: 0, opacity: 0.75 }}>
                   {quickModelNote}
@@ -992,7 +1104,22 @@ ${proposal.after.slice(0, 800)}`,
             onSend={send}
             onStop={() => abortChat()}
             placeholder={t.chatPlaceholder}
-            labels={{ emptyTitle: t.collabTitle, emptyHint: t.collabHint }}
+            labels={{
+              emptyTitle: t.collabTitle,
+              emptyHint: t.collabHint,
+              toolResult: t.toolResultLabel,
+              modelSwitchTitle: t.modelSwitchTitle,
+              attach: t.attachLabel,
+            }}
+            modelSwitcher={
+              activeProvider
+                ? {
+                    model: activeProvider.model,
+                    options: modelSwitchOptions,
+                    onChange: onModelSwitch,
+                  }
+                : undefined
+            }
             onCitekeyClick={handleCitekeyClick}
             onSlashWorkflow={(id) => {
               if (id === '__clear') {

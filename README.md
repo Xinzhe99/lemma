@@ -16,7 +16,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
-[![Tests](https://img.shields.io/badge/tests-2352%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2359%20passing-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [![Stargazers over time](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
@@ -59,6 +59,8 @@ No pomodoro timers, no dashboards — just writing, compiling, literature, and A
 - **PDF annotations** — four semantic highlight colors; mark items pending / resolved; one-click "draft response letter" from unresolved comments
 - **Engine matrix** — Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk, auto-detected; a missing Tectonic is downloaded automatically (~30 MB, zero config) and pre-warmed on idle, so the first compile is instant
 - Compile errors → one-click **✦ AI fix**
+- **Switch models mid-conversation** — a compact picker in the chat box (Codex-style); applies from the next turn
+- **Permission modes** — you decide what the AI may do: **View only** / **Workspace edits** (diff-approved) / **Full access**; tool activity renders as compact collapsible cards, never raw logs
 
 ### 🤖 AI
 
@@ -149,7 +151,7 @@ packages/agent-hub      Agent core (streaming · tools · blocking approvals · 
 packages/knowledge      RAG · Context Pack · citation guardrails
 ```
 
-**Engineering**: 2,352 tests (205 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
+**Engineering**: 2,359 tests (205 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
 
 ## 📚 Documentation
 

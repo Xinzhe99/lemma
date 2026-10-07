@@ -28,6 +28,7 @@ export const conferenceIeeeLike: TemplateModule = {
 % Lemma 模板：conference-ieee-like —— 自写样式的双栏会议观感
 % 注意：不使用真实 IEEE/ACM cls，样式由下方自写命令构成。
 \documentclass[10pt,twocolumn]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[T1]{fontenc}
 \usepackage{times}
 \usepackage[letterpaper,margin=1.9cm,columnsep=0.6cm]{geometry}

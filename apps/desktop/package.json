@@ -1,6 +1,6 @@
 {
   "name": "@lemma/desktop",
-  "version": "7.8.1",
+  "version": "7.9.0",
   "private": true,
   "main": "src/main.tsx",
   "scripts": {

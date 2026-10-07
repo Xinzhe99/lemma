@@ -57,6 +57,12 @@ export interface ChatLabels {
   /** v7.5.0：空会话居中引导（默认中文，宿主按语言覆盖） */
   emptyTitle?: string;
   emptyHint?: string;
+  /** v7.9.0：未配对工具结果的折叠行文案（默认中文，宿主按语言覆盖） */
+  toolResult?: string;
+  /** v7.9.0：模型切换器 tooltip（默认中文，宿主按语言覆盖） */
+  modelSwitchTitle?: string;
+  /** v7.9.0：附件按钮 tooltip（默认中文，宿主按语言覆盖） */
+  attach?: string;
 }
 
 const DEFAULT_LABELS: Required<ChatLabels> = {
@@ -80,6 +86,9 @@ const DEFAULT_LABELS: Required<ChatLabels> = {
   mentionMenuLabel: '引用文献或文件',
   emptyTitle: '开始与 AI 协作',
   emptyHint: '描述你想做的事——润色、找文献、改稿、修编译错误；AI 会自己调用工具完成。',
+  toolResult: '工具结果',
+  modelSwitchTitle: '切换模型',
+  attach: '添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴）',
 };
 
 /** 内置 /清空 菜单项 id（避免与宿主注入 id 冲突） */
@@ -118,6 +127,11 @@ export interface ChatPanelProps {
   labels?: ChatLabels;
   /** 当前 Provider 徽标（v3.8.0 E：显示在输入框上方） */
   providerLabel?: string;
+  /**
+   * v7.9.0 Codex 式会话内切换模型：输入区左下角出现紧凑下拉，
+   * onChange 由宿主写入激活服务的模型字段（对后续轮次生效）。
+   */
+  modelSwitcher?: { model: string; options: string[]; onChange: (model: string) => void };
 }
 
 export interface MessageListProps {
@@ -300,8 +314,11 @@ export function MessageList(props: MessageListProps) {
   // 工具结果索引（v4.2.0）：O(n) 预建 Map，替代逐工具卡的 messages.find（O(n²)，
   // 长会话（50 轮 × 多工具）下每个流式 token 都全列表扫描）
   const toolResults = new Map<string, AgentMessage>();
+  // v7.9.0：已被 assistant.toolCalls 引用的工具调用 id——其结果渲染在工具卡内
+  const pairedCallIds = new Set<string>();
   for (const m of session.messages) {
     if (m.role === 'tool' && m.toolCallId) toolResults.set(m.toolCallId, m);
+    for (const c of m.toolCalls ?? []) pairedCallIds.add(c.id);
   }
   return (
     <div className="sf-ah-msgs-wrap">
@@ -317,6 +334,22 @@ export function MessageList(props: MessageListProps) {
         const isLast = i === session.messages.length - 1;
         const editing = props.editingId != null && props.editingId === m.id;
         const actionable = m.role === 'assistant' || m.role === 'user';
+        // v7.9.0 信息流精简：工具消息不再整条铺 JSON——
+        //  已配对的结果只出现在上方工具卡里（此前同一份数据渲染两遍）；
+        //  未配对的（历史清理剥离 toolCalls 后的孤儿）折叠为一行，点开才见全文
+        if (m.role === 'tool') {
+          if (m.toolCallId && pairedCallIds.has(m.toolCallId)) return null;
+          return (
+            <div key={m.id} className="sf-ah-msg-row sf-ah-msg-row--tool">
+              <details className="sf-ah-tool-result">
+                <summary>
+                  🔧 {labels.toolResult} · {(m.content.length / 1024).toFixed(1)} KB
+                </summary>
+                <pre>{m.content}</pre>
+              </details>
+            </div>
+          );
+        }
         return (
           <div key={m.id} className={`sf-ah-msg-row sf-ah-msg-row--${m.role}`}>
             <div
@@ -421,6 +454,7 @@ export function ChatPanel(props: ChatPanelProps) {
     onInsertLatex,
     insertLatexLabel,
     providerLabel,
+    modelSwitcher,
     labels: labelOverrides,
   } = props;
   const labels = { ...DEFAULT_LABELS, ...labelOverrides };
@@ -871,9 +905,25 @@ export function ChatPanel(props: ChatPanelProps) {
             onPaste={onInputPaste}
           />
           <div className="sf-ah-input-actions">
+            {/* v7.9.0 Codex 式会话内切换模型：onChange 由宿主写入激活服务的模型字段 */}
+            {modelSwitcher && modelSwitcher.options.length > 0 && (
+              <select
+                className="sf-ah-model-switch"
+                title={labels.modelSwitchTitle}
+                value={modelSwitcher.model}
+                disabled={streaming}
+                onChange={(e) => modelSwitcher.onChange(e.target.value)}
+              >
+                {[...new Set([modelSwitcher.model, ...modelSwitcher.options])].filter(Boolean).map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               className="sf-ah-icon-btn"
-              title={`添加附件（图片/PDF/Word/数据/文本，或拖入/粘贴；最多 图 ${MAX_IMAGES} + 文件 ${MAX_FILES}）`}
+              title={labels.attach}
               onClick={() => imageFileRef.current?.click()}
             >
               📎

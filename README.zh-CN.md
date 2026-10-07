@@ -16,7 +16,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
-[![Tests](https://img.shields.io/badge/tests-2352%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2359%20passing-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [![Star 趋势](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
@@ -59,6 +59,8 @@ Lemma 是**为 LaTeX 论文重建的 Codex**：
 - **PDF 批注**——四色语义高亮；逐条「待处理 / 已处理」；一键把未处理批注交给 AI 起草逐条回复信
 - **全引擎矩阵**——Tectonic / LuaLaTeX / XeLaTeX / pdfLaTeX / latexmk 自动检测；缺引擎自动下载 Tectonic（约 30MB，零配置）并闲时预热，首次编译零等待
 - 编译失败一键 **✦ AI 修复**
+- **对话中切换模型**——输入框内紧凑下拉（Codex 式），下一轮即生效
+- **权限模式三档**——你决定 AI 能做什么：**仅可查看** / **工作区内修改**（diff 审批）/ **完全权限**；工具活动以紧凑可折叠卡片呈现，不再刷屏
 
 ### 🤖 AI
 
@@ -149,7 +151,7 @@ packages/agent-hub      Agent 中枢（流式 · 工具 · 阻塞审批 · 工�
 packages/knowledge      RAG · Context Pack · 引用护栏
 ```
 
-**工程数据**：2,352 个单元测试（205 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API Key 永不离开本机）。
+**工程数据**：2,359 个单元测试（205 文件）· GitHub Actions CI（web + cargo-check）· 中英双语 · 本地优先（IndexedDB，API Key 永不离开本机）。
 
 ## 📚 文档
 

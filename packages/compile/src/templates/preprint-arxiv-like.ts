@@ -23,6 +23,7 @@ export const preprintArxivLike: TemplateModule = {
     'main.tex': String.raw`% !TeX program = tectonic
 % Lemma 模板：preprint-arxiv-like
 \documentclass[11pt]{article}
+\usepackage[UTF8]{ctex} % 中文支持：真实引擎（lualatex/xelatex/tectonic）下中文不再静默丢字
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}

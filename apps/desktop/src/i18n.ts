@@ -253,6 +253,7 @@ const dict: MessageDict = {
   'settings.field.baseUrl': { zh: '接口地址', en: 'Base URL' },
   'settings.field.apiKey': { zh: 'API 密钥', en: 'API key' },
   'settings.field.model': { zh: '模型', en: 'Model' },
+  'settings.modelsFetched': { zh: '已获取 {n} 个模型（点击填入）', en: 'Fetched {n} models (click to fill)' },
   'settings.field.tier': { zh: '档位', en: 'Tier' },
   'settings.tier.cheap': { zh: '经济', en: 'Cheap' },
   'settings.tier.flagship': { zh: '旗舰', en: 'Flagship' },

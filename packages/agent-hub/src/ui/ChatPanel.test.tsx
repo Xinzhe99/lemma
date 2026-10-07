@@ -417,3 +417,67 @@ describe('自定义提示词（insertText 项）与 latex 插入透传', () => {
     expect(onInsertLatex).toHaveBeenCalledWith('\section{M}');
   });
 });
+
+describe('v7.9.0 工具消息信息流精简', () => {
+  it('已配对的工具消息不再整条渲染为正文（只在工具卡内展示一次）', () => {
+    const session = makeSession({
+      messages: [
+        { id: 'u1', role: 'user', content: '编译一下', createdAt: 1 },
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: '',
+          createdAt: 2,
+          toolCalls: [{ id: 'call-1', tool: 'tex.compile', args: {} }],
+        },
+        {
+          id: 't1',
+          role: 'tool',
+          toolCallId: 'call-1',
+          content: '{"success":true,"passes":2}',
+          createdAt: 3,
+        },
+      ],
+    });
+    const { container } = render(<ChatPanel session={session} />);
+    // 工具卡在；配对的 tool 消息不再渲染为独立行（此前同一份 JSON 渲染两遍）
+    expect(container.querySelector('.sf-ah-toolcard')).not.toBeNull();
+    expect(container.querySelector('.sf-ah-msg-row--tool')).toBeNull();
+    expect(container.querySelector('.sf-ah-tool-result')).toBeNull();
+  });
+
+  it('孤儿工具消息折叠为一行（不再把原始 JSON 铺满对话）', () => {
+    const big = JSON.stringify({ lines: ['▶ lualatex 真实编译 main.tex', '▣ lualatex · 1 趟 · 成功'] });
+    const session = makeSession({
+      messages: [
+        { id: 'u1', role: 'user', content: 'q', createdAt: 1 },
+        { id: 't1', role: 'tool', toolCallId: 'ghost-1', content: big, createdAt: 2 },
+      ],
+    });
+    const { container } = render(<ChatPanel session={session} />);
+    const row = container.querySelector('.sf-ah-msg-row--tool');
+    expect(row).not.toBeNull();
+    const details = row!.querySelector('details.sf-ah-tool-result');
+    expect(details).not.toBeNull();
+    // 折叠态：摘要行可见，原始 JSON 在 closed details 内（视觉上不铺开）
+    expect(details!.querySelector('summary')?.textContent).toContain('工具结果');
+    const raw = row!.querySelector('pre');
+    expect(raw?.textContent).toContain('lualatex');
+  });
+
+  it('modelSwitcher：渲染紧凑下拉，切换回调带所选模型；流式中禁用', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <ChatPanel
+        session={makeSession()}
+        modelSwitcher={{ model: 'deepseek-chat', options: ['deepseek-chat', 'deepseek-reasoner'], onChange }}
+      />,
+    );
+    const sel = container.querySelector<HTMLSelectElement>('.sf-ah-model-switch');
+    expect(sel).not.toBeNull();
+    expect(sel!.options).toHaveLength(2);
+    expect(sel!.value).toBe('deepseek-chat');
+    fireEvent.change(sel!, { target: { value: 'deepseek-reasoner' } });
+    expect(onChange).toHaveBeenCalledWith('deepseek-reasoner');
+  });
+});
