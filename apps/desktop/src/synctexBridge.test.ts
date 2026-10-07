@@ -5,7 +5,7 @@
  * - PDF → 源码：page+x+y → file+line 命中并经 editorJump.jumpTo 跳源码。
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SynctexIndex } from '@lemma/compile';
 import {
   hasSynctexIndex,
@@ -15,6 +15,17 @@ import {
   setSynctexIndex,
 } from './synctexBridge';
 import { setJumpHandler } from './editorJump';
+
+// v7.9.5：jumpPdfToSource 会把 synctex 路径解析回工作区文件——mock 工作区键
+const workspaceMock = vi.hoisted(() => ({
+  files: {
+    'main.tex': 'main',
+    'sections/intro.tex': 'intro',
+  } as Record<string, string>,
+}));
+vi.mock('./state/workspaceStore', () => ({
+  useWorkspaceStore: { getState: () => ({ files: workspaceMock.files }) },
+}));
 
 /** 手造索引（坐标为 synctex 单位，与解析器 fixture 同构）：两页、两个输入文件 */
 const INDEX: SynctexIndex = {
@@ -124,5 +135,31 @@ describe('PDF → 源码（jumpPdfToSource）', () => {
     expect(jumpPdfToSource(1, 99999, 99999)).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(jumps).toEqual([]);
+  });
+
+  it('v7.9.5 反查路径解析：绝对物化路径映射回工作区键；完全陌生的路径不跳（不开空标签）', async () => {
+    // 绝对物化路径（basename 命中工作区键）→ 解析为 main.tex 再跳
+    const INDEX_ABS: SynctexIndex = {
+      version: 1,
+      inputs: [{ tag: 1, path: 'C:/Users/dell/AppData/Roaming/com.lemma.desktop/main.tex' }],
+      blocks: [{ page: 1, tag: 1, line: 12, x: 1000, y: 8000, w: 4000, h: 400 }],
+    };
+    setSynctexIndex(INDEX_ABS);
+    const jumps: { file: string; line: number }[] = [];
+    setJumpHandler((t) => jumps.push(t));
+    expect(jumpPdfToSource(1, 1100, 8100)).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(jumps).toEqual([{ file: 'main.tex', line: 12 }]);
+
+    // 完全陌生的路径（basename 不在工作区）→ 解析失败，不跳、不开空的同名标签
+    const INDEX_FOREIGN: SynctexIndex = {
+      version: 1,
+      inputs: [{ tag: 1, path: 'C:/somewhere/else/ghost.tex' }],
+      blocks: [{ page: 1, tag: 1, line: 3, x: 1000, y: 8000, w: 4000, h: 400 }],
+    };
+    setSynctexIndex(INDEX_FOREIGN);
+    expect(jumpPdfToSource(1, 1100, 8100)).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(jumps).toEqual([{ file: 'main.tex', line: 12 }]);
   });
 });

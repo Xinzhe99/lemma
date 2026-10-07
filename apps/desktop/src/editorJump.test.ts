@@ -12,10 +12,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const storeMocks = vi.hoisted(() => ({
   openFile: vi.fn(),
   setCenterView: vi.fn(),
+  files: {
+    'main.tex': 'main content',
+    'sections/intro.tex': 'intro content',
+  } as Record<string, string>,
 }));
 
 vi.mock('./state/workspaceStore', () => ({
-  useWorkspaceStore: { getState: () => ({ openFile: storeMocks.openFile }) },
+  useWorkspaceStore: { getState: () => ({ openFile: storeMocks.openFile, files: storeMocks.files }) },
 }));
 vi.mock('./state/uiStore', () => ({
   useUiStore: { getState: () => ({ setCenterView: storeMocks.setCenterView }) },
@@ -25,6 +29,7 @@ import {
   jumpTo,
   lastCursor,
   notifyCursor,
+  resolveToWorkspaceFile,
   setJumpHandler,
   stashPendingJump,
   subscribeCursor,
@@ -87,6 +92,24 @@ describe('暂存：stashPendingJump（跨文件跳转的既有路径）', () => 
     expect(storeMocks.openFile).not.toHaveBeenCalled();
     expect(storeMocks.setCenterView).not.toHaveBeenCalled();
     expect(takePendingJump('refs.bib')).toEqual({ file: 'refs.bib', line: 3 });
+  });
+});
+
+describe('v7.9.5 resolveToWorkspaceFile（SyncTeX 反查路径 → 工作区键，解析在 synctexBridge）', () => {
+  it('精确命中 / 引擎物化绝对路径（反斜杠、正斜杠）→ 工作区键', () => {
+    expect(resolveToWorkspaceFile('main.tex')).toBe('main.tex');
+    expect(resolveToWorkspaceFile('C:\\Users\\dell\\AppData\\Roaming\\com.lemma.desktop\\main.tex')).toBe('main.tex');
+    expect(resolveToWorkspaceFile('C:/x/y/sections/intro.tex')).toBe('sections/intro.tex');
+  });
+
+  it('后缀唯一 / basename 唯一匹配；./ 前缀归一化', () => {
+    expect(resolveToWorkspaceFile('intro.tex')).toBe('sections/intro.tex');
+    expect(resolveToWorkspaceFile('./sections/intro.tex')).toBe('sections/intro.tex');
+  });
+
+  it('解析不到（不属于当前工作区）返回 null：调用方不跳、不开空的同名标签', () => {
+    expect(resolveToWorkspaceFile('nope.tex')).toBeNull();
+    expect(resolveToWorkspaceFile('C:/somewhere/else/ghost.tex')).toBeNull();
   });
 });
 

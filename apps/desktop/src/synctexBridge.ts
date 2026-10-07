@@ -35,7 +35,14 @@ export function jumpPdfToSource(page: number, x: number, y: number): boolean {
   if (!index) return false;
   const loc = sourceLocation(index, page, x, y);
   if (!loc) return false;
-  void import('./editorJump').then(({ jumpTo }) => jumpTo({ file: loc.file, line: loc.line }));
+  void import('./editorJump').then(({ jumpTo, resolveToWorkspaceFile }) => {
+    // v7.9.5：引擎在物化目录编译，synctex 记录的可能是绝对路径/带 ./ 前缀——
+    // 先解析回工作区键；解析不到（历史索引/不属于当前项目）就不跳，
+    // 避免凭空开出内容为空的同名标签（用户误以为创建了新文件）
+    const file = resolveToWorkspaceFile(loc.file);
+    if (!file) return;
+    jumpTo({ file, line: loc.line });
+  });
   return true;
 }
 
