@@ -529,4 +529,29 @@ describe('v7.9.1 ref.addFiles（标签右键「添加到对话」的注入入口
     expect(files).toHaveLength(1);
     expect(files[0]!.name).toBe('intro.tex');
   });
+
+  it('v7.9.3 ref.insertText：引用块追加进输入框且光标落末尾（不自动发送）', () => {
+    const onSend = vi.fn();
+    const innerRef: { current: ChatPanelHandle | null } = { current: null };
+    const { container, getByText } = render(
+      <div>
+        <button
+          type="button"
+          onClick={() => innerRef.current?.insertText('> 引言第一句')}
+        >
+          quote
+        </button>
+        <ChatPanel ref={innerRef} session={makeSession()} onSend={onSend} />
+      </div>,
+    );
+    fireEvent.click(getByText('quote'));
+    const ta = container.querySelector('.sf-ah-input textarea') as HTMLTextAreaElement;
+    expect(ta.value).toBe('> 引言第一句');
+    expect(ta.selectionStart).toBe(ta.value.length);
+    // 未自动发送
+    expect(onSend).not.toHaveBeenCalled();
+    // 再追加一次：追加到已有文本之后
+    fireEvent.click(getByText('quote'));
+    expect(ta.value).toBe('> 引言第一句\n\n> 引言第一句');
+  });
 });

@@ -142,6 +142,8 @@ export interface ChatPanelProps {
 /** v7.9.1 宿主命令式入口：标签右键「添加到对话」经 ref.addFiles 注入附件 */
 export interface ChatPanelHandle {
   addFiles(files: File[]): void;
+  /** v7.9.3 追加文本到输入框（光标移到末尾）：PDF 选中文字「添加到会话」用 */
+  insertText(text: string): void;
 }
 
 export interface MessageListProps {
@@ -559,6 +561,11 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(function Ch
     () => ({
       addFiles: (files: File[]) => {
         for (const f of files ?? []) addFileAttachment(f);
+      },
+      // v7.9.3：追加文本（引用块等）到输入框，光标移到末尾（复用提示词插入通道）
+      insertText: (incoming: string) => {
+        setText((t) => (t ? `${t}\n\n${incoming}` : incoming));
+        caretToEndRef.current = true;
       },
     }),
     // addFileAttachment 每次渲染重建但仅闭包稳定 state setter，行为等价

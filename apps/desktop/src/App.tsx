@@ -619,6 +619,11 @@ export function App() {
                 label: language === 'en' ? 'Quote → manuscript' : '引述到稿件',
                 run: (text) => insertPdfQuote(text, pdfView.name),
               },
+              {
+                // v7.9.3：选中文字以引用块加入 AI 会话（不自动发送，可继续补问题）
+                label: language === 'en' ? 'Add to chat' : '添加到会话',
+                run: (text) => useUiStore.getState().requestQuoteToChat(text),
+              },
             ]}
             onPagePoint={(p, x, y) => {
               jumpPdfToSource(p, x, y);

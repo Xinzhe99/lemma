@@ -497,6 +497,19 @@ export function AgentPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addToChatTick, language]);
 
+  // v7.9.3 PDF 选中文字「添加到会话」：以引用块追加进输入框（不自动发送，可继续补问题）
+  const quoteToChatTick = useUiStore((s) => s.quoteToChatTick);
+  useEffect(() => {
+    const text = useUiStore.getState().quoteToChatText;
+    if (!text) return;
+    useUiStore.getState().clearQuoteToChat();
+    const quoted = text
+      .split('\n')
+      .map((l) => `> ${l}`)
+      .join('\n');
+    chatRef.current?.insertText(quoted);
+  }, [quoteToChatTick]);
+
   /** v7.9.1 拖入编辑器标签：路径 → File → 附件区（拖 OS 文件走既有 Files 分支） */
   const handleDropPaths = useCallback(
     (paths: string[]) => {

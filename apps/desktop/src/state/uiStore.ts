@@ -61,6 +61,11 @@ interface UiState {
   addToChatTick: number;
   requestAddToChat(path: string): void;
   clearAddToChat(): void;
+  /** v7.9.3 PDF 选中文字「添加到会话」：PdfReader 浮条发起，AgentPanel 以引用块插入输入框 */
+  quoteToChatText: string | null;
+  quoteToChatTick: number;
+  requestQuoteToChat(text: string): void;
+  clearQuoteToChat(): void;
   historyOpen: boolean;
   /** 快速打开文件浮层（Ctrl+P）：命令面板命令与全局快捷键经此解耦 */
   quickOpenOpen: boolean;
@@ -125,6 +130,8 @@ interface UiState {
   requestZipPicker(): void;
   requestAddToChat(path: string): void;
   clearAddToChat(): void;
+  requestQuoteToChat(text: string): void;
+  clearQuoteToChat(): void;
   setPdfView(view: PdfView | null): void;
   setCenterView(view: 'editor' | 'pdf' | 'split'): void;
   setWorkflowLaunch(id: string | null): void;
@@ -212,9 +219,13 @@ export const useUiStore = create<UiState>((set) => ({
   toast: null,
   addToChatPath: null,
   addToChatTick: 0,
+  quoteToChatText: null,
+  quoteToChatTick: 0,
 
   requestAddToChat: (path) => set((s) => ({ addToChatPath: path, addToChatTick: s.addToChatTick + 1 })),
   clearAddToChat: () => set({ addToChatPath: null }),
+  requestQuoteToChat: (text) => set((s) => ({ quoteToChatText: text, quoteToChatTick: s.quoteToChatTick + 1 })),
+  clearQuoteToChat: () => set({ quoteToChatText: null }),
 
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setKnowledgeTab: (tab) => set({ knowledgeTab: tab }),
