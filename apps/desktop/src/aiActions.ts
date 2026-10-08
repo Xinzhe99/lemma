@@ -699,6 +699,7 @@ async function sendChatMessageInner(text: string, images?: string[], files?: Fil
       // v7.5.0（RequestAffinity）：同会话稳定 cache key → 服务商前缀缓存命中（设置可关）
       cacheKey: settings.promptCacheKey !== false ? sessionId : undefined,
       onDelta: (delta) => store().appendDelta(sessionId, delta),
+      onStreamReset: () => store().resetLastAssistant(sessionId), // v7.9.6：重试前清半截文本
       onToolCall: (call) => store().appendToolCall(sessionId, call),
       onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
     });
@@ -1383,7 +1384,9 @@ export async function executePlan(msgId: string): Promise<void> {
           user: buildStepPrompt(exec.plan, step, priorOutputsOf(exec.plan, exec.outputs, step.id), exec.statuses),
           tools: real ? ENABLED_TOOLS : [],
           signal: abort.signal,
-          // 步骤正文不进会话（落在 PlanCard）；工具调用卡附着在计划消息上
+          // 步骤正文不进会话（落在 PlanCard）；工具调用卡附着在计划消息上。
+          // 注意：此处无 onDelta（不流式），也不需要 onStreamReset——resetLastAssistant
+          // 会误清会话里既有的 assistant 内容
           onToolCall: (call) => store().appendToolCall(sessionId, call),
           onToolResult: (callId, content) => store().appendToolResult(sessionId, callId, content),
         });

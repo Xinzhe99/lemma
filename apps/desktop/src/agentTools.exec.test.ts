@@ -126,6 +126,43 @@ function scriptedProvider(script: ChatEvent[][]): ChatProvider {
   };
 }
 
+describe('runAgentTurn 瞬态重试的流式重置（v7.9.6：不再「半截文本 + 重试全文」重复）', () => {
+  beforeEach(resetWorkspace);
+
+  it('第一次尝试流出半截文本后断连（瞬态）→ onStreamReset 被调；重试的全文正常回流', async () => {
+    let attempt = 0;
+    const provider: ChatProvider = {
+      id: 'flaky',
+      label: 'flaky',
+      async *complete(_req: ChatRequest) {
+        attempt++;
+        if (attempt === 1) {
+          yield { type: 'text-delta', delta: '前半' } as ChatEvent;
+          const err = new Error('Connection reset by peer');
+          (err as unknown as { code?: string }).code = 'ECONNRESET';
+          throw err; // 瞬态错误（isTransientError 命中）
+        }
+        yield { type: 'text-delta', delta: '完整回复' } as ChatEvent;
+      },
+    };
+    const onDelta = vi.fn<(t: string) => void>();
+    const onStreamReset = vi.fn<() => void>();
+    const final = await runAgentTurn({
+      provider,
+      model: 'test',
+      system: 's',
+      history: [],
+      user: '讲个故事',
+      onDelta: onDelta as (t: string) => void,
+      onStreamReset: onStreamReset as () => void,
+    });
+    expect(final).toBe('完整回复');
+    expect(onStreamReset).toHaveBeenCalledTimes(1);
+    // 流式序列：半截 → （清空）→ 重试全文
+    expect(onDelta.mock.calls.map((c) => c[0])).toEqual(['前半', '完整回复']);
+  });
+});
+
 describe('runAgentTurn 工具循环', () => {
   beforeEach(resetWorkspace);
 

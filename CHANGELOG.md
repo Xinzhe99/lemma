@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- **瞬态重试后对话重复**：网络抖动触发自动重试时，已流式的半截文本会留在气泡里、重试全文接在其后（用户看到「半截话 + 完整回复」两段重复）——重试前先清掉已流式的部分（store 新增 `resetLastAssistant`，`runAgentTurn` 新增 `onStreamReset` 事件并接线到聊天路径）
+- **引用悬浮卡 `\cite` 系命令覆盖不全**：`\parencite` / `\textcite` / `\autocite` / `\citeyearpar` 等此前无悬浮卡；并支持 natbib 两段可选参数 `\citep[see][p.3]{key}`（与 outline 的引用命令表对齐）
+
+### Changed
+- **registry schema 漂移**：`project.context` 移除声明但从未实现的 `sections` 参数（模型传了也被静默忽略）——schema 与实现对齐，待 knowledge 包提供分区选择 API 后恢复
+
 ## [7.9.5] - 2026-10-08
 
 ### Changed（自动更新对齐 Codex：左下角确认卡片 + 重启恢复闭环）

@@ -45,6 +45,35 @@ describe('useAgentHubStore', () => {
     expect(useAgentHubStore.getState().sessions[0].messages[1].content).toBe('正在检索…完成');
   });
 
+  it('v7.9.6 resetLastAssistant：清空最后一条 assistant 正文（瞬态重试前清半截文本）', () => {
+    const { newSession, sendMessage, appendDelta, resetLastAssistant, appendToolCall } =
+      useAgentHubStore.getState();
+    const id = newSession('kimi');
+    sendMessage(id, '长任务');
+    appendDelta(id, '已经开始回答的前半');
+    resetLastAssistant(id);
+    expect(useAgentHubStore.getState().sessions[0].messages[1].content).toBe('');
+
+    // 重置后可重新流式追加（重试的全文从空开始）
+    appendDelta(id, '重试后的完整回复');
+    expect(useAgentHubStore.getState().sessions[0].messages[1].content).toBe('重试后的完整回复');
+
+    // 已是空正文时再次 reset 不变化；不污染更早的 user 消息
+    resetLastAssistant(id);
+    const session = useAgentHubStore.getState().sessions[0];
+    expect(session.messages[1].content).toBe('');
+    expect(session.messages[0].content).toBe('长任务');
+    // 工具卡不受影响
+    appendToolCall(id, { id: 'call_9', tool: 'tex.compile', args: {} });
+    expect(session.messages[1].toolCalls).toBeUndefined();
+    expect(useAgentHubStore.getState().sessions[0].messages[1].toolCalls).toHaveLength(1);
+  });
+
+  it('v7.9.6 resetLastAssistant：未知会话不崩溃', () => {
+    const { resetLastAssistant } = useAgentHubStore.getState();
+    expect(() => resetLastAssistant('ghost')).not.toThrow();
+  });
+
   it('finishSession：正常结束与出错', () => {
     const { newSession, sendMessage, finishSession } = useAgentHubStore.getState();
     const id = newSession('echo');

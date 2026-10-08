@@ -24,8 +24,10 @@ export interface CitationCard {
 
 export type PaperLookup = (citekey: string) => CitationCard | undefined;
 
-/** \cite 系命令的参数区匹配：命令名 + {keys}；返回光标所在 key 与整段范围 */
-const CITE_CMD_RE = /\\(?:cite[pt]?|citealp|citeauthor|citeyear|autoref|cref|Cref)\*?\s*(?:\[[^\]]*\]\s*)?\{([^{}]*)\}/g;
+/** \cite 系命令的参数区匹配：命令名 + {keys}；返回光标所在 key 与整段范围
+ *  （v7.9.6 补齐 parencite/textcite/autocite/citetext/citeyearpar 等——与 outline.ts
+ *  的 CITE_COMMANDS 对齐；支持两段可选参数 \citep[see][p.3]{key}） */
+const CITE_CMD_RE = /\\(?:cite[pt]?|citealp|citeauthor|citeyear(?:par)?|parencite|textcite|autocite|autoref|cref|Cref)\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^{}]*)\}/g;
 
 /** 找 pos 所在的 cite 命令参数中的某个 key（逗号分隔，容忍空格） */
 export function citeKeyAt(text: string, pos: number): { key: string; from: number; to: number } | null {

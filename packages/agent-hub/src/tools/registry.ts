@@ -171,18 +171,11 @@ export const PAPER_TOOLS: ToolDef[] = [
   },
   {
     name: 'project.context',
-    description: '获取 Context Pack：稿件状态、术语表、风格档案、相关文献、期刊要求、项目记忆。',
+    description: '获取 Context Pack：稿件状态、术语表、风格档案、相关文献、期刊要求、项目记忆。（无参数，返回全部分区）',
     permission: 'read',
-    parameters: {
-      type: 'object',
-      properties: {
-        sections: {
-          type: 'array',
-          items: { type: 'string', enum: ['manuscript', 'glossary', 'style', 'related', 'venue', 'memory'] },
-          description: '只取指定分区，缺省 = 全部',
-        },
-      },
-    },
+    // v7.9.6：schema 与实现对齐——此前声明的可选 sections（按分区过滤）handler 从未实现，
+    // 模型传了也被忽略；待 knowledge 包提供分区选择 API 后再恢复该参数
+    parameters: { type: 'object', properties: {} },
   },
   {
     // v7.5.0：结构化提问（对齐 agent-foundation UserInteractionCapability）

@@ -717,6 +717,8 @@ export function createAppToolExecutor(approval: ApprovalFn = requestToolApproval
 
 export interface AgentTurnEventHandlers {
   onDelta?: (text: string) => void;
+  /** v7.9.6：瞬态重试/自愈重试前清掉已流式的半截文本（宿主清空气泡，重试全文重流） */
+  onStreamReset?: () => void;
   onToolCall?: (call: ToolCallRequest) => void;
   onToolResult?: (callId: string, content: string) => void;
 }
@@ -801,6 +803,7 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
           transientRetryCount++;
           const delay = Math.min(1000 * Math.pow(2, transientRetryCount - 1), 8000);
           roundText = ''; // 丢弃部分 delta，整轮重试
+          opts.onStreamReset?.(); // v7.9.6：同步清掉会话里已流式的半截文本（否则重试后重复）
           toolCalls.length = 0;
           await new Promise<void>((r) => setTimeout(r, delay));
           round--; // 重试本轮（外层 for 会 round++）
@@ -816,6 +819,7 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<string> {
             selfHealed = true;
             messages.length = 0;
             messages.push(...repaired);
+            if (roundText) opts.onStreamReset?.(); // 已流式的半截文本同样要清（v7.9.6）
             roundText = '';
             toolCalls.length = 0;
             round--; // 重试本轮

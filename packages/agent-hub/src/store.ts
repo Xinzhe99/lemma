@@ -107,6 +107,8 @@ interface AgentHubState {
   /** 乐观插入 user 消息 + assistant 占位（状态置为 streaming），等待宿主回填 */
   sendMessage(sessionId: string, text: string, images?: string[]): void;
   appendDelta(sessionId: string, text: string): void;
+  /** v7.9.6：清空最后一条 assistant 消息正文（瞬态重试前调用，避免「半截文本 + 重试全文」重复） */
+  resetLastAssistant(sessionId: string): void;
   appendToolCall(sessionId: string, call: ToolCallRequest): void;
   /** 回填工具执行结果（role=tool，携带 toolCallId 供 UI 折叠展示与协议续传） */
   appendToolResult(sessionId: string, callId: string, content: string): void;
@@ -285,6 +287,24 @@ export const useAgentHubStore = create<AgentHubState>((set) => ({
           ...s,
           messages: [...messages, { id: createId(), role: 'assistant', content: text, createdAt: Date.now() }],
         };
+      }),
+    })),
+
+  // v7.9.6：瞬态重试前清掉已流式的半截文本——否则重试的全文会接在半截后，
+  // 用户看到「半截话 + 完整回复」两段重复
+  resetLastAssistant: (sessionId) =>
+    set((state) => ({
+      sessions: patchSession(state.sessions, sessionId, (s) => {
+        const messages = [...s.messages];
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === 'assistant') {
+            if (messages[i].content === '') return s; // 已是空（本轮尚未出字），不动
+            messages[i] = { ...messages[i], content: '' };
+            return { ...s, messages };
+          }
+          break;
+        }
+        return s;
       }),
     })),
 
