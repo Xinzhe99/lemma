@@ -61,7 +61,6 @@ vi.mock('@lemma/library/reader', () => ({ loadPdfText }));
 import { ReviewsImportDialog } from './ReviewsImportDialog';
 import { useSettingsStore } from '../state/settingsStore';
 import { useNotesStore } from '../state/notesStore';
-import { useUiStore } from '../state/uiStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { strToU8, zipSync } from 'fflate';
 
@@ -183,7 +182,6 @@ beforeEach(() => {
     snapshots: {},
   });
   useNotesStore.setState({ notes: [] });
-  useUiStore.setState({ workflowLaunch: null, workflowLaunchVars: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -303,10 +301,10 @@ describe('ReviewsImportDialog · 预览编辑', () => {
     click(findButton('×'));
     click(findButton('×'));
     expect(container!.querySelector('.sf-reviews-card')).not.toBeNull(); // 卡片仍在
-    const launch = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
-      (b) => b.textContent === '启动 Rebuttal 起草（W7）',
+    const save = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === '仅保存为笔记',
     )!;
-    expect(launch.disabled).toBe(true);
+    expect(save.disabled).toBe(true);
   });
 
   it('手动加条：新增可编辑空条目，参与统计与后续启动输入', async () => {
@@ -320,25 +318,7 @@ describe('ReviewsImportDialog · 预览编辑', () => {
   });
 });
 
-describe('ReviewsImportDialog · 启动 W7 与保存笔记', () => {
-  it('启动按钮调用 launchWorkflow：reviews 为结构化文本、manuscript 为 combinedDoc，随后 onClose', async () => {
-    const area = container!.querySelector<HTMLTextAreaElement>('textarea');
-    await typeInto(area!, PASTE_TEXT);
-    click(findButton('解析预览'));
-
-    const launchSpy = vi.spyOn(useUiStore.getState(), 'launchWorkflow');
-    click(findButton('启动 Rebuttal 起草（W7）'));
-    expect(launchSpy).toHaveBeenCalledTimes(1);
-    const [wfId, vars] = launchSpy.mock.calls[0]! as [string, Record<string, string>];
-    expect(wfId).toBe('w7-rebuttal');
-    expect(vars.reviews).toBe(
-      ['【Reviewer 1】', 'R1.1: No baselines.', 'R1.2: Writing is vague.', '', '【Reviewer 2】', 'R2.1: Figure 3 is small.'].join('\n'),
-    );
-    expect(vars.manuscript).toContain('正文'); // combinedDoc(files) 的展开结果
-    expect(onClose).toHaveBeenCalledTimes(1);
-    launchSpy.mockRestore();
-  });
-
+describe('ReviewsImportDialog · 保存笔记', () => {
   it('仅保存为笔记：标题含当日日期、正文为结构化文本', async () => {
     const area = container!.querySelector<HTMLTextAreaElement>('textarea');
     await typeInto(area!, PASTE_TEXT);
@@ -359,13 +339,9 @@ describe('ReviewsImportDialog · 启动 W7 与保存笔记', () => {
 });
 
 describe('ReviewsImportDialog · 空态与关闭', () => {
-  it('未解析内容时两个主按钮禁用，解析按钮也因空文本禁用', () => {
-    const launch = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
-      (b) => b.textContent === '启动 Rebuttal 起草（W7）',
-    )!;
+  it('未解析内容时保存按钮禁用，解析按钮也因空文本禁用', () => {
     const save = findButton('仅保存为笔记');
     const parse = findButton('解析预览');
-    expect(launch.disabled).toBe(true);
     expect(save.disabled).toBe(true);
     expect(parse.disabled).toBe(true);
   });

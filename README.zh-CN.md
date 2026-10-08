@@ -79,7 +79,7 @@ agent 可调用 **19 个工具**，最多 50 轮自主执行：
 
 > 另有 3 个工具已在注册表中但本形态未接通（`library.search`、`paper.citations`、`figure.render`），调用会返回明确的「未接通」说明。
 
-**输入**：文字、🎤 语音（Whisper 纯本地）、📎 图片（多模态）、**任意文件**——拖入 PDF / Word / CSV，内容自动提取注入。**输出**：稿件修改（diff 审批）、TikZ 图表（编译预览）、排版视觉检查（✦ AI 查此页）、朗读校对（TTS）。
+**输入**：文字、🎤 语音（Whisper 纯本地）、📎 图片（多模态）、**任意文件**——拖入 PDF / Word / CSV，内容自动提取注入。**输出**：稿件修改（diff 审批）、TikZ 图表（编译预览）、朗读校对（TTS）。
 
 ### 📚 文献与审阅
 
@@ -147,7 +147,7 @@ packages/shared         跨包领域类型
 packages/editor         LaTeX 编辑器（CodeMirror 6）
 packages/compile        编译服务（引擎矩阵 · 日志解析 · 真实 SyncTeX · 模板）
 packages/library        文献库 + PDF 阅读器
-packages/agent-hub      Agent 中枢（流式 · 工具 · 阻塞审批 · 工作流）
+packages/agent-hub      Agent 中枢（流式 · 工具 · 阻塞审批）
 packages/knowledge      RAG · Context Pack · 引用护栏
 ```
 

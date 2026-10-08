@@ -21,7 +21,6 @@ export const PALETTE_GROUP_ORDER: string[] = [
   'palette.group.ai',
   'palette.group.library',
   'palette.group.view',
-  'palette.group.workflow',
   'palette.group.submit',
   'palette.group.knowledge',
   'palette.group.app',

@@ -159,7 +159,7 @@ describe('SubmitPanel「投稿文书」区', () => {
     seedWorkspace();
   });
 
-  it('四个生成按钮渲染在「投稿文书」卡片内；既有功能（deadline/W12/W11/docx/zip）零回归', () => {
+  it('「投稿文书」卡片生成按钮渲染；既有功能（deadline/docx/zip）零回归', () => {
     renderPanel();
     const card = [...container!.querySelectorAll('.sf-submit-card')].find((c) =>
       c.textContent?.includes('投稿文书'),
@@ -174,7 +174,6 @@ describe('SubmitPanel「投稿文书」区', () => {
     }
     // 既有功能仍在（零回归冒烟）
     expect(container!.textContent).toContain('投稿 Deadline');
-    expect(btn('起草 Related Work (W12)')).toBeDefined();
     expect(btn('导出 Word')).toBeDefined();
     expect(btn('打包导出 zip')).toBeDefined();
   });
@@ -489,8 +488,6 @@ describe('SubmitPanel「投稿追踪」区（多轮投稿）', () => {
     expect(container!.textContent).toContain('投稿打包自检');
     expect(btn('打包导出 zip')).toBeDefined();
     expect(btn('导出 Word')).toBeDefined();
-    expect(btn('起草 Cover Letter (W11)')).toBeDefined();
-    expect(btn('起草 Related Work (W12)')).toBeDefined();
   });
 });
 

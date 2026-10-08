@@ -50,10 +50,6 @@ interface UiState {
   zipPickerTick: number;
   pdfView: PdfView | null;
   centerView: 'editor' | 'pdf' | 'split';
-  /** 命令面板请求启动的内置工作流 id（AgentPanel 消费后清空） */
-  workflowLaunch: string | null;
-  /** 工作流启动的预填变量（与 workflowLaunch 同生命周期；如 W11 的 journal） */
-  workflowLaunchVars: Record<string, string> | null;
   /** 命令面板请求的 AI 改稿动作（AgentPanel 消费后清空） */
   agentAction: AgentAction;
   /** v7.9.1 标签右键「添加到对话」：EditorTabs 发起，AgentPanel 消费后清空（tick 变化触发） */
@@ -132,9 +128,6 @@ interface UiState {
   clearQuoteToChat(): void;
   setPdfView(view: PdfView | null): void;
   setCenterView(view: 'editor' | 'pdf' | 'split'): void;
-  setWorkflowLaunch(id: string | null): void;
-  /** 启动工作流并可附带预填变量（缺省变量的步骤才会在启动器中询问） */
-  launchWorkflow(id: string, vars?: Record<string, string>): void;
   requestAgentAction(action: Exclude<AgentAction, null>): void;
   setHistoryOpen(open: boolean): void;
   setQuickOpenOpen(open: boolean): void;
@@ -182,8 +175,6 @@ export const useUiStore = create<UiState>((set) => ({
   zipPickerTick: 0,
   pdfView: null,
   centerView: 'editor',
-  workflowLaunch: null,
-  workflowLaunchVars: null,
   agentAction: null,
   historyOpen: false,
   quickOpenOpen: false,
@@ -232,8 +223,6 @@ export const useUiStore = create<UiState>((set) => ({
   requestZipPicker: () => set((s) => ({ zipPickerTick: s.zipPickerTick + 1 })),
   setPdfView: (view) => set({ pdfView: view, centerView: view ? 'pdf' : 'editor' }),
   setCenterView: (view) => set({ centerView: view }),
-  setWorkflowLaunch: (id) => set({ workflowLaunch: id, workflowLaunchVars: null }),
-  launchWorkflow: (id, vars) => set({ workflowLaunch: id, workflowLaunchVars: vars ?? null }),
   requestAgentAction: (action) => set({ agentAction: action }),
   setHistoryOpen: (open) => set({ historyOpen: open }),
   setQuickOpenOpen: (open) => set({ quickOpenOpen: open }),

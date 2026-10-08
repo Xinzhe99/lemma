@@ -147,7 +147,7 @@ packages/shared         Domain types
 packages/editor         LaTeX editor (CodeMirror 6)
 packages/compile        Compilation (engine matrix · log parsing · real SyncTeX · templates)
 packages/library        Library + PDF reader
-packages/agent-hub      Agent core (streaming · tools · blocking approvals · workflows)
+packages/agent-hub      Agent core (streaming · tools · blocking approvals)
 packages/knowledge      RAG · Context Pack · citation guardrails
 ```
 

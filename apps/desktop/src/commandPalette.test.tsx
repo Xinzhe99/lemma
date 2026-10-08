@@ -128,7 +128,7 @@ describe('CommandPalette 分组渲染', () => {
 
   it('输入关键词：命中跨组命令并分区渲染，页脚提示隐藏；无命中显示空态', async () => {
     const commands = [
-      cmd('wf.polish', '运行工作流：学术润色', 'palette.group.workflow'),
+      cmd('wf.polish', '运行工作流：学术润色', 'palette.group.view'),
       cmd('ai.polish', 'AI 润色当前文件', 'palette.group.ai', { featured: true }),
       cmd('edit.table', '插入表格', 'palette.group.edit'),
     ];
@@ -136,7 +136,7 @@ describe('CommandPalette 分组渲染', () => {
     const input = container!.querySelector<HTMLInputElement>('.palette-input')!;
 
     type(input, '润色');
-    expect(heads().map((h) => h.textContent)).toEqual(['AI 助手', '工作流']); // 规范顺序，未命中组不出现
+    expect(heads().map((h) => h.textContent)).toEqual(['AI 助手', '视图与面板']); // 规范顺序，未命中组不出现
     expect(items().map((i) => i.textContent)).toEqual(['AI 润色当前文件', '运行工作流：学术润色']);
     expect(container!.querySelector('.palette-footer')).toBeNull(); // 搜索态不显示页脚
 

@@ -1,12 +1,11 @@
 /**
- * 真实审稿意见导入对话框（命令 reviews.import，W7 Rebuttal 的输入入口）：
+ * 真实审稿意见导入对话框（命令 reviews.import）：
  * - 三合一输入：粘贴文本（默认）/ 拖入·选择文件（.txt/.md 直读、.docx 走最小
  *   提取器、.pdf 走 library 的 loadPdfText 拼接分页文本）；多文件依次解析合并，
  *   文件名含 reviewer 数字时用于分段命名；
  * - 解析后预览：按审稿人分栏卡片，逐条就地编辑 / 删除 / 手动加条，
  *   头部显示「N 位审稿人 · M 条意见」；
- * - 主按钮启动 W7：launchWorkflow('w7-rebuttal', { reviews, manuscript })，
- *   manuscript 取项目 combinedDoc；次按钮仅保存为笔记（notesStore.addNote）；
+ * - 「保存为笔记」写入 notesStore；（v7.9.6：W7 启动按钮随工作流功能下线移除）
  * - zh/en 字典；不新增 CSS（sf-dialog 家族 + 内联样式）。
  */
 
@@ -23,9 +22,6 @@ import {
 } from '../reviewsImport';
 import { useSettingsStore } from '../state/settingsStore';
 import { useNotesStore } from '../state/notesStore';
-import { useUiStore } from '../state/uiStore';
-import { useWorkspaceStore } from '../state/workspaceStore';
-import { combinedDoc } from '../projectDoc';
 
 const STRINGS = {
   zh: {
@@ -49,7 +45,6 @@ const STRINGS = {
     typeQuestion: '问题',
     typeComment: '意见',
     typeMinor: '小修',
-    launch: '启动 Rebuttal 起草（W7）',
     saveNote: '仅保存为笔记',
     noteSaved: '已保存到笔记',
     close: '关闭',
@@ -75,7 +70,6 @@ const STRINGS = {
     typeQuestion: 'Question',
     typeComment: 'Comment',
     typeMinor: 'Minor',
-    launch: 'Draft Rebuttal (W7)',
     saveNote: 'Save as note only',
     noteSaved: 'Saved to notes',
     close: 'Close',
@@ -197,16 +191,6 @@ export function ReviewsImportDialog({ onClose }: { onClose: () => void }) {
         return { ...r, items: [...r.items, item] };
       }),
     );
-  };
-
-  const handleLaunch = (): void => {
-    if (totalItems === 0) return;
-    const files = useWorkspaceStore.getState().files;
-    useUiStore.getState().launchWorkflow('w7-rebuttal', {
-      reviews: reviewsToWorkflowInput(reviews),
-      manuscript: combinedDoc(files),
-    });
-    onClose();
   };
 
   const handleSaveNote = (): void => {
@@ -402,15 +386,8 @@ export function ReviewsImportDialog({ onClose }: { onClose: () => void }) {
             <button className="sf-btn" onClick={onClose}>
               {L.close}
             </button>
-            <button className="sf-btn" disabled={totalItems === 0 || busy} onClick={handleSaveNote}>
+            <button className="sf-btn primary" disabled={totalItems === 0 || busy} onClick={handleSaveNote}>
               {L.saveNote}
-            </button>
-            <button
-              className="sf-btn primary"
-              disabled={totalItems === 0 || busy}
-              onClick={handleLaunch}
-            >
-              {L.launch}
             </button>
           </div>
         </div>

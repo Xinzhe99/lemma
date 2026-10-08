@@ -256,11 +256,10 @@ describe('命令面板分组与精选（palette 分区重设计）', () => {
         'app.shortcuts',
       ].sort(),
     );
-    // 每组精选 2-3 个；工作流分组已无命令（工作流统一从 Agent 面板启动），其余分组都有精选项
+    // 每组精选 2-3 个；所有分组都有精选项（v7.9.6：工作流分组已随功能下线移除）
     const perGroup = new Map<string, number>();
     for (const c of featured) perGroup.set(c.group!, (perGroup.get(c.group!) ?? 0) + 1);
-    expect(perGroup.size).toBe(PALETTE_GROUP_ORDER.length - 1);
-    expect(perGroup.has('palette.group.workflow')).toBe(false);
+    expect(perGroup.size).toBe(PALETTE_GROUP_ORDER.length);
     for (const n of perGroup.values()) {
       expect(n).toBeGreaterThanOrEqual(2);
       expect(n).toBeLessThanOrEqual(3);

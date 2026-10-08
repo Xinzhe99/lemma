@@ -11,20 +11,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BUILTIN_WORKFLOWS,
   type ChatLabels,
   type ChatPanelHandle,
   type MentionItem,
   type SlashMenuItem,
   ChatPanel,
-  WorkflowRun,
-  WorkflowRunView,
   useAgentHubStore,
   getPersona,
-  type CompletedRun,
-  type WorkflowStepUiStatus,
 } from '@lemma/agent-hub';
-import { createId, type WorkflowDef } from '@lemma/shared';
+import { createId } from '@lemma/shared';
 import { DiffView } from '@lemma/editor';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { promptDialog, confirmDialog } from '../dialogs';
@@ -32,7 +27,6 @@ import { lastCursor } from '../editorJump';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useProposalStore } from '../state/proposalStore';
 import { useUiStore } from '../state/uiStore';
-import { combinedDoc } from '../projectDoc';
 import { ENABLED_TOOLS, buildContextPackMd, runAgentTurn } from '../agentTools';
 import { resolveToolApproval, rejectPendingApproval } from '../approval';
 import {
@@ -49,9 +43,8 @@ import {
 import { buildPolishPrompt, draftSectionOffline, extractLatexBody, rulePolish } from '../polish';
 import { PROVIDER_PRESETS, findPreset, matchPresetByBaseUrl } from '../providers/presets';
 import { testProvider, type TestResult } from '../providers/connectionTest';
-import { ReviewPanel, RebuttalPanel } from './ReviewPanel';
-import { useAgentPlansStore } from '../state/agentPlans';
-import { scheduleAutoCommit } from '../git/gitService';
+import { ReviewPanel } from './ReviewPanel';
+import { useAgentPlansStore } from '../state/agentPlans';import { scheduleAutoCommit } from '../git/gitService';
 import { PlanCard } from '../components/PlanCard';
 import { DiffApprovalCard2 } from '../components/DiffApprovalCard2';
 import { AskUserCard } from '../components/AskUserCard';
@@ -60,24 +53,7 @@ import { fetchModels } from '../providers/models';
 import { useUserAskStore, resolveUserAnswer } from '../userAsk';
 import { useLibraryStore } from '../state/libraryStore';
 import { recordApproval } from '../state/agentMemory';
-import { ChecklistReport } from './ChecklistReport';
-import { workflowName, workflowDescription } from '../workflowI18n';
-import { WorkflowLauncher } from '../components/WorkflowLauncher';
-import { applyWorkflowOverrides, getWorkflowOverrides } from '../state/workflowOverrides';
 import './agent-extra.css';
-
-/** 工作流步骤声明的 allowedTools 与本形态已接通工具的交集 */
-function stepTools(allowed?: string[]) {
-  if (!allowed || allowed.length === 0) return [];
-  return ENABLED_TOOLS.filter((t) => allowed.includes(t.name));
-}
-
-interface WorkflowUiState {
-  def: WorkflowDef;
-  statuses: Record<string, WorkflowStepUiStatus>;
-  outputs: Record<string, string>;
-  phase: 'running' | 'done' | 'failed';
-}
 
 // ---------------------------------------------------------------------------
 // 双语字典（自包含）
@@ -99,16 +75,8 @@ const STRINGS = {
     applyToken: '采纳修改（自动创建快照并回传）',
     chatPlaceholder: '向 agent 提问（配置模型服务后可自动检索文献库、读取项目上下文）…',
     sessionInit: '初始化会话…',
-    wfTitle: '内置工作流',
     contextPreview: '当前上下文包预览',
-    phaseDone: '已完成',
-    phaseFailed: '失败',
-    phaseRunning: '运行中',
     collapse: '收起',
-    historyTitle: '运行历史',
-    historyEmpty: '暂无完成的工作流（完成一次后会留存在本机）',
-    historyRestore: '点击恢复该 run 的产物视图',
-    clearHistory: '清空',
     noTex: '请先在编辑器打开一个 .tex 文件',
     emptyReply: '模型未返回有效内容，请重试',
     polishNoChange: '未产生修改建议（离线规则未命中冗余表达；配置模型服务可获得深度润色）',
@@ -186,16 +154,8 @@ const STRINGS = {
     applyToken: 'Apply (snapshot + send back)',
     chatPlaceholder: 'Ask the agent (with a model service it can search your library and read project context)…',
     sessionInit: 'Initializing session…',
-    wfTitle: 'Built-in workflows',
     contextPreview: 'Context Pack preview',
-    phaseDone: 'Done',
-    phaseFailed: 'Failed',
-    phaseRunning: 'Running',
     collapse: 'Collapse',
-    historyTitle: 'Run history',
-    historyEmpty: 'No completed workflows yet (runs are kept locally once finished)',
-    historyRestore: 'Click to restore this run',
-    clearHistory: 'Clear',
     noTex: 'Open a .tex file in the editor first',
     emptyReply: 'Model returned no content; please retry',
     polishNoChange: 'No changes proposed (offline rules found nothing; configure a model service for deep polishing)',
@@ -275,8 +235,6 @@ export function AgentPanel() {
   const sessions = useAgentHubStore((s) => s.sessions);
   const activeSessionId = useAgentHubStore((s) => s.activeSessionId);
   const newSession = useAgentHubStore((s) => s.newSession);
-  const completedRuns = useAgentHubStore((s) => s.completedRuns);
-  const clearCompletedRuns = useAgentHubStore((s) => s.clearCompletedRuns);
 
   const providers = useSettingsStore((s) => s.providers);
   const activeProviderId = useSettingsStore((s) => s.activeProviderId);
@@ -288,8 +246,6 @@ export function AgentPanel() {
   const language = useSettingsStore((s) => s.language);
   const t = STRINGS[language] as (typeof STRINGS)[Language];
 
-  const launchRequest = useUiStore((s) => s.workflowLaunch);
-  const setWorkflowLaunch = useUiStore((s) => s.setWorkflowLaunch);
   const agentAction = useUiStore((s) => s.agentAction);
 
   const proposal = useProposalStore((s) => s.proposal);
@@ -300,15 +256,10 @@ export function AgentPanel() {
   const note = useProposalStore((s) => s.note);
   const setNote = useProposalStore((s) => s.setNote);
 
-  const [workflow, setWorkflow] = useState<WorkflowUiState | null>(null);
-  const [launchForm, setLaunchForm] = useState<{ def: WorkflowDef; presetVars: Record<string, string> } | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [contextPreview, setContextPreview] = useState('');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [sessionListOpen, setSessionListOpen] = useState(false);
-  const [wfListOpen, setWfListOpen] = useState(false); // v5.3.0：工作流列表默认折叠
-
-  const checkpointResolve = useRef<((input: string) => void) | null>(null);
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? sessions[0] ?? null;
 
@@ -710,120 +661,6 @@ export function AgentPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentAction]);
 
-  // ------------------------------------------------------------------
-  // 内置工作流（步骤可调用已接通的工具）
-  // WF-3 A1：启动一律先弹 WorkflowLauncher 表单（收集缺失变量，一次提交），
-  // 三处来源统一：面板按钮 / 命令面板（含 workflowLaunchVars 预填）/ W7 衔接 presetVars。
-  // ------------------------------------------------------------------
-
-  const requestLaunch = (id: string, presetVars?: Record<string, string>) => {
-    const def = BUILTIN_WORKFLOWS.find((w) => w.id === id);
-    if (!def) return;
-    setLaunchForm({ def, presetVars: presetVars ?? {} });
-  };
-
-  const executeWorkflow = async (baseDef: WorkflowDef, vars: Record<string, string>) => {
-    // 工作流透明化：执行入口应用用户对步骤 prompt 的覆盖（无覆盖时与原 def 完全一致），
-    // 保证真正发给模型的是修改后的提示词；运行视图（WorkflowRunView）也展示生效值。
-    const def = applyWorkflowOverrides(baseDef, getWorkflowOverrides());
-    setWorkflow({
-      def,
-      statuses: Object.fromEntries(def.steps.map((s) => [s.id, 'pending'])) as Record<string, WorkflowStepUiStatus>,
-      outputs: {},
-      phase: 'running',
-    });
-
-    const startedAt = Date.now();
-    const outputsAcc: Record<string, string> = {}; // completeRun 用（React state 在异步回调里不可靠）
-
-    const contextMd = (await buildContextPackMd(def.description)) + CITATION_RULE + getPersona(useSettingsStore.getState().aiPersona).systemAddendum;
-    const { provider, model } = resolveProvider();
-    const run = new WorkflowRun(def, {
-      async runStep(step, ctx) {
-        setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'running' } } : w));
-        const deps = (step.dependsOn ?? [])
-          .map((d) => `【${def.steps.find((x) => x.id === d)?.name ?? d} 的结论】\n${(ctx.priorOutputs[d] ?? '').slice(0, 1500)}`)
-          .join('\n\n');
-        const prompt = step.prompt.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => vars[k] ?? '');
-        try {
-          const acc = await runAgentTurn({
-            provider,
-            model,
-            system: contextMd,
-            history: [],
-            user: `${prompt}${deps ? `\n\n${deps}` : ''}`,
-            tools: stepTools(step.allowedTools),
-          });
-          outputsAcc[step.id] = acc;
-          setWorkflow((w) =>
-            w ? { ...w, statuses: { ...w.statuses, [step.id]: 'done' }, outputs: { ...w.outputs, [step.id]: acc } } : w,
-          );
-          return acc;
-        } catch (e) {
-          setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'failed' } } : w));
-          throw e;
-        }
-      },
-      async onCheckpoint(step) {
-        setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'checkpoint' } } : w));
-        const input = await new Promise<string>((resolve) => {
-          checkpointResolve.current = resolve;
-        });
-        setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [step.id]: 'running' } } : w));
-        return input;
-      },
-    });
-
-    const result = await run.start(vars);
-    setWorkflow((w) =>
-      w
-        ? {
-            ...w,
-            phase: result.status === 'done' ? 'done' : 'failed',
-            statuses:
-              result.status === 'done'
-                ? Object.fromEntries(def.steps.map((s) => [s.id, 'done'])) as Record<string, WorkflowStepUiStatus>
-                : w.statuses,
-          }
-        : w,
-    );
-
-    // WF-3 A3：完成的 run 留存（store 持久化 sf-agent-runs，上限 10 条）
-    if (result.status === 'done') {
-      useAgentHubStore.getState().completeRun({
-        id: createId(),
-        workflowId: def.id,
-        workflowName: def.name,
-        startedAt,
-        endedAt: Date.now(),
-        outputs: outputsAcc,
-      });
-    }
-  };
-
-  // 命令面板触发的待启动工作流（workflowLaunchVars 里的变量不进入表单）
-  useEffect(() => {
-    if (launchRequest) {
-      const presetVars = useUiStore.getState().workflowLaunchVars ?? undefined;
-      setWorkflowLaunch(null);
-      requestLaunch(launchRequest, presetVars);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launchRequest]);
-
-  /** 从历史恢复一次已完成的 run（statuses 全 done，产物可展开复查） */
-  const restoreRun = (run: CompletedRun) => {
-    const def = BUILTIN_WORKFLOWS.find((w) => w.id === run.workflowId);
-    if (!def) return;
-    setLaunchForm(null);
-    setWorkflow({
-      def,
-      statuses: Object.fromEntries(def.steps.map((s) => [s.id, 'done' as const])) as Record<string, WorkflowStepUiStatus>,
-      outputs: run.outputs,
-      phase: 'done',
-    });
-  };
-
   const previewContext = async () => {
     setContextPreview(await buildContextPackMd(''));
     setShowContext((v) => !v);
@@ -889,7 +726,6 @@ export function AgentPanel() {
             className="sf-pill-btn"
             onClick={() => {
               newSession('host', useWorkspaceStore.getState().projectName || undefined, t.newSession);
-              setWorkflow(null);
             }}
           >
             {t.newSession}
@@ -914,7 +750,6 @@ export function AgentPanel() {
                       onClick={() => {
                         useAgentHubStore.getState().setActiveSession(s.id);
                         setSessionListOpen(false);
-                        setWorkflow(null);
                       }}
                     >
                       <div className="sf-session-item-main">
@@ -1197,15 +1032,11 @@ ${proposal.after.slice(0, 800)}`,
               onChange: onModelSwitch,
             }}
             onCitekeyClick={handleCitekeyClick}
-            onSlashWorkflow={(id) => {
-              if (id === '__clear') {
-                if (session) useAgentHubStore.setState({
-                  sessions: useAgentHubStore.getState().sessions.map((s) =>
-                    s.id === session.id ? { ...s, messages: [], title: '新会话' } : s),
-                });
-                return;
-              }
-              useUiStore.getState().launchWorkflow(id);
+            onClearSession={() => {
+              if (session) useAgentHubStore.setState({
+                sessions: useAgentHubStore.getState().sessions.map((s) =>
+                  s.id === session.id ? { ...s, messages: [], title: t.newSession } : s),
+              });
             }}
             onRegenerate={handleRegenerate}
             onEditResend={send}
@@ -1218,13 +1049,6 @@ ${proposal.after.slice(0, 800)}`,
             providerLabel={providerLabel}
             onInsertLatex={insertLatexBlock}
             insertLatexLabel={t.insertLatexBtn}
-            slashItems={[
-              ...BUILTIN_WORKFLOWS.map((w) => ({
-                id: w.id,
-                label: `/${workflowName(w.id, w.name, language)}`,
-                hint: workflowDescription(w.id, w.description, language),
-              })),
-            ]}
             mentionItems={[
               ...libraryPapers.slice(0, 200).map((p) => ({ id: p.id, label: p.citekey, type: 'paper' as const })),
               ...Object.keys(useWorkspaceStore.getState().files).map((f) => ({ id: f, label: f, type: 'file' as const })),
@@ -1234,106 +1058,6 @@ ${proposal.after.slice(0, 800)}`,
           <p className="placeholder">{t.sessionInit}</p>
         )}
       </div>
-
-      <div className="sf-agent-workflows">
-        {/* v5.3.0：工作流列表默认折叠（Codex 式收纳）；运行中的工作流始终展开 */}
-        {!workflow && (
-          <button className="sf-pill-btn sf-agent-wf-toggle" onClick={() => setWfListOpen((v) => !v)}>
-            {t.wfTitle} {wfListOpen ? '▾' : '▸'}
-          </button>
-        )}
-        {workflow ? (
-          <div className="sf-agent-run">
-            <div className="sf-agent-run-head">
-              <strong>{workflow.def.name}</strong>
-              <span
-                className={`sf-chip ${workflow.phase === 'done' ? 'ok' : workflow.phase === 'failed' ? 'err' : 'warn'}`}
-              >
-                {workflow.phase === 'done' ? t.phaseDone : workflow.phase === 'failed' ? t.phaseFailed : t.phaseRunning}
-              </span>
-              <button className="sf-link-btn" onClick={() => setWorkflow(null)}>
-                {t.collapse}
-              </button>
-            </div>
-            <WorkflowRunView
-              steps={workflow.def.steps}
-              statuses={workflow.statuses}
-              outputs={workflow.outputs}
-              onContinue={(stepId) => {
-                checkpointResolve.current?.('继续');
-                checkpointResolve.current = null;
-                setWorkflow((w) => (w ? { ...w, statuses: { ...w.statuses, [stepId]: 'running' } } : w));
-              }}
-            />
-            {workflow.def.id === 'w6-reviewer-sim' && workflow.outputs['meta-review'] && (
-              <ReviewPanel
-                outputs={workflow.outputs}
-                onDraftRebuttal={(reviews) =>
-                  requestLaunch('w7-rebuttal', { reviews, manuscript: combinedDoc(useWorkspaceStore.getState().files) })
-                }
-              />
-            )}
-            {workflow.def.id === 'w7-rebuttal' && workflow.outputs['finalize'] && (
-              <RebuttalPanel output={workflow.outputs['finalize']} />
-            )}
-            {workflow.def.id === 'w10-pre-submission' && workflow.outputs['report'] && (
-              <ChecklistReport output={workflow.outputs['report']} />
-            )}
-          </div>
-        ) : wfListOpen ? (
-          <ul className="sf-agent-wf-list sf-agent-wf-grid">
-            {BUILTIN_WORKFLOWS.map((w) => (
-              <li key={w.id}>
-                <button className="sf-btn sf-agent-wf-btn" onClick={() => requestLaunch(w.id)}>
-                  {workflowName(w.id, w.name, language)}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
-      {/* WF-3 A3：运行历史（v5.3.0 默认折叠为 details；localStorage 持久化） */}
-      <details className="sf-agent-history" {...(completedRuns.length > 0 ? { open: true } : {})}>
-        <summary className="sf-agent-wf-title" style={{ margin: 0, cursor: 'pointer' }}>
-          {t.historyTitle}
-        </summary>
-        {completedRuns.length > 0 && (
-          <button className="sf-link-btn sf-agent-history-clear" onClick={clearCompletedRuns}>
-            {t.clearHistory}
-          </button>
-        )}
-        {completedRuns.length === 0 ? (
-          <p className="sf-agent-history-empty">{t.historyEmpty}</p>
-        ) : (
-          <ul className="sf-agent-history-list">
-            {completedRuns.map((run) => (
-              <li key={run.id}>
-                <button className="sf-agent-history-item" onClick={() => restoreRun(run)} title={t.historyRestore}>
-                  <span className="sf-chip dim">✓</span>
-                  <span className="sf-agent-history-name">{run.workflowName}</span>
-                  <span className="sf-agent-history-time">{formatTime(run.endedAt)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </details>
-
-      {/* WF-3 A1：工作流启动表单（替代原生 prompt）；key 保证每次启动重置表单状态 */}
-      {launchForm && (
-        <WorkflowLauncher
-          key={`${launchForm.def.id}:${JSON.stringify(launchForm.presetVars)}`}
-          def={launchForm.def}
-          presetVars={launchForm.presetVars}
-          onCancel={() => setLaunchForm(null)}
-          onSubmit={(vars) => {
-            const def = launchForm.def;
-            setLaunchForm(null);
-            void executeWorkflow(def, vars);
-          }}
-        />
-      )}
     </div>
   );
 }

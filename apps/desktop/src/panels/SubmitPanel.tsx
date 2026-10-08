@@ -23,14 +23,13 @@
  */
 
 import { useMemo, useState, type CSSProperties } from 'react';
-import { BookOpen, Check, FileArchive, FileText, Plus, Trash2 } from 'lucide-react';
+import { Check, FileArchive, FileText, Plus, Trash2 } from 'lucide-react';
 import { buildProjectZip, packagingChecklist } from '@lemma/compile';
 import { useSettingsStore, type Language } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { getPlatform } from '../platform/types';
 import { tauriReadBase64 } from '../platform/tauri';
 import { useLibraryStore } from '../state/libraryStore';
-import { useUiStore } from '../state/uiStore';
 import {
   SUBMISSION_STATUSES,
   deadlineCountdown,
@@ -375,22 +374,6 @@ export function SubmitPanel() {
     markExported();
   };
 
-  // S4：W11 变量预填（journal + highlights），启动器不再询问任何输入
-  const draftCoverLetter = () => {
-    if (!profile) return;
-    useUiStore.getState().launchWorkflow('w11-cover-letter', {
-      journal: profile.name,
-      highlights: '',
-    });
-  };
-
-  // W12：topic 预填摘要前 200 字，稿件无摘要时回落 venue 名（都没有则留空，由启动器询问）
-  const draftRelatedWork = () => {
-    const abstractText = abstract.trim();
-    const topic = abstractText ? abstractText.slice(0, 200) : (profile?.name ?? '');
-    useUiStore.getState().launchWorkflow('w12-related-work', { topic, manuscript: '' });
-  };
-
   // ---------------------------------------------------------------------------
   // 「投稿追踪」区：多轮投稿时间线（submitStore.rounds）。venue 输入未触碰时
   // 跟随当前目标 venue，日期默认今天；统计行 = 在投（非终态）/ 已接收 / 被拒。
@@ -545,9 +528,6 @@ export function SubmitPanel() {
                 </div>
               ))}
             </dl>
-            <button className="sf-btn sf-btn--primary sf-submit-coverletter" onClick={draftCoverLetter}>
-              <FileText size={12} /> {t.coverLetter}
-            </button>
           </>
         ) : (
           <p className="sf-submit-empty">{t.noVenue}</p>
@@ -602,9 +582,6 @@ export function SubmitPanel() {
           aria-label={t.deadlineLabel}
           onChange={(e) => setDeadline(e.target.value || null)}
         />
-        <button className="sf-btn sf-btn--primary sf-submit-coverletter" onClick={draftRelatedWork}>
-          <BookOpen size={12} /> {t.relatedWork}
-        </button>
       </section>
 
       <section className="sf-submit-card">
