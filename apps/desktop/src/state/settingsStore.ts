@@ -22,6 +22,8 @@ export interface ProviderConfig {
   apiKey: string;
   model: string;
   tier: ProviderTier;
+  /** v7.9.6：/models 拉取过的可用模型列表（随服务持久化；会话内切换模型下拉的数据源之一） */
+  knownModels?: string[];
 }
 
 export type ProviderInput = Omit<ProviderConfig, 'id'> & { id?: string };
@@ -149,6 +151,10 @@ function coerceProvider(v: unknown): ProviderConfig | null {
     apiKey: typeof o.apiKey === 'string' ? o.apiKey : '',
     model: typeof o.model === 'string' ? o.model : '',
     tier: o.tier === 'flagship' ? 'flagship' : 'cheap',
+    // v7.9.6：knownModels（拉取过的模型列表）宽容恢复——只留字符串、去空、封顶 100
+    knownModels: Array.isArray(o.knownModels)
+      ? o.knownModels.filter((m): m is string => typeof m === 'string' && m.trim().length > 0).slice(0, 100)
+      : undefined,
   };
 }
 

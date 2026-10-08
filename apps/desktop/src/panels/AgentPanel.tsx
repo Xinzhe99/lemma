@@ -330,15 +330,38 @@ export function AgentPanel() {
     () => (activeProvider ? matchPresetByBaseUrl(activeProvider.baseUrl) : undefined),
     [activeProvider?.baseUrl],
   );
-  const modelSwitchOptions = useMemo(() => {
-    if (!activeProvider) return [];
-    return [...new Set([activeProvider.model, ...(activeProviderPreset?.models ?? [])].filter(Boolean))];
-  }, [activeProvider?.model, activeProviderPreset?.id]);
+
+  // ------------------------------------------------------------------
+  // v7.9.6 Codex 式会话内切换模型（跨厂商）：每个已配置服务一个分组，组内 =
+  // 当前模型 ∪ 该服务拉取过的模型（knownModels）∪ 预设建议模型。选中即
+  // 「切换激活服务 + 设置模型」（对后续轮次生效），与设置对话框共享数据源。
+  // ------------------------------------------------------------------
+  const modelSwitchGroups = useMemo(
+    () =>
+      providers.map((p) => {
+        const preset = matchPresetByBaseUrl(p.baseUrl);
+        const models = [...new Set([p.model, ...(p.knownModels ?? []), ...(preset?.models ?? [])].filter(Boolean))];
+        return {
+          label: p.label,
+          options: models.map((m) => ({ value: `${p.id}::${m}`, label: m })),
+        };
+      }),
+    [providers],
+  );
+  const activeModelValue = activeProvider ? `${activeProvider.id}::${activeProvider.model}` : '';
   const onModelSwitch = useCallback(
-    (model: string) => {
-      if (activeProvider) updateProvider(activeProvider.id, { model });
+    (value: string) => {
+      const sep = value.indexOf('::');
+      if (sep < 0) return;
+      const providerId = value.slice(0, sep);
+      const model = value.slice(sep + 2);
+      if (!model) return;
+      if (providerId !== useSettingsStore.getState().activeProviderId) {
+        useSettingsStore.getState().setActive(providerId);
+      }
+      updateProvider(providerId, { model });
     },
-    [activeProvider?.id, updateProvider],
+    [updateProvider],
   );
 
   const plans = useAgentPlansStore((s) => s.plans);
@@ -421,6 +444,8 @@ export function AgentPanel() {
       apiKey: key,
       model: quickModel.trim() || (preset.models[0] ?? ''),
       tier: 'cheap',
+      // v7.9.6：拉取过的候选模型随服务保存（会话内切换模型下拉的数据源）
+      knownModels: quickModelChoices.length > 0 ? quickModelChoices : undefined,
     });
     setActive(id);
     // providers 由 0 → 1，引导卡不再渲染
@@ -1166,15 +1191,11 @@ ${proposal.after.slice(0, 800)}`,
               modelSwitchTitle: t.modelSwitchTitle,
               attach: t.attachLabel,
             }}
-            modelSwitcher={
-              activeProvider
-                ? {
-                    model: activeProvider.model,
-                    options: modelSwitchOptions,
-                    onChange: onModelSwitch,
-                  }
-                : undefined
-            }
+            modelSwitcher={{
+              model: activeModelValue,
+              groups: modelSwitchGroups,
+              onChange: onModelSwitch,
+            }}
             onCitekeyClick={handleCitekeyClick}
             onSlashWorkflow={(id) => {
               if (id === '__clear') {

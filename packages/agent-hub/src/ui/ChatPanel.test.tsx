@@ -465,20 +465,37 @@ describe('v7.9.0 工具消息信息流精简', () => {
     expect(raw?.textContent).toContain('lualatex');
   });
 
-  it('modelSwitcher：渲染紧凑下拉，切换回调带所选模型；流式中禁用', () => {
+  it('v7.9.6 modelSwitcher：跨厂商 optgroup 分组渲染，切换回调带编码 value；流式中禁用', () => {
     const onChange = vi.fn();
     const { container } = render(
       <ChatPanel
         session={makeSession()}
-        modelSwitcher={{ model: 'deepseek-chat', options: ['deepseek-chat', 'deepseek-reasoner'], onChange }}
+        modelSwitcher={{
+          model: 'p1::deepseek-chat',
+          groups: [
+            {
+              label: 'DeepSeek',
+              options: [
+                { value: 'p1::deepseek-chat', label: 'deepseek-chat' },
+                { value: 'p1::deepseek-reasoner', label: 'deepseek-reasoner' },
+              ],
+            },
+            { label: 'GLM', options: [{ value: 'p2::glm-5.3', label: 'glm-5.3' }] },
+          ],
+          onChange,
+        }}
       />,
     );
     const sel = container.querySelector<HTMLSelectElement>('.sf-ah-model-switch');
     expect(sel).not.toBeNull();
-    expect(sel!.options).toHaveLength(2);
-    expect(sel!.value).toBe('deepseek-chat');
-    fireEvent.change(sel!, { target: { value: 'deepseek-reasoner' } });
-    expect(onChange).toHaveBeenCalledWith('deepseek-reasoner');
+    expect(sel!.options).toHaveLength(3);
+    const groups = sel!.querySelectorAll('optgroup');
+    expect(groups).toHaveLength(2);
+    expect(groups[0]!.getAttribute('label')).toBe('DeepSeek');
+    expect(groups[1]!.getAttribute('label')).toBe('GLM');
+    expect(sel!.value).toBe('p1::deepseek-chat');
+    fireEvent.change(sel!, { target: { value: 'p2::glm-5.3' } });
+    expect(onChange).toHaveBeenCalledWith('p2::glm-5.3');
   });
 
   it('v7.9.1 拖入编辑器标签：application/x-lemma-paths → onDropPaths（路径数组）', () => {

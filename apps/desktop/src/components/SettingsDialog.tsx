@@ -164,6 +164,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       apiKey: form.apiKey.trim(),
       model: form.model.trim(),
       tier: form.tier,
+      // v7.9.6：拉取过的模型列表随服务保存（会话内切换模型下拉的数据源）
+      knownModels: mergedFormModels.length > 0 ? mergedFormModels : undefined,
     };
     if (form.id) updateProvider(form.id, input);
     else addProvider(input);

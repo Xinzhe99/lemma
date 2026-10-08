@@ -128,10 +128,15 @@ export interface ChatPanelProps {
   /** 当前 Provider 徽标（v3.8.0 E：显示在输入框上方） */
   providerLabel?: string;
   /**
-   * v7.9.1 Codex 式会话内切换模型：输入区左下角出现紧凑下拉，
-   * onChange 由宿主写入激活服务的模型字段（对后续轮次生效）。
+   * v7.9.6 Codex 式会话内切换模型（跨厂商分组）：每个已配置服务一个 optgroup，
+   * value 由宿主编码（如 `${providerId}::${model}`），onChange 解码后切服务 + 模型。
    */
-  modelSwitcher?: { model: string; options: string[]; onChange: (model: string) => void };
+  modelSwitcher?: {
+    /** 当前选中项的 value（宿主编码） */
+    model: string;
+    groups: Array<{ label: string; options: Array<{ value: string; label: string }> }>;
+    onChange: (value: string) => void;
+  };
   /**
    * v7.9.1 拖入工作区文件标签：drop 携带 application/x-lemma-paths（路径数组）时回调，
    * 宿主负责把工作区文件转成 File 后经 ref.addFiles() 塞回附件区。
@@ -953,8 +958,8 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(function Ch
             onPaste={onInputPaste}
           />
           <div className="sf-ah-input-actions">
-            {/* v7.9.0 Codex 式会话内切换模型：onChange 由宿主写入激活服务的模型字段 */}
-            {modelSwitcher && modelSwitcher.options.length > 0 && (
+            {/* v7.9.6 Codex 式会话内切换模型：按已配置服务分组（optgroup），选中即切服务 + 模型 */}
+            {modelSwitcher && modelSwitcher.groups.some((g) => g.options.length > 0) && (
               <select
                 className="sf-ah-model-switch"
                 title={labels.modelSwitchTitle}
@@ -962,11 +967,17 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(function Ch
                 disabled={streaming}
                 onChange={(e) => modelSwitcher.onChange(e.target.value)}
               >
-                {[...new Set([modelSwitcher.model, ...modelSwitcher.options])].filter(Boolean).map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
+                {modelSwitcher.groups
+                  .filter((g) => g.options.length > 0)
+                  .map((g) => (
+                    <optgroup key={g.label} label={g.label}>
+                      {g.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
               </select>
             )}
             <button
