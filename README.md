@@ -16,7 +16,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/Xinzhe99/lemma?color=orange)](https://github.com/Xinzhe99/lemma/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
 [![Tauri](https://img.shields.io/badge/Tauri-2-orange)](https://v2.tauri.app)
-[![Tests](https://img.shields.io/badge/tests-2354%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2358%20passing-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [![Stargazers over time](https://starchart.cc/Xinzhe99/lemma.svg?variant=light)](https://starchart.cc/Xinzhe99/lemma)
@@ -151,7 +151,7 @@ packages/agent-hub      Agent core (streaming · tools · blocking approvals · 
 packages/knowledge      RAG · Context Pack · citation guardrails
 ```
 
-**Engineering**: 2,350 tests (205 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
+**Engineering**: 2,358 tests (206 files) · GitHub Actions CI (web + cargo-check) · zh/en UI · local-first (IndexedDB; API keys never leave the machine).
 
 ## 📚 Documentation
 
